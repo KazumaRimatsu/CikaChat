@@ -8,6 +8,7 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* ===== 样式（完整保留） ===== */
         * {
             margin: 0;
             padding: 0;
@@ -279,6 +280,9 @@
         .user-menu-card .menu-list li.admin-item {
             color: var(--md-primary);
         }
+        .user-menu-card .menu-list li.logout-item {
+            color: var(--md-error);
+        }
         .users-strip {
             display: flex;
             align-items: center;
@@ -324,7 +328,6 @@
             font-weight: 700;
             color: white;
         }
-        /* 消息区域禁用选择和高亮，并阻止所有默认菜单 */
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -336,14 +339,12 @@
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
-            -webkit-touch-callout: none;
         }
         .messages * {
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
         }
-        /* 输入框保留选择能力 */
         .msg-input {
             -webkit-user-select: text !important;
             user-select: text !important;
@@ -372,7 +373,6 @@
             gap: 8px;
             margin-top: 8px;
             animation: md-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            /* 禁用文本选择已在父级设置 */
         }
         @keyframes md-enter {
             from {
@@ -401,7 +401,6 @@
             margin-top: 2px;
             cursor: pointer;
             position: relative;
-            /* 长按/双击事件由JS处理 */
         }
         .msg-row .content {
             max-width: 72%;
@@ -440,7 +439,6 @@
             word-wrap: break-word;
             position: relative;
             max-width: 100%;
-            /* 所有点击/长按事件由JS接管 */
             cursor: default;
         }
         .msg-row .bubble {
@@ -462,7 +460,6 @@
             -webkit-user-drag: none;
             user-drag: none;
             pointer-events: none;
-            /* 由上层处理点击，图片本身不响应事件，防止默认菜单 */
         }
         .bubble .img-only {
             padding: 2px;
@@ -707,7 +704,6 @@
             line-height: 1.4;
             max-height: 100px;
             min-height: 20px;
-            /* 保留文本选择 */
             -webkit-user-select: text !important;
             user-select: text !important;
         }
@@ -1306,6 +1302,95 @@
             height: 20px;
             opacity: 0.7;
         }
+        /* 新增：回复预览栏 */
+        .reply-preview {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--md-surface-2dp);
+            padding: 6px 12px;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            border-left: 3px solid var(--md-primary);
+            margin: 0 0 2px 0;
+            font-size: 0.8125rem;
+            color: var(--md-on-surface-muted);
+        }
+        .reply-preview .reply-content {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .reply-preview .reply-cancel {
+            background: none;
+            border: none;
+            color: var(--md-on-surface-dim);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 4px;
+        }
+        .msg-row .bubble .reply-badge {
+            font-size: 0.75rem;
+            color: var(--md-on-surface-dim);
+            background: var(--md-surface-1dp);
+            padding: 2px 8px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            display: inline-block;
+        }
+        .msg-row.own .bubble .reply-badge {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+        }
+        /* 个人信息模态框 */
+        .profile-modal .md-dialog {
+            max-width: 360px;
+        }
+        .profile-modal .profile-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: white;
+            margin: 0 auto 12px;
+        }
+        .profile-modal .profile-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 16px 0;
+        }
+        .profile-modal .profile-info .item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--md-outline);
+            padding: 4px 0;
+        }
+        .profile-modal .profile-info .item .label {
+            color: var(--md-on-surface-dim);
+        }
+        .profile-modal .profile-info .item .value {
+            color: var(--md-on-surface);
+        }
+        .profile-modal .ban-btn {
+            background: var(--md-error);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 24px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 8px;
+        }
+        .profile-modal .ban-btn:active {
+            opacity: 0.8;
+        }
         @media (max-width: 600px) {
             body {
                 padding: 0;
@@ -1335,7 +1420,6 @@
         </div>
 
         <div class="app-bar" id="appBar" style="display:none;">
-            <button class="icon-button" onclick="logout()" title="退出"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
             <div class="title-block"><div class="title">MJChat</div></div>
             <div class="online-indicator"><div class="dot"></div><span id="onlineCount">0</span></div>
             <div class="conn-indicator"><div class="dot" id="connDot"></div><span id="connText">离线</span></div>
@@ -1354,6 +1438,10 @@
                     <li id="adminMenuItem" class="admin-item" style="display:none;" onclick="showAdminDialog()">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
                         管理员功能
+                    </li>
+                    <li class="logout-item" onclick="logout()">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                        退出登录
                     </li>
                 </ul>
             </div>
@@ -1390,7 +1478,16 @@
             <div class="auth-switch">已有账号？<a onclick="showLogin()">登录</a></div>
         </div>
 
+        <!-- 消息区域 -->
         <div class="messages hidden" id="messagesEl"><div class="loading-state" id="loadingEl"><div class="md-progress"></div>加载中...</div></div>
+
+        <!-- 回复预览栏（放在输入框上方） -->
+        <div id="replyPreview" style="display:none; padding:4px 16px 0; background:var(--md-surface-4dp);">
+            <div class="reply-preview">
+                <span class="reply-content" id="replyPreviewContent">回复 @xxx：内容</span>
+                <button class="reply-cancel" onclick="cancelReply()">✕</button>
+            </div>
+        </div>
 
         <div class="chat-bar hidden" id="chatBar">
             <button class="more-btn" id="moreBtn" onclick="toggleFeaturePanel()" title="更多"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
@@ -1472,6 +1569,7 @@
         <input type="file" id="fileInput" style="display:none" onchange="handleFileSelect(event)">
     </div>
 
+    <!-- 管理员清空对话框 -->
     <div class="dialog-overlay hidden" id="clearDialog">
         <div class="md-dialog">
             <h2>管理员功能</h2>
@@ -1483,6 +1581,7 @@
         </div>
     </div>
 
+    <!-- 链接对话框 -->
     <div class="dialog-overlay hidden" id="linkDialog">
         <div class="md-dialog">
             <h2>发送链接</h2>
@@ -1494,11 +1593,32 @@
         </div>
     </div>
 
+    <!-- 图片预览 -->
     <div class="image-preview-overlay hidden" id="imagePreview" onclick="this.classList.add('hidden')"><img id="previewImg" src=""></div>
 
+    <!-- 消息右键菜单 -->
     <div class="msg-context-menu" id="msgContextMenu"></div>
 
+    <!-- 个人信息模态框 -->
+    <div class="dialog-overlay hidden profile-modal" id="profileModal" onclick="if(event.target===this)closeProfileModal()">
+        <div class="md-dialog">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h2>用户信息</h2>
+                <button onclick="closeProfileModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+            </div>
+            <div class="profile-avatar" id="profileAvatar">U</div>
+            <div class="profile-info" id="profileInfo">
+                <div class="item"><span class="label">用户名</span><span class="value" id="profileUsername">-</span></div>
+                <div class="item"><span class="label">IP 地址</span><span class="value" id="profileIP">-</span></div>
+                <div class="item"><span class="label">角色</span><span class="value" id="profileRole">-</span></div>
+                <div class="item"><span class="label">状态</span><span class="value" id="profileStatus">-</span></div>
+            </div>
+            <button class="ban-btn" id="profileBanBtn" style="display:none;" onclick="banUser()">封禁此用户</button>
+        </div>
+    </div>
+
     <script>
+        // ===================== 配置 =====================
         const SUPABASE_URL = 'https://gyityuccpvknquaajtef.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_nOTchg9hF0S8jzcuy7FDQg_TMLoApHG';
         const TABLE_MSG = 'chat_messages';
@@ -1507,51 +1627,12 @@
         const CHANNEL_NAME = 'chat-room-md';
         const RPC_CLEAR = 'clear_chat_messages';
         const HISTORY_LIMIT = 50;
-        const APP_VERSION = 8.1;
-        const VERSION_STR = 'v8.1';
-        const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝', '🙏', '💪',
-            '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲', '♟️', '🎳', '🎮',
-            '🕹️', '🎬', '🎶', '🎼', '🎷', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤗', '🤭', '🫡', '🫶', '🤍', '🩷', '💛', '💚',
-            '💙', '🩵', '💜', '🤎', '🖤', '🩶', '🤝', '👏', '🙌', '👐', '🫳', '🫴', '👋', '🤚', '✋', '🖐️', '🖖', '👈', '👉', '👆', '👇', '☝️',
-            '🫵', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '🫲', '🫱', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '🫶', '🤲', '🫷', '🫸', '👌',
-            '🤌', '🤏', '👈', '👉', '👆', '👇', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '🖐️', '✋', '🖖', '👋', '🤚', '💪', '🦾', '🦵', '🦿', '🦶',
-            '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '🫦', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👩',
-            '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷', '💆', '💇', '🧖', '🧍', '🧎', '🛀', '🛌', '🚶', '🧍', '🧎',
-            '🏃', '💃', '🕺', '🕴️', '👯', '🧖', '🧗', '🤺', '🏇', '⛹️', '🏋️', '🚴', '🚵', '🤸', '🤼', '🤽', '🤾', '🤹', '🎪', '🏂', '🤺', '🏆',
-            '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻',
-            '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼',
-            '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆',
-            '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '⚓', '⛽',
-            '🚧', '🚦', '🚥', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️',
-            '🗻', '🏕️', '⛺', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️',
-            '⛪', '🕌', '🕍', '🛕', '🕋', '⛩️', '🛤️', '🛣️', '🗾', '🎑', '🏞️', '🌅', '🌄', '🌠', '🎇', '🎆', '🌇', '🌆', '🏙️', '🌃', '🌌',
-            '🌉', '🌁', '🌍', '🌎', '🌏', '🌐', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙', '🌚', '🌛', '🌜', '🌡️', '☀️', '🌝', '🌞',
-            '🪐', '⭐', '🌟', '💫', '✨', '☄️', '💥', '🔥', '🌪️', '🌈', '☁️', '⛅', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️', '🌩️', '🌫️',
-            '🌬️', '🌀', '🌬️', '💧', '💦', '☔', '🌊'
-        ];
+        const APP_VERSION = 8.3; // 小版本号更新
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
+        const FORBIDDEN_WORDS = ['漫卷', 'MJ'];
 
-        const FILE_ICONS = {
-            audio: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 13h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S6 19.88 6 18.5s1.12-2.5 2.5-2.5c.42 0 .8.11 1.14.29V11h3.36v4z"/>',
-            video: '<path d="M4 6.47L5.76 10H20v8H4V6.47M22 4h-4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4z"/>',
-            archive: '<path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>',
-            image: '<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>',
-            document: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
-            code: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>',
-            default: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>'
-        };
-        const FILE_EXT_MAP = {
-            audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma', 'opus'],
-            video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'mpg'],
-            archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'],
-            image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'],
-            document: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'odt', 'ods', 'odp'],
-            code: ['js', 'html', 'css', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'php', 'rb', 'go', 'rs', 'ts', 'jsx',
-                'tsx', 'vue', 'sh', 'bat', 'sql', 'yml', 'yaml', 'toml', 'ini', 'md'
-            ]
-        };
-
+        // ===================== 全局状态 =====================
         let sb = null,
             channel = null,
             currentUser = '',
@@ -1568,15 +1649,46 @@
         let activeAudio = null;
         let contextTarget = null;
         let lastPokeTime = 0;
+        let replyTarget = null;
+        let profileTargetUser = null;
 
-        const MK_FALLBACK = '请升级 MJChat 到最新版本查看此消息';
-        const SEP = ' → ';
-        const EMOJI_LINK = '🔗';
-        const EMOJI_FILE = '📎';
-        const EMOJI_VOICE = '📱';
-        const EMOJI_IMAGE = '🖼️';
+        // ===================== 工具函数 =====================
+        function escapeHtml(t) { const d = document.createElement('div');
+            d.textContent = t; return d.innerHTML; }
 
-        // ---------- 工具 ----------
+        function escapeAttr(t) { return t.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+
+        function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i);
+                h |= 0; } return Math.abs(h); }
+
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
+
+        function autoResize(el) { el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+
+        function toggleSendBtn() { document.getElementById('sendBtn').disabled = !document.getElementById('msgInput').value
+                .trim() && !replyTarget; }
+
+        function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault();
+                sendMsg(); } }
+
+        let snackbarTimer = null;
+
+        function showSnackbar(msg) {
+            const ex = document.querySelector('.snackbar');
+            if (ex) ex.remove();
+            if (snackbarTimer) clearTimeout(snackbarTimer);
+            const s = document.createElement('div');
+            s.className = 'snackbar';
+            s.textContent = msg;
+            document.body.appendChild(s);
+            snackbarTimer = setTimeout(() => {
+                s.style.opacity = '0';
+                s.style.transition = 'opacity 0.3s';
+                setTimeout(() => s.remove(), 300);
+            }, 3000);
+        }
+
         function showGlobalLoading(text, sub) {
             const el = document.getElementById('globalLoading');
             el.classList.remove('hidden');
@@ -1594,161 +1706,57 @@
             if (sub) el.querySelector('.loading-sub').textContent = sub;
         }
 
-        async function safeInsertMsg(payload) {
-            const enriched = { ...payload, msg_version: APP_VERSION };
-            let { data, error } = await sb.from(TABLE_MSG).insert(enriched).select('id');
-            if (error && error.message && error.message.includes('msg_version')) {
-                delete enriched.msg_version;
-                const res = await sb.from(TABLE_MSG).insert(enriched).select('id');
-                data = res.data;
-                error = res.error;
+        // ===================== 安全过滤（已修复） =====================
+        function cleanHtml(html) {
+            if (!html) return '';
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const body = doc.body;
+            const allowedTags = ['b', 'i', 'u', 's', 'a', 'img', 'span', 'div', 'br', 'svg', 'path', 'audio', 'source',
+                'button'
+            ];
+            const allowedAttrs = {
+                'a': ['href', 'target', 'rel'],
+                'img': ['src', 'alt', 'width', 'height'],
+                'audio': ['src', 'controls'],
+                'source': ['src', 'type'],
+                'button': ['type']
+            };
+
+            function cleanNode(node) {
+                if (node.nodeType === Node.TEXT_NODE) return node.cloneNode(true);
+                if (node.nodeType !== Node.ELEMENT_NODE) return null;
+                const tag = node.tagName.toLowerCase();
+                if (!allowedTags.includes(tag)) return null;
+                const newNode = document.createElement(tag);
+                const allowed = allowedAttrs[tag] || [];
+                for (const attr of allowed) {
+                    if (node.hasAttribute(attr)) {
+                        const val = node.getAttribute(attr);
+                        if ((attr === 'href' || attr === 'src') && val.toLowerCase().startsWith('javascript:'))
+                            continue;
+                        if (attr === 'href' && !val.match(/^(https?:|mailto:|tel:|#|\/)/i)) continue;
+                        newNode.setAttribute(attr, val);
+                    }
+                }
+                for (const child of node.childNodes) {
+                    const cleanChild = cleanNode(child);
+                    if (cleanChild) newNode.appendChild(cleanChild);
+                }
+                return newNode;
             }
-            return { data, error };
-        }
 
-        function isVersionSupported(msgVersion) {
-            if (!msgVersion) return true;
-            return parseFloat(msgVersion) <= APP_VERSION;
-        }
-
-        function buildVoiceFallback(duration, audioUrl) {
-            const mins = String(Math.floor(duration / 60)).padStart(2, '0');
-            const secs = String(duration % 60).padStart(2, '0');
-            var tail = audioUrl || MK_FALLBACK;
-            return EMOJI_VOICE + ' 语音消息 ' + mins + ':' + secs + SEP + tail;
-        }
-
-        function buildImageFallback(imageUrl) {
-            var tail = imageUrl || MK_FALLBACK;
-            return EMOJI_IMAGE + ' 图片消息' + SEP + tail;
-        }
-
-        function buildLinkText(displayText, url) {
-            return EMOJI_LINK + ' ' + displayText + SEP + url;
-        }
-
-        function buildFileText(filename, fileSize, url) {
-            return EMOJI_FILE + ' ' + filename + ' (' + fileSize + ' KB)' + SEP + url;
-        }
-
-        function parseMarkedText(text) {
-            if (!text) return null;
-            var linkPrefix = EMOJI_LINK + ' ';
-            var filePrefix = EMOJI_FILE + ' ';
-            var voicePrefix = EMOJI_VOICE + ' 语音消息 ';
-            var imagePrefix = EMOJI_IMAGE + ' 图片消息';
-            if (text.startsWith(linkPrefix) && text.includes(SEP)) {
-                var rest = text.substring(linkPrefix.length);
-                var sep = rest.indexOf(SEP);
-                if (sep > 0) return { type: 'link', displayText: rest.substring(0, sep), url: rest.substring(sep + SEP
-                        .length) };
-            }
-            if (text.startsWith(filePrefix) && text.includes(SEP)) {
-                var rest = text.substring(filePrefix.length);
-                var sep = rest.indexOf(SEP);
-                if (sep > 0) return { type: 'file', fileInfo: rest.substring(0, sep), url: rest.substring(sep + SEP
-                        .length) };
-            }
-            if (text.startsWith(voicePrefix) && text.includes(SEP)) {
-                var rest = text.substring(voicePrefix.length);
-                var sep = rest.indexOf(SEP);
-                if (sep > 0) {
-                    var durStr = rest.substring(0, sep).trim();
-                    var after = rest.substring(sep + SEP.length).trim();
-                    var parts = durStr.split(':');
-                    var duration = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
-                    var url = after.startsWith('http') ? after : null;
-                    return { type: 'voice', duration: duration, url: url };
+            // 关键修复：遍历 body 的子节点，而不是检查 body 本身
+            let result = '';
+            for (const child of body.childNodes) {
+                const cleanChild = cleanNode(child);
+                if (cleanChild) {
+                    result += cleanChild.outerHTML || cleanChild.textContent || '';
                 }
             }
-            if (text.startsWith(imagePrefix) && text.includes(SEP)) {
-                var rest = text.substring(imagePrefix.length);
-                var sep = rest.indexOf(SEP);
-                if (sep >= 0) {
-                    var after = rest.substring(sep + SEP.length).trim();
-                    var url = after.startsWith('http') ? after : null;
-                    return { type: 'image', url: url };
-                }
-            }
-            return null;
+            return result;
         }
 
-        function getFileIconSvg(filename) {
-            const ext = (filename.split('.').pop() || '').toLowerCase();
-            for (const [type, exts] of Object.entries(FILE_EXT_MAP)) {
-                if (exts.includes(ext)) return FILE_ICONS[type];
-            }
-            return FILE_ICONS.default;
-        }
-
-        // ---------- 初始化 ----------
-        function init() {
-            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            clientId = generateId();
-            initEmojiPicker();
-            initRipple();
-            initInteractions();
-            showGlobalLoading('登录中…', '正在验证身份');
-            restoreSession();
-        }
-
-        function restoreSession() {
-            const saved = localStorage.getItem('mjchat_session');
-            if (saved) {
-                try {
-                    const session = JSON.parse(saved);
-                    sb.from(TABLE_USERS).select('username').eq('username', session.username).maybeSingle()
-                        .then(({ data }) => {
-                            if (data && !isEntered) {
-                                currentUser = session.username;
-                                isAdmin = ADMIN_USERS.includes(currentUser);
-                                updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
-                                enterChat();
-                            } else {
-                                if (!data) localStorage.removeItem('mjchat_session');
-                                hideGlobalLoading();
-                                showLogin();
-                            }
-                        })
-                        .catch(() => {
-                            localStorage.removeItem('mjchat_session');
-                            hideGlobalLoading();
-                            showLogin();
-                        });
-                } catch (e) {
-                    localStorage.removeItem('mjchat_session');
-                    hideGlobalLoading();
-                    showLogin();
-                }
-            } else {
-                hideGlobalLoading();
-                showLogin();
-            }
-        }
-
-        function initEmojiPicker() {
-            document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
-                `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
-        }
-
-        function initRipple() {
-            document.querySelectorAll('.ripple').forEach(el => {
-                el.addEventListener('click', function(e) {
-                    const r = this.getBoundingClientRect(),
-                        s = Math.max(r.width, r.height),
-                        x = e.clientX - r.left - s / 2,
-                        y = e.clientY - r.top - s / 2;
-                    const rip = document.createElement('span');
-                    rip.className = 'ripple-effect';
-                    rip.style.width = rip.style.height = s + 'px';
-                    rip.style.left = x + 'px';
-                    rip.style.top = y + 'px';
-                    this.appendChild(rip);
-                    setTimeout(() => rip.remove(), 600);
-                });
-            });
-        }
-
+        // ===================== 密码哈希 =====================
         async function hashPassword(password) {
             const encoder = new TextEncoder();
             const data = encoder.encode(SALT + password + SALT);
@@ -1757,7 +1765,7 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        // ---------- 认证 ----------
+        // ===================== 认证 =====================
         function showLogin() {
             document.getElementById('registerScreen').classList.add('hidden');
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -1790,6 +1798,11 @@
             if (!username) return showEl('regError', '请输入用户名');
             if (username.length < 2) return showEl('regError', '用户名至少 2 个字符');
             if (username.length > 20) return showEl('regError', '用户名最多 20 个字符');
+            for (const word of FORBIDDEN_WORDS) {
+                if (username.includes(word)) {
+                    return showEl('regError', '存在敏感词，请更换用户名');
+                }
+            }
             if (password.length < 6) return showEl('regError', '密码至少 6 个字符');
             if (password !== password2) return showEl('regError', '两次密码不一致');
             try {
@@ -1797,7 +1810,12 @@
                     .maybeSingle();
                 if (existing) return showEl('regError', '该用户名已被使用');
                 const passwordHash = await hashPassword(password);
-                const { error } = await sb.from(TABLE_USERS).insert({ username: username, password_hash: passwordHash });
+                const { error } = await sb.from(TABLE_USERS).insert({
+                    username: username,
+                    password_hash: passwordHash,
+                    role: 'user',
+                    banned: false
+                });
                 if (error) {
                     if (error.message.includes('duplicate') || error.message.includes('unique')) return showEl(
                         'regError', '该用户名已被使用');
@@ -1807,6 +1825,7 @@
                 isAdmin = ADMIN_USERS.includes(currentUser);
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
                 showEl('regSuccess', '注册成功！正在进入聊天...');
+                recordUserIP(username);
                 setTimeout(() => {
                     clearRegForm();
                     showGlobalLoading('登录中…', '欢迎 ' + currentUser);
@@ -1832,8 +1851,8 @@
             showGlobalLoading('登录中…', '验证身份中');
             try {
                 const passwordHash = await hashPassword(password);
-                const { data, error } = await sb.from(TABLE_USERS).select('username, password_hash').eq('username',
-                    username).maybeSingle();
+                const { data, error } = await sb.from(TABLE_USERS).select('username, password_hash, banned, role')
+                    .eq('username', username).maybeSingle();
                 if (error) {
                     hideGlobalLoading();
                     return showEl('loginError', '登录失败: ' + error.message);
@@ -1846,11 +1865,16 @@
                     hideGlobalLoading();
                     return showEl('loginError', '密码错误');
                 }
+                if (data.banned) {
+                    hideGlobalLoading();
+                    return showEl('loginError', '您已被封禁，无法登录');
+                }
                 currentUser = username;
-                isAdmin = ADMIN_USERS.includes(currentUser);
+                isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(username);
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
                 document.getElementById('loginPassword').value = '';
                 updateLoadingText('登录中…', '欢迎 ' + currentUser);
+                recordUserIP(username);
                 enterChat();
             } catch (e) {
                 hideGlobalLoading();
@@ -1858,7 +1882,18 @@
             }
         }
 
-        // ---------- 进入聊天室 ----------
+        async function recordUserIP(username) {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const { ip } = await res.json();
+                if (ip) {
+                    await sb.from(TABLE_USERS).update({ last_ip: ip, last_login: new Date().toISOString() }).eq(
+                        'username', username);
+                }
+            } catch (e) { /* 静默失败 */ }
+        }
+
+        // ===================== 进入聊天 =====================
         async function enterChat() {
             if (isEntered) return;
             showGlobalLoading('连接中…', '正在加载消息和建立连接');
@@ -1902,7 +1937,7 @@
             }
         }
 
-        // ---------- 连接 ----------
+        // ===================== 连接与消息订阅 =====================
         function connect() {
             return new Promise((resolve, reject) => {
                 let resolved = false;
@@ -1915,6 +1950,12 @@
                         channel.on('broadcast', { event: 'clear_messages' }, () => handleMessagesCleared());
                         channel.on('broadcast', { event: 'delete_message' }, p => handleMessageDeleted(p
                             .payload.id));
+                        channel.on('broadcast', { event: 'user_banned' }, (p) => {
+                            if (p.payload.username === currentUser) {
+                                showSnackbar('您已被管理员封禁，即将下线');
+                                setTimeout(() => logout(), 2000);
+                            }
+                        });
                         channel
                             .on('presence', { event: 'sync' }, () => {
                                 onlineUsers = channel.presenceState();
@@ -1976,10 +2017,18 @@
 
         async function loadHistory() {
             try {
-                let result = await sb.from(TABLE_MSG).select('id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at')
+                let result = await sb.from(TABLE_MSG).select(
+                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content'
+                        )
                     .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
+                if (result.error && result.error.message && result.error.message.includes('reply_to_id')) {
+                    result = await sb.from(TABLE_MSG).select(
+                            'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at')
+                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
+                }
                 if (result.error && result.error.message && result.error.message.includes('msg_version')) {
-                    result = await sb.from(TABLE_MSG).select('id, sender, text, image_url, audio_url, audio_dur, created_at')
+                    result = await sb.from(TABLE_MSG).select(
+                            'id, sender, text, image_url, audio_url, audio_dur, created_at')
                         .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
                 }
                 if (result.error && result.error.message && result.error.message.includes('audio_url')) {
@@ -2021,7 +2070,7 @@
             }
         }
 
-        // ---------- 消息处理 ----------
+        // ===================== 消息处理 =====================
         function handleNewMessage(msg, isHistory = false) {
             if (allMessages.some(m => m.id === msg.id)) return;
             const nm = {
@@ -2032,7 +2081,9 @@
                 audio_url: msg.audio_url || null,
                 audio_dur: msg.audio_dur || 0,
                 msg_version: msg.msg_version || null,
-                created_at: msg.created_at
+                created_at: msg.created_at,
+                reply_to_id: msg.reply_to_id || null,
+                reply_content: msg.reply_content || null
             };
             allMessages.push(nm);
             const e = document.getElementById('emptyState');
@@ -2059,6 +2110,14 @@
             let msgType = 'text';
             let linkUrl = null;
             let imageUrl = null;
+
+            let replyHtml = '';
+            if (msg.reply_to_id && msg.reply_content) {
+                const repliedSender = msg.reply_content.match(/回复 @([^：]+)：/);
+                const displayName = repliedSender ? repliedSender[1] : '用户';
+                replyHtml =
+                    `<div class="reply-badge">↩ 回复 @${escapeHtml(displayName)}：${escapeHtml(msg.reply_content.replace(/回复 @[^：]+：/, ''))}</div>`;
+            }
 
             if (!isVersionSupported(msg.msg_version)) {
                 bubbleContent =
@@ -2098,7 +2157,7 @@
                     imageUrl = msg.image_url;
                     bubbleContent =
                         `<img src="${escapeAttr(msg.image_url)}" onclick="previewImage('${escapeAttr(msg.image_url)}')" alt="图片" draggable="false">`;
-                    if (msg.text && !msg.text.startsWith(EMOJI_IMAGE + ' 图片消息')) {
+                    if (msg.text && !msg.text.startsWith('🖼️ 图片消息')) {
                         bubbleContent += `<div style="margin-top:6px;">${sanitizeHtml(msg.text)}</div>`;
                     }
                     msgType = 'image';
@@ -2116,7 +2175,10 @@
                         msgType = 'file';
                         linkUrl = marked.url;
                     } else {
-                        bubbleContent = sanitizeHtml(msg.text);
+                        // 普通文本：用 cleanHtml 过滤后，再处理 @
+                        let cleaned = cleanHtml(msg.text);
+                        cleaned = cleaned.replace(/@([\w\u4e00-\u9fa5]+)/g, '<b>@$1</b>');
+                        bubbleContent = cleaned;
                         msgType = 'text';
                     }
                 }
@@ -2131,16 +2193,17 @@
             row.dataset.msgType = msgType;
             row.dataset.linkUrl = linkUrl || '';
             row.dataset.imageUrl = imageUrl || '';
+            row.dataset.replyToId = msg.reply_to_id || '';
+            row.dataset.replyContent = msg.reply_content || '';
+
             row.innerHTML =
-                `<div class="avatar av-${ci}" data-sender="${msg.sender}">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div><div class="content"><div class="meta"><span class="sender">${escapeHtml(msg.sender)}</span><span class="time">${time}</span></div><div class="bubble ${(msg.image_url && (!msg.text || msg.text.startsWith(EMOJI_IMAGE + ' 图片消息'))) ? 'img-only' : ''}">${bubbleContent}</div></div>`;
+                `<div class="avatar av-${ci}" data-sender="${msg.sender}" data-username="${msg.sender}">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div><div class="content"><div class="meta"><span class="sender">${escapeHtml(msg.sender)}</span><span class="time">${time}</span></div><div class="bubble ${(msg.image_url && (!msg.text || msg.text.startsWith('🖼️ 图片消息'))) ? 'img-only' : ''}">${replyHtml}${bubbleContent}</div></div>`;
             c.appendChild(row);
         }
 
         function sanitizeHtml(text) {
             if (!text) return '';
-            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return escaped.replace(/&lt;(\/?(?:b|i|u|s|a|span|div|br|svg|path|audio|source|button|img)(?:[^&]|&(?!gt;))*)&gt;/gi,
-                '<$1>');
+            return cleanHtml(text);
         }
 
         function addSystemMsg(text) {
@@ -2153,13 +2216,31 @@
             scrollToBottom();
         }
 
-        // ---------- 发送消息 ----------
+        // ===================== 发送消息 =====================
         async function sendMsg() {
             const input = document.getElementById('msgInput');
-            const text = input.value.trim();
-            if (!text || !channel) return;
+            let text = input.value.trim();
+            if (!text && !replyTarget) {
+                showSnackbar('请输入内容');
+                return;
+            }
+            if (text) {
+                text = cleanHtml(text);
+                if (!text) {
+                    showSnackbar('消息包含不安全内容，已过滤');
+                    return;
+                }
+            }
             document.getElementById('sendBtn').disabled = true;
-            const { error } = await safeInsertMsg({ sender: currentUser, text: text });
+            const payload = {
+                sender: currentUser,
+                text: text || ''
+            };
+            if (replyTarget) {
+                payload.reply_to_id = replyTarget.id;
+                payload.reply_content = `回复 @${replyTarget.sender}：${replyTarget.content}`;
+            }
+            const { error } = await safeInsertMsg(payload);
             if (error) {
                 addSystemMsg('发送失败');
                 document.getElementById('sendBtn').disabled = false;
@@ -2167,10 +2248,160 @@
             }
             input.value = '';
             autoResize(input);
+            cancelReply();
             toggleSendBtn();
         }
 
-        // ---------- 图片 ----------
+        async function safeInsertMsg(payload) {
+            const enriched = { ...payload, msg_version: APP_VERSION };
+            let { data, error } = await sb.from(TABLE_MSG).insert(enriched).select('id');
+            if (error && error.message && (error.message.includes('reply_to_id') || error.message.includes(
+                    'reply_content'))) {
+                delete enriched.reply_to_id;
+                delete enriched.reply_content;
+                const res = await sb.from(TABLE_MSG).insert(enriched).select('id');
+                data = res.data;
+                error = res.error;
+            }
+            if (error && error.message && error.message.includes('msg_version')) {
+                delete enriched.msg_version;
+                const res = await sb.from(TABLE_MSG).insert(enriched).select('id');
+                data = res.data;
+                error = res.error;
+            }
+            return { data, error };
+        }
+
+        // ===================== 回复相关 =====================
+        function setReplyTarget(msgId, sender, content) {
+            replyTarget = { id: msgId, sender, content };
+            const preview = document.getElementById('replyPreview');
+            document.getElementById('replyPreviewContent').textContent = `回复 @${sender}：${content}`;
+            preview.style.display = 'block';
+            document.getElementById('msgInput').focus();
+            toggleSendBtn();
+        }
+
+        function cancelReply() {
+            replyTarget = null;
+            document.getElementById('replyPreview').style.display = 'none';
+            toggleSendBtn();
+        }
+
+        // ===================== 解析标记文本 =====================
+        const SEP = ' → ';
+        const EMOJI_LINK = '🔗';
+        const EMOJI_FILE = '📎';
+        const EMOJI_VOICE = '📱';
+        const EMOJI_IMAGE = '🖼️';
+
+        function parseMarkedText(text) {
+            if (!text) return null;
+            var linkPrefix = EMOJI_LINK + ' ';
+            var filePrefix = EMOJI_FILE + ' ';
+            var voicePrefix = EMOJI_VOICE + ' 语音消息 ';
+            var imagePrefix = EMOJI_IMAGE + ' 图片消息';
+            if (text.startsWith(linkPrefix) && text.includes(SEP)) {
+                var rest = text.substring(linkPrefix.length);
+                var sep = rest.indexOf(SEP);
+                if (sep > 0) return { type: 'link', displayText: rest.substring(0, sep), url: rest.substring(sep + SEP
+                        .length) };
+            }
+            if (text.startsWith(filePrefix) && text.includes(SEP)) {
+                var rest = text.substring(filePrefix.length);
+                var sep = rest.indexOf(SEP);
+                if (sep > 0) return { type: 'file', fileInfo: rest.substring(0, sep), url: rest.substring(sep + SEP
+                        .length) };
+            }
+            if (text.startsWith(voicePrefix) && text.includes(SEP)) {
+                var rest = text.substring(voicePrefix.length);
+                var sep = rest.indexOf(SEP);
+                if (sep > 0) {
+                    var durStr = rest.substring(0, sep).trim();
+                    var after = rest.substring(sep + SEP.length).trim();
+                    var parts = durStr.split(':');
+                    var duration = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+                    var url = after.startsWith('http') ? after : null;
+                    return { type: 'voice', duration: duration, url: url };
+                }
+            }
+            if (text.startsWith(imagePrefix) && text.includes(SEP)) {
+                var rest = text.substring(imagePrefix.length);
+                var sep = rest.indexOf(SEP);
+                if (sep >= 0) {
+                    var after = rest.substring(sep + SEP.length).trim();
+                    var url = after.startsWith('http') ? after : null;
+                    return { type: 'image', url: url };
+                }
+            }
+            return null;
+        }
+
+        function getFileIconSvg(filename) {
+            const ext = (filename.split('.').pop() || '').toLowerCase();
+            const FILE_ICONS = {
+                audio: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 13h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S6 19.88 6 18.5s1.12-2.5 2.5-2.5c.42 0 .8.11 1.14.29V11h3.36v4z"/>',
+                video: '<path d="M4 6.47L5.76 10H20v8H4V6.47M22 4h-4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4z"/>',
+                archive: '<path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>',
+                image: '<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>',
+                document: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+                code: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>',
+                default: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>'
+            };
+            const FILE_EXT_MAP = {
+                audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma', 'opus'],
+                video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'mpg'],
+                archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'],
+                image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'],
+                document: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'odt', 'ods',
+                    'odp'
+                ],
+                code: ['js', 'html', 'css', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'php', 'rb', 'go', 'rs',
+                    'ts', 'jsx', 'tsx', 'vue', 'sh', 'bat', 'sql', 'yml', 'yaml', 'toml', 'ini', 'md'
+                ]
+            };
+            for (const [type, exts] of Object.entries(FILE_EXT_MAP)) {
+                if (exts.includes(ext)) return FILE_ICONS[type];
+            }
+            return FILE_ICONS.default;
+        }
+
+        // ===================== 功能面板 =====================
+        function toggleFeaturePanel() {
+            const panel = document.getElementById('featurePanel');
+            const btn = document.getElementById('moreBtn');
+            const input = document.getElementById('msgInput');
+            input.blur();
+            if (panel.classList.contains('show')) {
+                closeFeaturePanel();
+            } else {
+                panel.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function closeFeaturePanel() {
+            const panel = document.getElementById('featurePanel');
+            const btn = document.getElementById('moreBtn');
+            closeSubPanel();
+            panel.classList.remove('show');
+            btn.classList.remove('active');
+        }
+
+        function onInputFocus() {
+            const emojiActive = document.getElementById('emojiSubPanel').classList.contains('active');
+            const textEffectActive = document.getElementById('textEffectSubPanel').classList.contains('active');
+            const voiceActive = document.getElementById('voiceSubPanel').classList.contains('active');
+            if (!emojiActive && !textEffectActive && !voiceActive) {
+                closeFeaturePanel();
+            }
+        }
+
+        function openImagePicker() {
+            closeFeaturePanel();
+            document.getElementById('imageInput').click();
+        }
+
         async function handleImageSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -2231,7 +2462,11 @@
             document.getElementById('imagePreview').classList.remove('hidden');
         }
 
-        // ---------- 文件 ----------
+        function openFilePicker() {
+            closeFeaturePanel();
+            document.getElementById('fileInput').click();
+        }
+
         async function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -2258,99 +2493,48 @@
             } catch (e) { showSnackbar('上传失败'); }
         }
 
-        function openFilePicker() {
+        function buildImageFallback(imageUrl) {
+            var tail = imageUrl || '未知';
+            return EMOJI_IMAGE + ' 图片消息' + SEP + tail;
+        }
+
+        function buildLinkText(displayText, url) {
+            return EMOJI_LINK + ' ' + displayText + SEP + url;
+        }
+
+        function buildFileText(filename, fileSize, url) {
+            return EMOJI_FILE + ' ' + filename + ' (' + fileSize + ' KB)' + SEP + url;
+        }
+
+        function openLinkDialog() {
             closeFeaturePanel();
-            document.getElementById('fileInput').click();
+            document.getElementById('linkDialog').classList.remove('hidden');
+            document.getElementById('linkText').focus();
         }
 
-        // ---------- 清空 ----------
-        function showClearDialog() {
-            document.getElementById('clearDialog').classList.remove('hidden');
+        function hideLinkDialog() {
+            document.getElementById('linkDialog').classList.add('hidden');
+            document.getElementById('linkText').value = '';
+            document.getElementById('linkUrl').value = '';
         }
 
-        function hideClearDialog() {
-            document.getElementById('clearDialog').classList.add('hidden');
+        async function sendLink() {
+            const text = document.getElementById('linkText').value.trim();
+            const url = document.getElementById('linkUrl').value.trim();
+            if (!url) { showSnackbar('请输入链接地址'); return; }
+            const displayText = text || url;
+            const linkText = buildLinkText(displayText, url);
+            hideLinkDialog();
+            if (!channel) return;
+            const { error } = await safeInsertMsg({ sender: currentUser, text: linkText });
+            if (error) showSnackbar('发送链接失败');
         }
 
-        async function clearMessages() {
-            hideClearDialog();
-            if (!isAdmin) return;
-            let cleared = false;
-            try {
-                const { error } = await sb.rpc(RPC_CLEAR);
-                if (!error) cleared = true;
-                else if (!error.message.includes('function') && !error.message.includes('does not exist')) {
-                    showSnackbar('清空失败: ' + error.message);
-                    return;
-                }
-            } catch (e) {}
-            if (!cleared) {
-                try {
-                    const { error } = await sb.from(TABLE_MSG).delete().neq('id',
-                    '00000000-0000-0000-0000-000000000000');
-                    if (error) { showSnackbar('清空失败: ' + error.message); return; }
-                    cleared = true;
-                    showSnackbar('已清空。建议运行 VACUUM 释放空间');
-                } catch (e) { showSnackbar('清空失败'); return; }
-            }
-            if (cleared) {
-                channel.send({ type: 'broadcast', event: 'clear_messages', payload: {} });
-                handleMessagesCleared();
-                if (!document.querySelector('.snackbar')) showSnackbar('消息已清空');
-            }
-        }
-
-        function handleMessagesCleared() {
-            allMessages = [];
-            lastDateLabel = '';
-            const el = document.getElementById('messagesEl');
-            el.innerHTML = '';
-            showEmptyState();
-            addSystemMsg('聊天记录已被清空');
-        }
-
-        function handleMessageDeleted(msgId) {
-            allMessages = allMessages.filter(m => m.id !== msgId);
-            const rows = document.querySelectorAll('.msg-row');
-            rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
-            if (allMessages.length === 0) { lastDateLabel = '';
-                showEmptyState(); }
-        }
-
-        // ---------- UI 控制 ----------
-        function toggleFeaturePanel() {
-            const panel = document.getElementById('featurePanel');
-            const btn = document.getElementById('moreBtn');
+        function insertEmoji(emoji) {
             const input = document.getElementById('msgInput');
-            input.blur();
-            if (panel.classList.contains('show')) {
-                closeFeaturePanel();
-            } else {
-                panel.classList.add('show');
-                btn.classList.add('active');
-            }
-        }
-
-        function closeFeaturePanel() {
-            const panel = document.getElementById('featurePanel');
-            const btn = document.getElementById('moreBtn');
-            closeSubPanel();
-            panel.classList.remove('show');
-            btn.classList.remove('active');
-        }
-
-        function onInputFocus() {
-            const emojiActive = document.getElementById('emojiSubPanel').classList.contains('active');
-            const textEffectActive = document.getElementById('textEffectSubPanel').classList.contains('active');
-            const voiceActive = document.getElementById('voiceSubPanel').classList.contains('active');
-            if (!emojiActive && !textEffectActive && !voiceActive) {
-                closeFeaturePanel();
-            }
-        }
-
-        function openImagePicker() {
-            closeFeaturePanel();
-            document.getElementById('imageInput').click();
+            input.value += emoji;
+            autoResize(input);
+            toggleSendBtn();
         }
 
         function openEmojiSubPanel() {
@@ -2395,38 +2579,7 @@
             input.setSelectionRange(newPos, newPos);
         }
 
-        function openLinkDialog() {
-            closeFeaturePanel();
-            document.getElementById('linkDialog').classList.remove('hidden');
-            document.getElementById('linkText').focus();
-        }
-
-        function hideLinkDialog() {
-            document.getElementById('linkDialog').classList.add('hidden');
-            document.getElementById('linkText').value = '';
-            document.getElementById('linkUrl').value = '';
-        }
-
-        async function sendLink() {
-            const text = document.getElementById('linkText').value.trim();
-            const url = document.getElementById('linkUrl').value.trim();
-            if (!url) { showSnackbar('请输入链接地址'); return; }
-            const displayText = text || url;
-            const linkText = buildLinkText(displayText, url);
-            hideLinkDialog();
-            if (!channel) return;
-            const { error } = await safeInsertMsg({ sender: currentUser, text: linkText });
-            if (error) showSnackbar('发送链接失败');
-        }
-
-        function insertEmoji(emoji) {
-            const input = document.getElementById('msgInput');
-            input.value += emoji;
-            autoResize(input);
-            toggleSendBtn();
-        }
-
-        // ---------- 语音 ----------
+        // ===================== 语音 =====================
         async function toggleRecording() {
             const btn = document.getElementById('recordBtn');
             const timer = document.getElementById('recordTimer');
@@ -2510,6 +2663,13 @@
             } catch (e) { showSnackbar('上传失败'); }
         }
 
+        function buildVoiceFallback(duration, audioUrl) {
+            const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+            const secs = String(duration % 60).padStart(2, '0');
+            var tail = audioUrl || '未知';
+            return EMOJI_VOICE + ' 语音消息 ' + mins + ':' + secs + SEP + tail;
+        }
+
         function toggleVoicePlay(wrap, event) {
             event.stopPropagation();
             const audioUrl = wrap.dataset.audio;
@@ -2555,7 +2715,7 @@
             activeAudio = { audio, wrap };
         }
 
-        // ---------- 在线用户 ----------
+        // ===================== 在线用户 =====================
         function renderOnlineUsers() {
             const c = document.getElementById('userChips');
             const users = [];
@@ -2584,6 +2744,7 @@
             });
         }
 
+        // ===================== 登出 =====================
         function logout() {
             if (channel) { channel.untrack();
                 sb.removeChannel(channel);
@@ -2611,9 +2772,10 @@
                 '<div class="loading-state" id="loadingEl"><div class="md-progress"></div>加载中...</div>';
             hideGlobalLoading();
             closeUserMenu();
+            cancelReply();
         }
 
-        // ---------- 用户菜单 ----------
+        // ===================== 用户菜单 =====================
         function toggleUserMenu() {
             const overlay = document.getElementById('userMenuOverlay');
             if (overlay.classList.contains('show')) {
@@ -2634,55 +2796,73 @@
             showClearDialog();
         }
 
-        // ---------- 工具函数 ----------
-        function escapeHtml(t) { const d = document.createElement('div');
-            d.textContent = t; return d.innerHTML; }
-
-        function escapeAttr(t) { return t.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
-
-        function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i);
-                h |= 0; } return Math.abs(h); }
-
-        function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
-
-        function autoResize(el) { el.style.height = 'auto';
-            el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
-
-        function toggleSendBtn() { document.getElementById('sendBtn').disabled = !document.getElementById('msgInput').value
-            .trim(); }
-
-        function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault();
-                sendMsg(); } }
-
-        let snackbarTimer = null;
-
-        function showSnackbar(msg) {
-            const ex = document.querySelector('.snackbar');
-            if (ex) ex.remove();
-            if (snackbarTimer) clearTimeout(snackbarTimer);
-            const s = document.createElement('div');
-            s.className = 'snackbar';
-            s.textContent = msg;
-            document.body.appendChild(s);
-            snackbarTimer = setTimeout(() => {
-                s.style.opacity = '0';
-                s.style.transition = 'opacity 0.3s';
-                setTimeout(() => s.remove(), 300);
-            }, 3000);
+        // ===================== 清空消息 =====================
+        function showClearDialog() {
+            document.getElementById('clearDialog').classList.remove('hidden');
         }
 
-        // ========== 交互：长按/右键菜单，头像@和拍一拍 ==========
+        function hideClearDialog() {
+            document.getElementById('clearDialog').classList.add('hidden');
+        }
+
+        async function clearMessages() {
+            hideClearDialog();
+            if (!isAdmin) return;
+            let cleared = false;
+            try {
+                const { error } = await sb.rpc(RPC_CLEAR);
+                if (!error) cleared = true;
+                else if (!error.message.includes('function') && !error.message.includes('does not exist')) {
+                    showSnackbar('清空失败: ' + error.message);
+                    return;
+                }
+            } catch (e) {}
+            if (!cleared) {
+                try {
+                    const { error } = await sb.from(TABLE_MSG).delete().neq('id',
+                    '00000000-0000-0000-0000-000000000000');
+                    if (error) { showSnackbar('清空失败: ' + error.message); return; }
+                    cleared = true;
+                    showSnackbar('已清空。建议运行 VACUUM 释放空间');
+                } catch (e) { showSnackbar('清空失败'); return; }
+            }
+            if (cleared) {
+                channel.send({ type: 'broadcast', event: 'clear_messages', payload: {} });
+                handleMessagesCleared();
+                if (!document.querySelector('.snackbar')) showSnackbar('消息已清空');
+            }
+        }
+
+        function handleMessagesCleared() {
+            allMessages = [];
+            lastDateLabel = '';
+            const el = document.getElementById('messagesEl');
+            el.innerHTML = '';
+            showEmptyState();
+            addSystemMsg('聊天记录已被清空');
+        }
+
+        function handleMessageDeleted(msgId) {
+            allMessages = allMessages.filter(m => m.id !== msgId);
+            const rows = document.querySelectorAll('.msg-row');
+            rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
+            if (allMessages.length === 0) { lastDateLabel = '';
+                showEmptyState(); }
+        }
+
+        function isVersionSupported(msgVersion) {
+            if (!msgVersion) return true;
+            return parseFloat(msgVersion) <= APP_VERSION;
+        }
+
+        // ===================== 交互：头像单击弹出个人信息，长按@，双击拍一拍 =====================
         function initInteractions() {
             const messagesEl = document.getElementById('messagesEl');
 
-            // ---- 1. 完全阻止消息区域的默认菜单 ----
             messagesEl.addEventListener('contextmenu', (e) => {
-                if (!e.target.closest('.msg-input')) {
-                    e.preventDefault();
-                }
+                if (!e.target.closest('.msg-input')) e.preventDefault();
             });
 
-            // ---- 2. 长按/右键菜单（在 .bubble 区域触发） ----
             let pressTimer = null;
             let pressStartX = 0,
                 pressStartY = 0;
@@ -2694,19 +2874,15 @@
                 if (target.closest('.msg-input')) return;
                 const bubble = target.closest('.bubble');
                 if (!bubble) return;
-                // 图片本身不触发，由上层处理
                 if (target.closest('img')) return;
-
                 const row = bubble.closest('.msg-row');
                 if (!row) return;
-
                 const cx = e.touches ? e.touches[0].clientX : e.clientX;
                 const cy = e.touches ? e.touches[0].clientY : e.clientY;
                 pressStartX = cx;
                 pressStartY = cy;
                 pressMoved = false;
                 pressTargetRow = row;
-
                 pressTimer = setTimeout(() => {
                     if (!pressMoved && pressTargetRow) {
                         showContextMenuForRow(pressTargetRow, pressStartX, pressStartY);
@@ -2714,7 +2890,6 @@
                     }
                 }, 500);
             };
-
             const movePress = (e) => {
                 if (!pressTimer) return;
                 const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -2726,7 +2901,6 @@
                     pressTargetRow = null;
                 }
             };
-
             const endPress = () => {
                 if (pressTimer) {
                     clearTimeout(pressTimer);
@@ -2734,25 +2908,13 @@
                     pressTargetRow = null;
                 }
             };
-
-            // Touch
             messagesEl.addEventListener('touchstart', startPress, { passive: true });
             messagesEl.addEventListener('touchmove', movePress, { passive: true });
             messagesEl.addEventListener('touchend', endPress);
             messagesEl.addEventListener('touchcancel', endPress);
-
-            // Mouse: 右键直接触发，左键长按
-            messagesEl.addEventListener('mousedown', (e) => {
-                if (e.button === 0) startPress(e);
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (pressTimer && e.button === 0) movePress(e);
-            });
-            document.addEventListener('mouseup', (e) => {
-                if (e.button === 0) endPress();
-            });
-
-            // 右键直接弹菜单（已在 contextmenu 中阻止默认，但我们需要触发自定义菜单）
+            messagesEl.addEventListener('mousedown', (e) => { if (e.button === 0) startPress(e); });
+            document.addEventListener('mousemove', (e) => { if (pressTimer && e.button === 0) movePress(e); });
+            document.addEventListener('mouseup', (e) => { if (e.button === 0) endPress(); });
             messagesEl.addEventListener('contextmenu', (e) => {
                 const target = e.target;
                 if (target.closest('.msg-input')) return;
@@ -2760,53 +2922,62 @@
                 if (!bubble) return;
                 if (target.closest('img')) return;
                 const row = bubble.closest('.msg-row');
-                if (row) {
-                    e.preventDefault();
-                    showContextMenuForRow(row, e.clientX, e.clientY);
-                }
+                if (row) { e.preventDefault();
+                    showContextMenuForRow(row, e.clientX, e.clientY); }
             });
 
-            // ---- 3. 头像：长按@，双击拍一拍 ----
+            // 头像交互
+            let avatarPressTimer = null;
+            let avatarMoved = false;
+            let avatarStartX = 0,
+                avatarStartY = 0;
+            let avatarTarget = null;
             messagesEl.addEventListener('pointerdown', (e) => {
                 const avatar = e.target.closest('.avatar');
                 if (!avatar) return;
                 const sender = avatar.dataset.sender;
-                if (!sender || sender === currentUser) return;
-
-                let timer = null;
-                const startX = e.clientX,
-                    startY = e.clientY;
-                let moved = false;
-
-                const onMove = (ev) => {
-                    if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startY) > 10) {
-                        moved = true;
-                        clearTimeout(timer);
-                        document.removeEventListener('pointermove', onMove);
-                        document.removeEventListener('pointerup', onUp);
-                    }
-                };
-                const onUp = () => {
-                    clearTimeout(timer);
-                    document.removeEventListener('pointermove', onMove);
-                    document.removeEventListener('pointerup', onUp);
-                    if (!moved && timer) {
-                        // 长按成功
-                        insertAtMention(sender);
-                    }
-                };
-                timer = setTimeout(() => {
-                    if (!moved) {
-                        document.removeEventListener('pointermove', onMove);
-                        document.removeEventListener('pointerup', onUp);
-                        insertAtMention(sender);
+                if (!sender) return;
+                avatarTarget = avatar;
+                const cx = e.clientX,
+                    cy = e.clientY;
+                avatarStartX = cx;
+                avatarStartY = cy;
+                avatarMoved = false;
+                avatarPressTimer = setTimeout(() => {
+                    if (!avatarMoved && avatarTarget) {
+                        const sender = avatarTarget.dataset.sender;
+                        if (sender && sender !== currentUser) {
+                            insertAtMention(sender);
+                        }
+                        avatarTarget = null;
                     }
                 }, 500);
-                document.addEventListener('pointermove', onMove);
-                document.addEventListener('pointerup', onUp);
+            });
+            document.addEventListener('pointermove', (e) => {
+                if (!avatarPressTimer) return;
+                const cx = e.clientX,
+                    cy = e.clientY;
+                if (Math.abs(cx - avatarStartX) > 10 || Math.abs(cy - avatarStartY) > 10) {
+                    avatarMoved = true;
+                    clearTimeout(avatarPressTimer);
+                    avatarPressTimer = null;
+                    avatarTarget = null;
+                }
+            });
+            document.addEventListener('pointerup', (e) => {
+                if (avatarPressTimer) {
+                    clearTimeout(avatarPressTimer);
+                    avatarPressTimer = null;
+                    if (!avatarMoved && avatarTarget) {
+                        const sender = avatarTarget.dataset.sender;
+                        if (sender) {
+                            showProfileModal(sender);
+                        }
+                    }
+                    avatarTarget = null;
+                }
             });
 
-            // 双击拍一拍
             messagesEl.addEventListener('dblclick', (e) => {
                 const avatar = e.target.closest('.avatar');
                 if (!avatar) return;
@@ -2818,15 +2989,10 @@
                     return;
                 }
                 lastPokeTime = now;
-                // 发送系统消息：你拍了拍 xxx
                 addSystemMsg(`你拍了拍 ${sender}`);
             });
-
-            // 点击图片预览（已在 img onclick 中处理，无需额外）
-            // 点击链接由浏览器默认处理，但我们在 bubble 中阻止了默认菜单，但链接仍可点击
         }
 
-        // 插入 @用户名 到输入框
         function insertAtMention(sender) {
             const input = document.getElementById('msgInput');
             const atText = `@${sender} `;
@@ -2840,7 +3006,77 @@
             toggleSendBtn();
         }
 
-        // ---- 显示自定义菜单 ----
+        // ===================== 个人信息模态框 =====================
+        async function showProfileModal(username) {
+            if (!username) return;
+            profileTargetUser = username;
+            const modal = document.getElementById('profileModal');
+            modal.classList.remove('hidden');
+
+            const avatarEl = document.getElementById('profileAvatar');
+            const idx = hashStr(username) % 8;
+            avatarEl.className = 'profile-avatar av-' + idx;
+            avatarEl.textContent = username.charAt(0).toUpperCase();
+
+            try {
+                const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, last_ip, last_login')
+                    .eq('username', username).maybeSingle();
+                if (error || !data) {
+                    document.getElementById('profileUsername').textContent = username;
+                    document.getElementById('profileIP').textContent = '未知';
+                    document.getElementById('profileRole').textContent = '用户';
+                    document.getElementById('profileStatus').textContent = '未知';
+                } else {
+                    document.getElementById('profileUsername').textContent = data.username;
+                    document.getElementById('profileIP').textContent = data.last_ip || '未记录';
+                    document.getElementById('profileRole').textContent = data.role === 'admin' ? '管理员' : '普通用户';
+                    document.getElementById('profileStatus').textContent = data.banned ? '已封禁' : '正常';
+                    const banBtn = document.getElementById('profileBanBtn');
+                    if (isAdmin && data.username !== currentUser) {
+                        banBtn.style.display = 'block';
+                        banBtn.textContent = data.banned ? '解封此用户' : '封禁此用户';
+                        banBtn.dataset.username = data.username;
+                        banBtn.dataset.banned = data.banned;
+                    } else {
+                        banBtn.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                document.getElementById('profileUsername').textContent = username;
+                document.getElementById('profileIP').textContent = '加载失败';
+                document.getElementById('profileRole').textContent = '?';
+                document.getElementById('profileStatus').textContent = '?';
+            }
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+            profileTargetUser = null;
+        }
+
+        async function banUser() {
+            const btn = document.getElementById('profileBanBtn');
+            const username = btn.dataset.username;
+            const currentlyBanned = btn.dataset.banned === 'true';
+            const newState = !currentlyBanned;
+            if (!confirm(`确定要${newState?'封禁':'解封'}用户 ${username} 吗？`)) return;
+
+            try {
+                const { error } = await sb.from(TABLE_USERS).update({ banned: newState }).eq('username', username);
+                if (error) { showSnackbar('操作失败: ' + error.message); return; }
+                showSnackbar(`用户 ${username} 已${newState?'封禁':'解封'}`);
+                if (newState && username === currentUser) {
+                    showSnackbar('您已被封禁，即将下线');
+                    setTimeout(() => logout(), 1000);
+                }
+                if (newState) {
+                    channel.send({ type: 'broadcast', event: 'user_banned', payload: { username } });
+                }
+                showProfileModal(username);
+            } catch (e) { showSnackbar('操作失败'); }
+        }
+
+        // ===================== 右键菜单 =====================
         function showContextMenuForRow(row, x, y) {
             closeContextMenu();
             const menu = document.getElementById('msgContextMenu');
@@ -2853,8 +3089,10 @@
             const type = row.dataset.msgType || 'text';
             const linkUrl = row.dataset.linkUrl || '';
             const imageUrl = row.dataset.imageUrl || '';
+            const replyToId = row.dataset.replyToId || '';
+            const replyContent = row.dataset.replyContent || '';
 
-            contextTarget = { row, msgId, sender, text, version, type, linkUrl, imageUrl };
+            contextTarget = { row, msgId, sender, text, version, type, linkUrl, imageUrl, replyToId, replyContent };
 
             const isOwn = sender === currentUser;
             const canDelete = isOwn || isAdmin;
@@ -2863,7 +3101,8 @@
                 save: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/></svg>',
                 open: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>',
                 copy: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>',
-                delete: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>'
+                delete: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+                reply: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>'
             };
 
             const addItem = (label, iconSvg, action) => {
@@ -2877,6 +3116,11 @@
                 });
                 menu.appendChild(item);
             };
+
+            const replyContentText = text || '图片/语音/文件';
+            addItem('回复', icons.reply, () => {
+                setReplyTarget(msgId, sender, replyContentText);
+            });
 
             if (type === 'image') {
                 addItem('保存图片', icons.save, () => {
@@ -2937,7 +3181,6 @@
                 }
                 if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
             } else {
-                // voice, unsupported 等
                 if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
             }
 
@@ -2968,10 +3211,7 @@
             const msgId = contextTarget.msgId;
             if (!msgId) { showSnackbar('无效消息'); return; }
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(msgId)) {
-                showSnackbar('无效的消息ID');
-                return;
-            }
+            if (!uuidRegex.test(msgId)) { showSnackbar('无效的消息ID'); return; }
             try {
                 const { error } = await sb.from(TABLE_MSG).delete().eq('id', msgId);
                 if (error) { showSnackbar('删除失败: ' + error.message); return; }
@@ -2982,14 +3222,109 @@
             closeContextMenu();
         }
 
-        // ---------- 对话框关闭 ----------
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.msg-context-menu') && !e.target.closest('.bubble')) {
+                closeContextMenu();
+            }
+        });
+
+        // ===================== 初始化 =====================
+        function init() {
+            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            clientId = generateId();
+            initEmojiPicker();
+            initRipple();
+            initInteractions();
+            showGlobalLoading('登录中…', '正在验证身份');
+            restoreSession();
+        }
+
+        function restoreSession() {
+            const saved = localStorage.getItem('mjchat_session');
+            if (saved) {
+                try {
+                    const session = JSON.parse(saved);
+                    sb.from(TABLE_USERS).select('username, banned, role').eq('username', session.username)
+                        .maybeSingle()
+                        .then(({ data }) => {
+                            if (data && !isEntered) {
+                                if (data.banned) {
+                                    localStorage.removeItem('mjchat_session');
+                                    hideGlobalLoading();
+                                    showLogin();
+                                    showEl('loginError', '您已被封禁');
+                                    return;
+                                }
+                                currentUser = session.username;
+                                isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(currentUser);
+                                updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
+                                enterChat();
+                            } else {
+                                if (!data) localStorage.removeItem('mjchat_session');
+                                hideGlobalLoading();
+                                showLogin();
+                            }
+                        })
+                        .catch(() => {
+                            localStorage.removeItem('mjchat_session');
+                            hideGlobalLoading();
+                            showLogin();
+                        });
+                } catch (e) {
+                    localStorage.removeItem('mjchat_session');
+                    hideGlobalLoading();
+                    showLogin();
+                }
+            } else {
+                hideGlobalLoading();
+                showLogin();
+            }
+        }
+
+        function initEmojiPicker() {
+            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
+                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
+                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
+                '💚', '💙', '🩵', '💜', '🤎', '🖤', '🤍', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
+                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
+                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '☁️', '🌊', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
+                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
+                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '💎', '🔮', '🎭', '🪞', '🪟', '🪑', '🛋️', '🛏️', '🛌', '🧻', '🧹', '🧺',
+                '🧻', '🧽', '🧴', '🧷', '🧸', '🧩', '🧮', '🎲', '♟️', '🎯', '🎳', '🎮', '🕹️', '🎰', '🎲', '♠️', '♥️', '♦️', '♣️', '🃏',
+                '🀄', '🎴', '🎭', '🎨', '🖼️', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎵', '🎶'
+            ];
+            document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
+                `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
+        }
+
+        function initRipple() {
+            document.querySelectorAll('.ripple').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    const r = this.getBoundingClientRect(),
+                        s = Math.max(r.width, r.height),
+                        x = e.clientX - r.left - s / 2,
+                        y = e.clientY - r.top - s / 2;
+                    const rip = document.createElement('span');
+                    rip.className = 'ripple-effect';
+                    rip.style.width = rip.style.height = s + 'px';
+                    rip.style.left = x + 'px';
+                    rip.style.top = y + 'px';
+                    this.appendChild(rip);
+                    setTimeout(() => rip.remove(), 600);
+                });
+            });
+        }
+
         document.getElementById('clearDialog').addEventListener('click', (e) => { if (e.target.id === 'clearDialog')
                 hideClearDialog(); });
         document.getElementById('linkDialog').addEventListener('click', (e) => { if (e.target.id === 'linkDialog')
                 hideLinkDialog(); });
 
-        // ---------- 启动 ----------
         window.addEventListener('DOMContentLoaded', init);
+
+        console.log('MJChat 完整版本已加载，修复了 cleanHtml 过滤 body 的问题。');
+        console.log('请确保在 Supabase 中为 chat_users 表添加 banned, role, last_ip, last_login 字段；');
+        console.log('为 chat_messages 表添加 reply_to_id, reply_content 字段。');
     </script>
 </body>
 </html>
