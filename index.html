@@ -8,7 +8,7 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* ===== 完整样式（与上一版相同，略有调整） ===== */
+        /* ===== 完整样式（与之前保持一致，无省略） ===== */
         * {
             margin: 0;
             padding: 0;
@@ -1356,21 +1356,6 @@
             cursor: pointer;
             position: relative;
         }
-        .md-dialog .profile-avatar .edit-badge {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            background: var(--md-primary);
-            color: white;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            border: 2px solid var(--md-surface);
-        }
         .md-dialog .profile-info {
             display: flex;
             flex-direction: column;
@@ -2345,7 +2330,7 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 100;
-        const APP_VERSION = 9.3;
+        const APP_VERSION = 9.4;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ'];
@@ -2659,7 +2644,7 @@
         }
 
         function updateAllAvatars() {
-            // 更新所有头像元素（在后续渲染中会动态设置，这里仅作全局刷新）
+            // 在需要时更新
         }
 
         // ===================== 公共聊天室 =====================
@@ -2841,7 +2826,6 @@
             let linkUrl = null;
             let imageUrl = null;
 
-            // 回复预览
             let replyHtml = '';
             if (msg.reply_to_id) {
                 const repliedMsg = publicMessages.find(m => m.id === msg.reply_to_id);
@@ -2949,7 +2933,6 @@
                     <div class="bubble">${replyHtml}${bubbleContent}</div>
                 </div>
             `;
-            // 修正头像背景
             const avatarElem = row.querySelector('.avatar');
             if (msg.avatar_url) {
                 avatarElem.style.backgroundImage = `url(${msg.avatar_url})`;
@@ -3939,7 +3922,7 @@
             }
         });
 
-        // ===================== 私聊功能（修复实时同步） =====================
+        // ===================== 私聊功能（使用 Broadcast 实现实时同步） =====================
         async function loadPrivateSessions() {
             try {
                 const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS)
@@ -4025,7 +4008,7 @@
             document.getElementById('publicPage').classList.remove('active');
             document.getElementById('searchPage').classList.remove('active');
             await loadPrivateMessages(sessionId);
-            subscribePrivateMessages(sessionId);
+            subscribePrivateChannel(sessionId);
             scrollPrivateToBottom();
         }
 
@@ -4103,7 +4086,7 @@
             }
         }
 
-        function subscribePrivateMessages(sessionId) {
+        function subscribePrivateChannel(sessionId) {
             // 移除旧的订阅
             if (privateChannel) {
                 sb.removeChannel(privateChannel);
@@ -4112,7 +4095,26 @@
             const channelName = `private-${sessionId}`;
             privateChannel = sb.channel(channelName);
 
-            // 监听新消息插入
+            // 监听广播消息（实时）
+            privateChannel.on('broadcast', { event: 'new_message' }, (payload) => {
+                const msg = payload.payload;
+                // 避免重复添加
+                if (!privateMessages.some(m => m.id === msg.id)) {
+                    privateMessages.push(msg);
+                    if (document.getElementById('privatePage').classList.contains('active')) {
+                        renderPrivateMessage(msg);
+                        // 不自动滚动
+                    }
+                    // 更新会话最后消息
+                    sb.from(TABLE_PRIVATE_SESSIONS).update({
+                        updated_at: new Date().toISOString(),
+                        last_message: msg.content
+                    }).eq('id', sessionId);
+                    loadPrivateSessions();
+                }
+            });
+
+            // 同时保留 postgres_changes 作为备份（但主要依赖广播）
             privateChannel.on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -4120,30 +4122,24 @@
                 filter: `session_id=eq.${sessionId}`
             }, (p) => {
                 const msg = p.new;
-                // 避免重复添加
                 if (!privateMessages.some(m => m.id === msg.id)) {
                     privateMessages.push(msg);
-                    // 如果当前在私聊页面，立即渲染
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
-                        // 不自动滚动到底部，用户可手动滚动
                     }
-                    // 更新会话最后消息
                     sb.from(TABLE_PRIVATE_SESSIONS).update({
                         updated_at: new Date().toISOString(),
                         last_message: msg.content
                     }).eq('id', sessionId);
-                    // 刷新主页列表（显示最新消息）
                     loadPrivateSessions();
                 }
             });
 
             privateChannel.subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('Private channel subscribed successfully');
+                    console.log('Private channel subscribed (broadcast + postgres_changes)');
                 } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    console.warn('Private channel subscription failed, will retry');
-                    // 可尝试重新订阅
+                    console.warn('Private channel subscription failed');
                 }
             });
         }
@@ -4161,7 +4157,7 @@
             if (!text) { showSnackbar('消息包含不安全内容'); return; }
             document.getElementById('privateSendBtn').disabled = true;
 
-            // 检查是否满足发送条件（对方未回复前仅允许一条）
+            // 检查发送条件
             const hasReply = privateMessages.some(m => m.sender !== currentUser);
             if (privateMessages.length === 0 && !hasReply) {
                 // 第一条，允许
@@ -4176,19 +4172,22 @@
                 sender: currentUser,
                 content: text
             };
-            const { error } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload);
+            const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
             if (error) {
                 showSnackbar('发送失败: ' + error.message);
                 document.getElementById('privateSendBtn').disabled = false;
                 return;
             }
+            const newMsg = data[0];
+            // 广播给同一频道的所有订阅者（即双方）
+            if (privateChannel) {
+                privateChannel.send({
+                    type: 'broadcast',
+                    event: 'new_message',
+                    payload: newMsg
+                });
+            }
             // 本地立即插入并渲染
-            const newMsg = {
-                id: 'temp-' + Date.now(),
-                sender: currentUser,
-                content: text,
-                created_at: new Date().toISOString()
-            };
             privateMessages.push(newMsg);
             if (document.getElementById('privatePage').classList.contains('active')) {
                 renderPrivateMessage(newMsg);
@@ -4637,7 +4636,6 @@
         // ===================== 头像菜单 =====================
         function showAvatarMenu() {
             document.getElementById('avatarMenu').classList.remove('hidden');
-            // 添加遮罩点击关闭
             const overlay = document.createElement('div');
             overlay.id = 'avatarMenuOverlay';
             overlay.style.position = 'fixed';
@@ -4655,17 +4653,14 @@
         }
 
         function setDefaultAvatar() {
-            // 随机一个颜色
             const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
             const color = colors[Math.floor(Math.random() * colors.length)];
-            // 更新数据库 avatar_url 为 null
             sb.from(TABLE_USERS).update({ avatar_url: null }).eq('username', currentUser)
                 .then(() => {
                     currentAvatarUrl = '';
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
-                    // 更新个人模态框头像
                     const avatarEl = document.getElementById('profileDialogAvatar');
                     avatarEl.style.backgroundImage = '';
                     avatarEl.textContent = currentUser.charAt(0).toUpperCase();
@@ -4709,7 +4704,6 @@
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
-                    // 更新个人模态框
                     const avatarEl = document.getElementById('profileDialogAvatar');
                     avatarEl.style.backgroundImage = `url(${urlData.publicUrl})`;
                     avatarEl.textContent = '';
@@ -4862,7 +4856,7 @@
 
         window.addEventListener('DOMContentLoaded', init);
 
-        console.log('MJChat 9.3 已加载，私聊实时同步已修复，头像编辑优化，密码更改独立。');
+        console.log('MJChat 9.4 已加载，私聊使用 Broadcast 广播实现实时同步。');
         console.log('请确保数据库表 chat_users 有 avatar_url 字段 (TEXT)。');
     </script>
 </body>
