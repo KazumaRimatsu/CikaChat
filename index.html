@@ -2120,6 +2120,26 @@
             height: 24px;
             fill: currentColor;
         }
+        .load-more-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            color: var(--md-on-surface-dim, #666);
+            font-size: 0.8rem;
+        }
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(74, 158, 255, 0.2);
+            border-top-color: #4A9EFF;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -2582,8 +2602,8 @@
         const TABLE_LOGIN_HISTORY = 'login_history';
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
-        const HISTORY_LIMIT = 500;
-        const APP_VERSION = 18;
+        const HISTORY_LIMIT = 200;
+        const APP_VERSION = 21;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
@@ -2627,10 +2647,19 @@
         let isUserScrolledUp = false;
         let scrollTimeout = null;
         let presenceSynced = false;
-        let knownOnlineUsers = new Set();
+        let presenceReady = false;
         let privateUnreadCounts = {};
         let globalPrivateChannel = null;
         let publicUnread = 0;
+        let privatePollTimer = null;
+        let userAvatarCache = {};
+        let publicMsgPage = 0;
+        let publicHasMore = true;
+        let publicLoadingMore = false;
+        let privateMsgPage = 0;
+        let privateHasMore = true;
+        let privateLoadingMore = false;
+        const PAGE_SIZE = 200;
 
         // ===================== 工具函数 =====================
         function escapeHtml(t) { if (t == null) return ''; const d = document.createElement('div');
@@ -2741,6 +2770,7 @@
             };
             messagesContainer.appendChild(btn);
 
+            let topLoadTimer = null;
             messagesContainer.addEventListener('scroll', function() {
                 if (isScrolledToBottom(messagesContainer)) {
                     isUserScrolledUp = false;
@@ -2748,6 +2778,17 @@
                     isUserScrolledUp = true;
                 }
                 updateScrollButton(messagesContainer);
+                // 检测滚动到顶部，加载更多消息
+                if (messagesContainer.scrollTop <= 5) {
+                    clearTimeout(topLoadTimer);
+                    topLoadTimer = setTimeout(() => {
+                        if (messagesContainer.id === 'publicMessages' && publicHasMore) {
+                            loadMorePublicMessages();
+                        } else if (messagesContainer.id === 'privateMessages' && privateHasMore && privateSessionId) {
+                            loadMorePrivateMessages(privateSessionId);
+                        }
+                    }, 300);
+                }
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
                     if (isScrolledToBottom(messagesContainer)) {
@@ -2951,6 +2992,7 @@
                 currentUser = username;
                 isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(username);
                 currentAvatarUrl = data.avatar_url || '';
+                userAvatarCache[currentUser] = currentAvatarUrl;
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
                 document.getElementById('loginPassword').value = '';
                 updateLoadingText('登录中…', '欢迎 ' + currentUser);
@@ -3002,42 +3044,186 @@
             }
         }
 
-        function updateAllAvatars() {}
+        function updateAllAvatars() {
+            // 重新加载当前用户的头像缓存并刷新所有头像显示
+            loadUserAvatars(Object.keys(userAvatarCache).concat([currentUser])).then(() => {
+                renderPrivateList();
+                renderOnlineUsers();
+                // 刷新公共消息头像
+                document.querySelectorAll('#publicMessages .msg-row .avatar').forEach(av => {
+                    const sender = av.dataset.sender;
+                    if (sender && userAvatarCache[sender]) {
+                        av.style.backgroundImage = `url(${userAvatarCache[sender]})`;
+                        av.textContent = '';
+                    }
+                });
+                // 刷新私聊消息头像
+                document.querySelectorAll('#privateMessages .msg-row .avatar').forEach(av => {
+                    const sender = av.dataset.username;
+                    if (sender && userAvatarCache[sender]) {
+                        av.style.backgroundImage = `url(${userAvatarCache[sender]})`;
+                        av.textContent = '';
+                    }
+                });
+                updateHomeMenu();
+                updatePublicMenu();
+            });
+        }
+
+        // ===================== 用户头像缓存 =====================
+        async function loadUserAvatars(usernames) {
+            const unique = [...new Set(usernames.filter(n => n && !userAvatarCache.hasOwnProperty(n)))];
+            if (unique.length === 0) return;
+            try {
+                const { data, error } = await sb.from(TABLE_USERS)
+                    .select('username, avatar_url')
+                    .in('username', unique);
+                if (data) {
+                    data.forEach(u => { userAvatarCache[u.username] = u.avatar_url || ''; });
+                    unique.forEach(n => { if (!userAvatarCache.hasOwnProperty(n)) userAvatarCache[n] = ''; });
+                }
+            } catch (e) { /* 忽略 */ }
+        }
+
+        function applyAvatarToElement(el, username) {
+            if (!el || !username) return;
+            const url = userAvatarCache[username];
+            if (url) {
+                el.style.backgroundImage = `url(${url})`;
+                el.textContent = '';
+            } else {
+                el.style.backgroundImage = '';
+                el.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+
+        // ===================== 私聊全局监听 =====================
+        let recentPrivateNotifications = {};
+
+        function notifyPrivateMsg(sessionId, sender) {
+            if (publicChannel) {
+                publicChannel.send({
+                    type: 'broadcast',
+                    event: 'private_msg_notification',
+                    payload: { session_id: sessionId, sender: sender, timestamp: Date.now() }
+                });
+            }
+        }
+
+        function handlePrivateNotification(sessionId, sender) {
+            if (privateChatActive && privateSessionId === sessionId) return;
+            const now = Date.now();
+            const key = sessionId + ':' + Math.floor(now / 3000);
+            if (recentPrivateNotifications[key]) return;
+            recentPrivateNotifications[key] = true;
+            Object.keys(recentPrivateNotifications).forEach(k => {
+                if (now - parseInt(k.split(':')[1]) * 3000 > 10000) delete recentPrivateNotifications[k];
+            });
+            loadPrivateSessions().then(() => {
+                if (sender !== currentUser) {
+                    incrementUnread(sessionId);
+                }
+            });
+        }
+
+        function setupGlobalPrivateListener() {
+            // 方法1：专用频道监听 postgres_changes
+            globalPrivateChannel = sb.channel('global-private-' + currentUser);
+            globalPrivateChannel.on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: TABLE_PRIVATE_MSGS
+            }, (p) => {
+                try {
+                    const msg = p.new;
+                    if (!msg || !msg.session_id) return;
+                    handlePrivateNotification(msg.session_id, msg.sender);
+                } catch (e) { /* 忽略 */ }
+            });
+            globalPrivateChannel.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('全局私聊频道已订阅');
+                }
+            });
+
+            // 方法2：公共频道广播通知（即时通知）
+            if (publicChannel) {
+                publicChannel.on('broadcast', { event: 'private_msg_notification' }, (p) => {
+                    try {
+                        const data = p.payload;
+                        if (!data || !data.session_id) return;
+                        handlePrivateNotification(data.session_id, data.sender);
+                    } catch (e) { /* 忽略 */ }
+                });
+                // 头像变更广播
+                publicChannel.on('broadcast', { event: 'avatar_changed' }, (p) => {
+                    const data = p.payload;
+                    if (!data || !data.username) return;
+                    userAvatarCache[data.username] = data.avatar_url || '';
+                    // 刷新所有显示中的头像
+                    document.querySelectorAll('[data-sender="' + data.username + '"]').forEach(el => {
+                        applyAvatarToElement(el, data.username);
+                    });
+                    document.querySelectorAll('[data-username="' + data.username + '"]').forEach(el => {
+                        applyAvatarToElement(el, data.username);
+                    });
+                    renderPrivateList();
+                    renderOnlineUsers();
+                });
+            }
+
+            // 方法3：轮询备选（每15秒检查私聊会话列表更新）
+            privatePollTimer = setInterval(async () => {
+                if (!sb || !currentUser) return;
+                try {
+                    const prev = window.privateSessions ?
+                        window.privateSessions.map(s => s.id + ':' + (s.updated_at || '') + ':' + (s.last_message || '')) : [];
+                    await loadPrivateSessions();
+                    const curr = window.privateSessions ?
+                        window.privateSessions.map(s => s.id + ':' + (s.updated_at || '') + ':' + (s.last_message || '')) : [];
+                    if (JSON.stringify(prev) !== JSON.stringify(curr)) {
+                        // 有变化，但未读数由广播/postgres_changes处理
+                    }
+                } catch (e) { /* 忽略 */ }
+            }, 15000);
+        }
 
         // ===================== 系统消息广播 =====================
-        function broadcastSystemMsg(text) {
+        let recentSystemMsgs = {};
+        async function broadcastSystemMsg(text) {
+            const now = Date.now();
+            if (recentSystemMsgs[text] && now - recentSystemMsgs[text] < 5000) return;
+            recentSystemMsgs[text] = now;
+            Object.keys(recentSystemMsgs).forEach(k => {
+                if (now - recentSystemMsgs[k] > 10000) delete recentSystemMsgs[k];
+            });
+            // 数据库层面去重：检查最近10秒内是否已有相同系统消息
+            try {
+                const tenSecondsAgo = new Date(now - 10000).toISOString();
+                const { data } = await sb.from(TABLE_PUBLIC_MSG)
+                    .select('id')
+                    .eq('sender', 'system')
+                    .eq('text', text)
+                    .gte('created_at', tenSecondsAgo)
+                    .limit(1);
+                if (data && data.length > 0) return;
+            } catch (e) { /* 查询失败则继续发送 */ }
             sb.from(TABLE_PUBLIC_MSG).insert({
                 sender: 'system',
                 text: text,
                 is_system: true,
                 msg_version: APP_VERSION
             }).then(() => {
-                if (publicChannel) {
-                    publicChannel.send({
-                        type: 'broadcast',
-                        event: 'system_msg',
-                        payload: { text: text }
-                    });
-                }
-                addPublicSystemMsg(text);
                 updatePublicEntry();
-            }).catch(e => {
-                console.error('保存系统消息失败:', e);
-                if (publicChannel) {
-                    publicChannel.send({
-                        type: 'broadcast',
-                        event: 'system_msg',
-                        payload: { text: text }
-                    });
-                }
-                addPublicSystemMsg(text);
-            });
+            }).catch(e => {});
         }
 
         // ===================== 公共聊天室 =====================
         async function connectPublic() {
             return new Promise((resolve, reject) => {
                 let resolved = false;
+                presenceSynced = false;
+                presenceReady = false;
                 loadPublicHistory()
                     .then(() => {
                         publicChannel = sb.channel(CHANNEL_PUBLIC, { config: { presence: { key: clientId } } });
@@ -3052,9 +3238,6 @@
                                     updateScrollButton(container);
                                 }
                             });
-                        publicChannel.on('broadcast', { event: 'system_msg' }, (payload) => {
-                            addPublicSystemMsg(payload.payload.text);
-                        });
                         publicChannel.on('broadcast', { event: 'clear_messages' }, () => {
                             handlePublicCleared();
                             updatePublicEntry();
@@ -3067,7 +3250,7 @@
                             if (p.payload.username === currentUser) {
                                 showSnackbar('您已被封禁，即将下线');
                                 setTimeout(() => logout(), 2000);
-                            } else {
+                            } else if (p.payload.initiator === currentUser) {
                                 broadcastSystemMsg(`用户 ${p.payload.username} 已被封禁`);
                             }
                         });
@@ -3076,7 +3259,7 @@
                             if (p.payload.forceLogout && name === currentUser) {
                                 showSnackbar('您的账号已注销，即将刷新');
                                 setTimeout(() => location.reload(), 1000);
-                            } else {
+                            } else if (p.payload.initiator === currentUser) {
                                 broadcastSystemMsg(`用户 ${name} 已注销`);
                             }
                             refreshPublicMessages();
@@ -3091,30 +3274,41 @@
                         publicChannel
                             .on('presence', { event: 'sync' }, () => {
                                 onlineUsers = publicChannel.presenceState();
-                                const allNames = new Set();
-                                Object.values(onlineUsers).flat().forEach(p => {
-                                    if (p.name) allNames.add(p.name);
-                                });
-                                if (!presenceSynced) {
-                                    knownOnlineUsers = allNames;
-                                    presenceSynced = true;
-                                } else {
-                                    allNames.forEach(n => {
-                                        if (!knownOnlineUsers.has(n) && n !== currentUser) {
-                                            broadcastSystemMsg(`${n} 加入了MJChat`);
-                                        }
-                                    });
-                                    knownOnlineUsers.forEach(n => {
-                                        if (!allNames.has(n) && n !== currentUser) {
-                                            broadcastSystemMsg(`${n} 离开了MJChat`);
-                                        }
-                                    });
-                                    knownOnlineUsers = allNames;
-                                }
                                 renderOnlineUsers();
+                                // 加载在线用户头像
+                                const onlineNames = [];
+                                Object.values(onlineUsers).flat().forEach(u => { if (u.name) onlineNames.push(u.name); });
+                                loadUserAvatars(onlineNames).then(() => renderOnlineUsers());
+                                if (!presenceSynced) {
+                                    presenceSynced = true;
+                                    setTimeout(() => { presenceReady = true; }, 3000);
+                                }
                             })
-                            .on('presence', { event: 'join' }, () => {})
-                            .on('presence', { event: 'leave' }, () => {})
+                            .on('presence', { event: 'join' }, (payload) => {
+                                if (!presenceReady) return;
+                                const newPresences = payload.newPresences || [];
+                                newPresences.forEach(p => {
+                                    if (p.name && p.name === currentUser) {
+                                        broadcastSystemMsg(`${p.name} 加入了MJChat`);
+                                    }
+                                });
+                            })
+                            .on('presence', { event: 'leave' }, (payload) => {
+                                if (!presenceReady) return;
+                                const leftPresences = payload.leftPresences || [];
+                                leftPresences.forEach(p => {
+                                    if (p.name && p.name !== currentUser) {
+                                        const onlineNames = [currentUser];
+                                        Object.values(onlineUsers).flat().forEach(u => {
+                                            if (u.name && u.name !== p.name) onlineNames.push(u.name);
+                                        });
+                                        onlineNames.sort();
+                                        if (onlineNames[0] === currentUser) {
+                                            broadcastSystemMsg(`${p.name} 离开了MJChat`);
+                                        }
+                                    }
+                                });
+                            })
                             .subscribe(async (status) => {
                                 if (status === 'SUBSCRIBED') {
                                     updatePublicConn(true);
@@ -3189,9 +3383,22 @@
                     return;
                 }
                 if (!data || data.length === 0) {
+                    publicHasMore = false;
                     return;
                 }
+                publicHasMore = data.length >= HISTORY_LIMIT;
                 data.reverse().forEach(m => handlePublicMessage(m, true));
+                // 加载消息发送者的头像
+                const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
+                await loadUserAvatars(senders);
+                // 刷新已渲染消息的头像
+                document.querySelectorAll('#publicMessages .msg-row .avatar').forEach(av => {
+                    const sender = av.dataset.sender;
+                    if (sender && userAvatarCache[sender]) {
+                        av.style.backgroundImage = `url(${userAvatarCache[sender]})`;
+                        av.textContent = '';
+                    }
+                });
                 const container = document.getElementById('publicMessages');
                 if (container) {
                     setTimeout(() => {
@@ -3201,6 +3408,86 @@
                 }
             } catch (e) {
                 console.error('loadPublicHistory exception:', e);
+            }
+        }
+
+        async function loadMorePublicMessages() {
+            if (publicLoadingMore || publicMessages.length === 0) return;
+            publicLoadingMore = true;
+            showPublicLoadMore(true);
+            try {
+                const oldest = publicMessages[0].created_at;
+                let result = await sb.from(TABLE_PUBLIC_MSG).select(
+                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system'
+                    )
+                    .lt('created_at', oldest)
+                    .order('created_at', { ascending: false }).limit(PAGE_SIZE);
+                if (result.error && result.error.message) {
+                    for (const retryCols of [
+                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, sender_deleted, is_system',
+                        'id, sender, text, image_url, audio_url, audio_dur, created_at, sender_deleted, is_system',
+                        'id, sender, text, created_at, sender_deleted, is_system',
+                        'id, sender, text, created_at, is_system'
+                    ]) {
+                        if (!result.error.message.includes('reply_to_id')) break;
+                        result = await sb.from(TABLE_PUBLIC_MSG).select(retryCols)
+                            .lt('created_at', oldest)
+                            .order('created_at', { ascending: false }).limit(PAGE_SIZE);
+                        if (!result.error) break;
+                    }
+                }
+                const { data, error } = result;
+                if (error || !data || data.length === 0) {
+                    publicHasMore = false;
+                    return;
+                }
+                // 加载发送者头像
+                const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
+                await loadUserAvatars(senders);
+                // 标准化旧消息并去重
+                const newMsgs = data.reverse().map(msg => ({
+                    id: msg.id, sender: msg.sender, text: msg.text || '',
+                    image_url: msg.image_url || null, audio_url: msg.audio_url || null,
+                    audio_dur: msg.audio_dur || 0, msg_version: msg.msg_version || null,
+                    created_at: msg.created_at, reply_to_id: msg.reply_to_id || null,
+                    reply_content: msg.reply_content || null, sender_deleted: msg.sender_deleted || false,
+                    is_system: msg.is_system || false
+                }));
+                const unique = newMsgs.filter(m => !publicMessages.some(e => e.id === m.id));
+                publicMessages = unique.concat(publicMessages);
+                // 重建 DOM
+                const container = document.getElementById('publicMessages');
+                const prevScrollHeight = container.scrollHeight;
+                const prevScrollTop = container.scrollTop;
+                container.innerHTML = '';
+                publicLastDateLabel = '';
+                publicMessages.forEach(m => renderPublicMessage(m));
+                // 保持滚动位置
+                requestAnimationFrame(() => {
+                    container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
+                });
+            } catch (e) {
+                console.error('loadMorePublicMessages error:', e);
+            } finally {
+                publicLoadingMore = false;
+                showPublicLoadMore(false);
+            }
+        }
+
+        function showPublicLoadMore(show) {
+            let indicator = document.getElementById('publicLoadMoreIndicator');
+            if (show) {
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.id = 'publicLoadMoreIndicator';
+                    indicator.className = 'load-more-indicator';
+                    indicator.innerHTML = '<div class="loading-spinner"></div><span>正在加载更多消息...</span>';
+                    const container = document.getElementById('publicMessages');
+                    container.insertBefore(indicator, container.firstChild);
+                }
+                indicator.style.display = 'flex';
+            } else {
+                if (indicator) indicator.style.display = 'none';
             }
         }
 
@@ -3402,8 +3689,8 @@
                 </div>
             `;
             const avatarElem = row.querySelector('.avatar');
-            if (msg.avatar_url) {
-                avatarElem.style.backgroundImage = `url(${msg.avatar_url})`;
+            if (userAvatarCache[msg.sender]) {
+                avatarElem.style.backgroundImage = `url(${userAvatarCache[msg.sender]})`;
                 avatarElem.textContent = '';
             }
             row.dataset.elementId = msg.id;
@@ -3897,6 +4184,7 @@
                     updated_at: new Date().toISOString(),
                     last_message: linkText
                 }).eq('id', privateSessionId);
+                notifyPrivateMsg(privateSessionId, currentUser);
                 loadPrivateSessions();
             } else {
                 const { error } = await sb.from(TABLE_PUBLIC_MSG).insert({
@@ -4368,7 +4656,7 @@
                     const target = p.payload.target;
                     if (target === currentUser) {
                         broadcastSystemMsg(`${from} 拍了拍你`);
-                    } else {
+                    } else if (from === currentUser) {
                         broadcastSystemMsg(`${from} 拍了拍 ${target}`);
                     }
                 });
@@ -4506,8 +4794,8 @@
                 item.innerHTML = iconSvg + ' ' + label;
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    action();
                     closeContextMenu();
+                    action();
                 });
                 menu.appendChild(item);
             };
@@ -4626,13 +4914,14 @@
             const menu = document.getElementById('msgContextMenu');
             menu.classList.remove('show');
             menu.innerHTML = '';
-            contextTarget = null;
         }
 
         async function contextDeleteMsg() {
-            if (!contextTarget) return;
-            const msgId = contextTarget.msgId;
-            const chatType = contextTarget.chatType || 'public';
+            if (!contextTarget) { showSnackbar('无效操作'); return; }
+            const target = contextTarget;
+            contextTarget = null;
+            const msgId = target.msgId;
+            const chatType = target.chatType || 'public';
             if (!msgId) { showSnackbar('无效消息'); return; }
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(msgId)) { showSnackbar('无效的消息ID'); return; }
@@ -4645,6 +4934,9 @@
                 } else {
                     const { error } = await sb.from(TABLE_PRIVATE_MSGS).delete().eq('id', msgId);
                     if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                    if (privateChannel) {
+                        privateChannel.send({ type: 'broadcast', event: 'delete_message', payload: { id: msgId } });
+                    }
                     privateMessages = privateMessages.filter(m => m.id !== msgId);
                     const rows = document.querySelectorAll('#privateMessages .msg-row');
                     rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
@@ -4677,6 +4969,9 @@
                     return true;
                 });
                 window.privateSessions = filtered;
+                // 加载私聊对方用户的头像
+                const otherUsers = filtered.map(s => s.user1 === currentUser ? s.user2 : s.user1);
+                await loadUserAvatars(otherUsers);
                 renderPrivateList();
                 return filtered;
             } catch (e) {
@@ -4700,8 +4995,11 @@
                     minute: '2-digit' }) : '';
                 const unread = privateUnreadCounts[s.id] || 0;
                 const unreadBadge = unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : '<div class="unread-badge hidden"></div>';
+                const avUrl = userAvatarCache[other];
+                const avStyle = avUrl ? ` style="background-image:url('${avUrl}');background-size:cover;background-position:center;"` : '';
+                const avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
                 return `<div class="list-item" onclick="openPrivateChat('${s.id}','${escapeAttr(other)}')">
-                            <div class="av av-${idx}" data-username="${other}">${escapeHtml(other.charAt(0).toUpperCase())}</div>
+                            <div class="av av-${idx}" data-username="${other}"${avStyle}>${avText}</div>
                             <div class="info">
                                 <div class="name">${escapeHtml(other)}</div>
                                 <div class="last-msg">${escapeHtml(lastMsg)}</div>
@@ -4743,6 +5041,8 @@
             privateSessionId = sessionId;
             privateOtherUser = otherUser;
             privateChatActive = true;
+            privateHasMore = true;
+            privateLoadingMore = false;
             document.getElementById('privateChatTitle').textContent = `私聊 ${otherUser}`;
             document.getElementById('privacyBanner').classList.remove('hidden-banner');
             document.getElementById('privatePage').classList.add('active');
@@ -4813,9 +5113,11 @@
                 const { data, error } = await sb.from(TABLE_PRIVATE_MSGS)
                     .select('id, sender, content, created_at')
                     .eq('session_id', sessionId)
-                    .order('created_at', { ascending: true });
+                    .order('created_at', { ascending: false })
+                    .limit(PAGE_SIZE);
                 if (error) { console.error('loadPrivateMessages error:', error); return; }
-                privateMessages = data || [];
+                privateMessages = (data || []).reverse();
+                privateHasMore = data && data.length === PAGE_SIZE;
                 const c = document.getElementById('privateMessages');
                 c.innerHTML = '';
                 privateLastDateLabel = '';
@@ -4823,8 +5125,76 @@
                     addPrivateSystemMsg('开始私聊...');
                 } else {
                     privateMessages.forEach(m => renderPrivateMessage(m));
+                    // 加载私聊双方头像
+                    const senders = [...new Set(privateMessages.map(m => m.sender))];
+                    await loadUserAvatars(senders);
+                    document.querySelectorAll('#privateMessages .msg-row .avatar').forEach(av => {
+                        const sender = av.dataset.username;
+                        if (sender && userAvatarCache[sender]) {
+                            av.style.backgroundImage = `url(${userAvatarCache[sender]})`;
+                            av.textContent = '';
+                        }
+                    });
                 }
             } catch (e) { /* ignore */ }
+        }
+
+        async function loadMorePrivateMessages(sessionId) {
+            if (privateLoadingMore || !privateHasMore || privateMessages.length === 0) return;
+            privateLoadingMore = true;
+            showPrivateLoadMore(true);
+            try {
+                const oldest = privateMessages[0].created_at;
+                const { data, error } = await sb.from(TABLE_PRIVATE_MSGS)
+                    .select('id, sender, content, created_at')
+                    .eq('session_id', sessionId)
+                    .lt('created_at', oldest)
+                    .order('created_at', { ascending: false })
+                    .limit(PAGE_SIZE);
+                if (error || !data || data.length === 0) {
+                    privateHasMore = false;
+                    return;
+                }
+                // 加载头像
+                const senders = [...new Set(data.map(m => m.sender))];
+                await loadUserAvatars(senders);
+                // 去重并合并到数组
+                const unique = data.reverse().filter(m => !privateMessages.some(e => e.id === m.id));
+                privateMessages = unique.concat(privateMessages);
+                // 重建 DOM
+                const container = document.getElementById('privateMessages');
+                const prevScrollHeight = container.scrollHeight;
+                const prevScrollTop = container.scrollTop;
+                container.innerHTML = '';
+                privateLastDateLabel = '';
+                privateMessages.forEach(m => renderPrivateMessage(m));
+                // 保持滚动位置
+                requestAnimationFrame(() => {
+                    container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
+                });
+            } catch (e) {
+                console.error('loadMorePrivateMessages error:', e);
+            } finally {
+                privateLoadingMore = false;
+                showPrivateLoadMore(false);
+            }
+        }
+
+        function showPrivateLoadMore(show) {
+            let indicator = document.getElementById('privateLoadMoreIndicator');
+            if (show) {
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.id = 'privateLoadMoreIndicator';
+                    indicator.className = 'load-more-indicator';
+                    indicator.innerHTML = '<div class="loading-spinner"></div><span>正在加载更多消息...</span>';
+                    const container = document.getElementById('privateMessages');
+                    container.insertBefore(indicator, container.firstChild);
+                }
+                indicator.style.display = 'flex';
+            } else {
+                if (indicator) indicator.style.display = 'none';
+            }
         }
 
         // ===== 私聊消息渲染 - 修复文件/链接显示 =====
@@ -4902,6 +5272,11 @@
                     <div class="bubble">${contentHtml}</div>
                 </div>
             `;
+            if (userAvatarCache[msg.sender]) {
+                const avEl = row.querySelector('.avatar');
+                avEl.style.backgroundImage = `url(${userAvatarCache[msg.sender]})`;
+                avEl.textContent = '';
+            }
             c.appendChild(row);
         }
 
@@ -4946,6 +5321,13 @@
                 }
             });
 
+            privateChannel.on('broadcast', { event: 'delete_message' }, (payload) => {
+                const msgId = payload.payload.id;
+                privateMessages = privateMessages.filter(m => m.id !== msgId);
+                const rows = document.querySelectorAll('#privateMessages .msg-row');
+                rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
+            });
+
             privateChannel.on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -4977,44 +5359,6 @@
             });
 
             privateChannel.subscribe((status) => {});
-        }
-
-        function setupGlobalPrivateListener() {
-            if (globalPrivateChannel) {
-                sb.removeChannel(globalPrivateChannel);
-                globalPrivateChannel = null;
-            }
-            globalPrivateChannel = sb.channel('global-private-msgs');
-            globalPrivateChannel.on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: TABLE_PRIVATE_MSGS
-            }, (payload) => {
-                const msg = payload.new;
-                const sessions = window.privateSessions || [];
-                const session = sessions.find(s => s.id === msg.session_id);
-                if (!session) return;
-                if (privateChatActive && privateSessionId === msg.session_id) return;
-                if (msg.sender === currentUser) {
-                    if (msg.created_at) {
-                        sb.from(TABLE_PRIVATE_SESSIONS).update({
-                            updated_at: msg.created_at,
-                            last_message: msg.content
-                        }).eq('id', msg.session_id);
-                    }
-                    loadPrivateSessions();
-                    return;
-                }
-                incrementUnread(msg.session_id);
-                if (msg.created_at) {
-                    sb.from(TABLE_PRIVATE_SESSIONS).update({
-                        updated_at: msg.created_at,
-                        last_message: msg.content
-                    }).eq('id', msg.session_id);
-                }
-                loadPrivateSessions();
-            });
-            globalPrivateChannel.subscribe();
         }
 
         function togglePrivateSendBtn() {
@@ -5086,6 +5430,7 @@
                     last_message: text
                 }).eq('id', privateSessionId);
             }
+            notifyPrivateMsg(privateSessionId, currentUser);
             loadPrivateSessions();
         }
 
@@ -5242,6 +5587,7 @@
                     last_message: content
                 }).eq('id', privateSessionId);
             }
+            notifyPrivateMsg(privateSessionId, currentUser);
             loadPrivateSessions();
         }
 
@@ -5296,6 +5642,7 @@
                         last_message: content
                     }).eq('id', privateSessionId);
                 }
+                notifyPrivateMsg(privateSessionId, currentUser);
                 loadPrivateSessions();
             } catch (e) { showSnackbar('上传失败'); }
         }
@@ -5470,6 +5817,7 @@
                     updated_at: new Date().toISOString(),
                     last_message: content
                 }).eq('id', privateSessionId);
+                notifyPrivateMsg(privateSessionId, currentUser);
                 loadPrivateSessions();
             } catch (e) { showSnackbar('上传失败'); }
         }
@@ -5537,8 +5885,11 @@
                 container.innerHTML = uniq.map(name => {
                     const me = name === currentUser;
                     const idx = hashStr(name) % 8;
+                    const avUrl = userAvatarCache[name];
+                    const avStyle = avUrl ? ` style="background-image:url('${avUrl}');background-size:cover;background-position:center;"` : '';
+                    const avText = avUrl ? '' : escapeHtml(name.charAt(0).toUpperCase());
                     return `<div class="online-item" onclick="closeOnlineList();showUserProfile('${escapeAttr(name)}')">
-                                <div class="av av-${idx}" data-username="${name}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+                                <div class="av av-${idx}" data-username="${name}"${avStyle}>${avText}</div>
                                 <span class="name">${escapeHtml(name)}${me ? ' <span class="me-tag">(我)</span>' : ''}</span>
                             </div>`;
                 }).join('');
@@ -5558,40 +5909,65 @@
         async function showUserProfile(username) {
             if (!username) return;
             const modal = document.getElementById('userProfileModal');
-            modal.classList.remove('hidden');
-
             const avatarEl = document.getElementById('userProfileAvatar');
-            const idx = hashStr(username) % 8;
-            avatarEl.className = 'profile-avatar av-' + idx;
-            avatarEl.textContent = username.charAt(0).toUpperCase();
+
+            // 先显示加载状态，清除上一位用户的信息
+            avatarEl.className = 'profile-avatar';
+            avatarEl.style.backgroundImage = '';
+            avatarEl.textContent = '...';
+            document.getElementById('userProfileUsername').textContent = '加载中...';
+            document.getElementById('userProfileRole').textContent = '加载中...';
+            document.getElementById('userProfileStatus').textContent = '加载中...';
+            document.getElementById('userProfileOnline').textContent = '加载中...';
+            document.getElementById('userProfileOnlineItem').style.display = 'flex';
+            // 隐藏所有按钮，等数据加载完再显示
+            document.getElementById('userProfileChatBtn').style.display = 'none';
+            document.getElementById('userProfileBanBtn').style.display = 'none';
+            document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
+            document.getElementById('userProfileDeleteBtn').style.display = 'none';
+            // 显示模态框（此时显示加载中状态）
+            modal.classList.remove('hidden');
 
             try {
                 const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
                     .eq('username', username).maybeSingle();
                 if (error || !data) {
+                    // 用户不存在（已注销/未知用户）
+                    const idx = hashStr(username) % 8;
+                    avatarEl.className = 'profile-avatar av-' + idx;
+                    avatarEl.style.backgroundImage = '';
+                    avatarEl.textContent = username.charAt(0).toUpperCase();
                     document.getElementById('userProfileUsername').textContent = username;
                     document.getElementById('userProfileRole').textContent = '未知';
-                    document.getElementById('userProfileStatus').textContent = '未知';
-                    document.getElementById('userProfileOnline').textContent = '未知';
-                    document.getElementById('userProfileOnlineItem').style.display = 'none';
+                    document.getElementById('userProfileStatus').textContent = '已注销';
+                    document.getElementById('userProfileOnline').textContent = '离线';
+                    document.getElementById('userProfileOnlineItem').style.display = 'flex';
+                    // 隐藏发起私聊按钮
+                    document.getElementById('userProfileChatBtn').style.display = 'none';
+                    document.getElementById('userProfileBanBtn').style.display = 'none';
+                    document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
+                    document.getElementById('userProfileDeleteBtn').style.display = 'none';
                 } else {
+                    const idx = hashStr(data.username) % 8;
+                    avatarEl.className = 'profile-avatar av-' + idx;
+                    if (data.avatar_url) {
+                        avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
+                        avatarEl.textContent = '';
+                        userAvatarCache[data.username] = data.avatar_url;
+                    } else {
+                        avatarEl.style.backgroundImage = '';
+                        avatarEl.textContent = data.username.charAt(0).toUpperCase();
+                    }
                     document.getElementById('userProfileUsername').textContent = data.username;
                     document.getElementById('userProfileRole').textContent = data.role === 'admin' ? '管理员' : '普通用户';
                     let statusText = '正常';
                     if (data.banned) statusText = '已封禁';
                     document.getElementById('userProfileStatus').textContent = statusText;
                     const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
-                    const isOnline = onlineUsernames.includes(username);
+                    const isOnline = onlineUsernames.includes(data.username);
                     document.getElementById('userProfileOnline').textContent = isOnline ? '在线' : '离线';
                     document.getElementById('userProfileOnlineItem').style.display = 'flex';
 
-                    if (data.avatar_url) {
-                        avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
-                        avatarEl.textContent = '';
-                    } else {
-                        avatarEl.style.backgroundImage = '';
-                        avatarEl.textContent = username.charAt(0).toUpperCase();
-                    }
                     const chatBtn = document.getElementById('userProfileChatBtn');
                     chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
                     const banBtn = document.getElementById('userProfileBanBtn');
@@ -5619,11 +5995,19 @@
                     }
                 }
             } catch (e) {
+                const idx = hashStr(username) % 8;
+                avatarEl.className = 'profile-avatar av-' + idx;
+                avatarEl.style.backgroundImage = '';
+                avatarEl.textContent = username.charAt(0).toUpperCase();
                 document.getElementById('userProfileUsername').textContent = username;
-                document.getElementById('userProfileRole').textContent = '?';
-                document.getElementById('userProfileStatus').textContent = '?';
-                document.getElementById('userProfileOnline').textContent = '?';
+                document.getElementById('userProfileRole').textContent = '未知';
+                document.getElementById('userProfileStatus').textContent = '未知';
+                document.getElementById('userProfileOnline').textContent = '未知';
                 document.getElementById('userProfileOnlineItem').style.display = 'none';
+                document.getElementById('userProfileChatBtn').style.display = 'none';
+                document.getElementById('userProfileBanBtn').style.display = 'none';
+                document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
+                document.getElementById('userProfileDeleteBtn').style.display = 'none';
             }
         }
 
@@ -5651,7 +6035,7 @@
                     setTimeout(() => logout(), 1000);
                 }
                 if (newState) {
-                    publicChannel.send({ type: 'broadcast', event: 'user_banned', payload: { username } });
+                    publicChannel.send({ type: 'broadcast', event: 'user_banned', payload: { username, initiator: currentUser } });
                 }
                 showUserProfile(username);
             } catch (e) { showSnackbar('操作失败'); }
@@ -5686,7 +6070,7 @@
                 }
                 if (publicChannel) {
                     publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: username,
-                            forceLogout: false } });
+                            forceLogout: false, initiator: currentUser } });
                 }
                 showSnackbar(`已注销账号 ${username}`);
                 closeUserProfile();
@@ -5763,6 +6147,7 @@
                 if (data) {
                     isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(username);
                     currentAvatarUrl = data.avatar_url || '';
+                    userAvatarCache[currentUser] = currentAvatarUrl;
                     if (data.banned) {
                         showSnackbar('该用户已被封禁，但您仍可登录（仅查看）');
                     }
@@ -6044,6 +6429,10 @@
             sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: null })
                 .then(() => {
                     currentAvatarUrl = '';
+                    userAvatarCache[currentUser] = '';
+                    if (publicChannel) {
+                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: '' } });
+                    }
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
@@ -6089,6 +6478,10 @@
                         return;
                     }
                     currentAvatarUrl = urlData.publicUrl;
+                    userAvatarCache[currentUser] = urlData.publicUrl;
+                    if (publicChannel) {
+                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: urlData.publicUrl } });
+                    }
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
@@ -6182,13 +6575,13 @@
 
         // ===== 登出和注销 =====
         function logout() {
+            if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
+            if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel); globalPrivateChannel = null; }
             if (publicChannel) { publicChannel.untrack();
                 sb.removeChannel(publicChannel);
                 publicChannel = null; }
             if (privateChannel) { sb.removeChannel(privateChannel);
                 privateChannel = null; }
-            if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel);
-                globalPrivateChannel = null; }
             localStorage.removeItem('mjchat_session');
             currentUser = '';
             isAdmin = false;
@@ -6199,6 +6592,13 @@
             privateChatActive = false;
             publicUnread = 0;
             privateUnreadCounts = {};
+            presenceSynced = false;
+            presenceReady = false;
+            userAvatarCache = {};
+            publicHasMore = true;
+            privateHasMore = true;
+            publicLoadingMore = false;
+            privateLoadingMore = false;
             document.getElementById('authContainer').style.display = 'flex';
             document.getElementById('appContainer').style.display = 'none';
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -6225,7 +6625,7 @@
                 }
                 if (publicChannel) {
                     publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: currentUser,
-                            forceLogout: true } });
+                            forceLogout: true, initiator: currentUser } });
                 }
                 localStorage.removeItem('mjchat_session');
                 showSnackbar('账号已彻底注销');
@@ -6399,6 +6799,7 @@
                                 currentUser = session.username;
                                 isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(currentUser);
                                 currentAvatarUrl = data.avatar_url || '';
+                                userAvatarCache[currentUser] = currentAvatarUrl;
                                 updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
                                 enterApp();
                             } else {
