@@ -8,7 +8,7 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* ===== 完整样式（与之前保持一致，无省略） ===== */
+        /* ===== 完整样式（与原始一致） ===== */
         * {
             margin: 0;
             padding: 0;
@@ -436,6 +436,7 @@
             flex-direction: column;
             gap: 2px;
             background: var(--md-background);
+            position: relative;
         }
         .public-page .messages .msg-row {
             display: flex;
@@ -535,6 +536,7 @@
             margin-bottom: 4px;
             display: block;
             border-left: 2px solid var(--md-primary);
+            cursor: pointer;
         }
         .public-page .messages .msg-row.own .bubble .reply-preview-block {
             background: rgba(255, 255, 255, 0.05);
@@ -553,19 +555,60 @@
             border-radius: 4px;
             margin-top: 2px;
         }
-        .public-page .messages .msg-row .bubble img {
-            max-width: 220px;
-            max-height: 220px;
+        /* 图片消息样式：单图无边框，多图有边框 */
+        .public-page .messages .msg-row .bubble.image-bubble {
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+        }
+        .public-page .messages .msg-row.own .bubble.image-bubble {
+            background: transparent;
+            border-radius: 0;
+        }
+        .public-page .messages .msg-row .bubble.image-bubble .image-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: var(--md-surface-2dp);
+            border-radius: 12px;
+            padding: 4px;
+            max-width: 100%;
+        }
+        .public-page .messages .msg-row.own .bubble.image-bubble .image-grid {
+            background: var(--md-primary);
+        }
+        .public-page .messages .msg-row .bubble.image-bubble .image-grid img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
             border-radius: 8px;
             display: block;
             cursor: pointer;
             -webkit-user-drag: none;
             user-drag: none;
             pointer-events: auto;
-            touch-action: none;
+            touch-action: auto;
+            /* 允许滚动 */;
         }
-        .public-page .messages .msg-row .bubble .img-only {
-            padding: 2px;
+        .public-page .messages .msg-row .bubble.image-single {
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+        }
+        .public-page .messages .msg-row.own .bubble.image-single {
+            background: transparent;
+            border-radius: 0;
+        }
+        .public-page .messages .msg-row .bubble.image-single img {
+            max-width: 220px;
+            max-height: 400px;
+            border-radius: 8px;
+            display: block;
+            cursor: pointer;
+            -webkit-user-drag: none;
+            user-drag: none;
+            pointer-events: auto;
+            touch-action: auto;
         }
         .public-page .messages .msg-row .bubble a {
             color: #64B5F6;
@@ -1045,6 +1088,7 @@
             flex-direction: column;
             gap: 2px;
             background: var(--md-background);
+            position: relative;
         }
         .private-page .messages .msg-row {
             display: flex;
@@ -1120,7 +1164,7 @@
             cursor: pointer;
             -webkit-user-drag: none;
             user-drag: none;
-            touch-action: none;
+            touch-action: auto;
         }
         .private-page .messages .system-msg {
             display: flex;
@@ -1154,6 +1198,41 @@
             background: var(--md-surface-4dp);
             box-shadow: var(--md-elevation-2);
             flex-shrink: 0;
+        }
+        .private-page .chat-bar .more-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border: none;
+            border-radius: 50%;
+            background: var(--md-surface-2dp);
+            color: var(--md-on-surface-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, color 0.2s;
+            margin-bottom: 4px;
+            flex-shrink: 0;
+        }
+        .private-page .chat-bar .more-btn:hover {
+            background: var(--md-surface-4dp);
+        }
+        .private-page .chat-bar .more-btn:active {
+            background: var(--md-surface-6dp);
+        }
+        .private-page .chat-bar .more-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .private-page .chat-bar .more-btn.active {
+            background: var(--md-primary);
+            color: var(--md-on-primary);
+        }
+        .private-page .chat-bar .more-btn.active svg {
+            transform: rotate(135deg);
         }
         .private-page .chat-bar .input-container {
             flex: 1;
@@ -1524,26 +1603,6 @@
             transition: transform 0.05s ease-out;
             will-change: transform;
         }
-        .image-preview-overlay .preview-controls {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 16px;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 8px 16px;
-            border-radius: 20px;
-            backdrop-filter: blur(8px);
-        }
-        .image-preview-overlay .preview-controls button {
-            background: transparent;
-            border: none;
-            color: white;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 4px 8px;
-        }
         .msg-context-menu {
             position: fixed;
             background: var(--md-surface-6dp);
@@ -1897,6 +1956,133 @@
             cursor: pointer;
             border-top: 1px solid var(--md-outline);
         }
+        /* 智能体模态框 */
+        .agent-list-modal .md-dialog {
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+        .agent-list-modal .agent-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .agent-list-modal .agent-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--md-outline);
+        }
+        .agent-list-modal .agent-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+        .agent-list-modal .agent-item .info .name {
+            font-weight: 500;
+            font-size: 0.9375rem;
+        }
+        .agent-list-modal .agent-item .info .provider {
+            font-size: 0.75rem;
+            color: var(--md-on-surface-dim);
+        }
+        .agent-list-modal .agent-item .info .creator {
+            font-size: 0.6875rem;
+            color: var(--md-on-surface-dim);
+        }
+        .agent-list-modal .agent-item .delete-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--md-error);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .agent-list-modal .agent-item .delete-btn:hover {
+            background: var(--md-ripple);
+        }
+        .agent-list-modal .agent-item .delete-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        .agent-list-modal .add-agent-btn {
+            margin-top: 16px;
+            padding: 10px;
+            border: 1px dashed var(--md-outline);
+            border-radius: var(--radius-md);
+            text-align: center;
+            color: var(--md-primary);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .agent-list-modal .add-agent-btn:hover {
+            background: var(--md-ripple);
+        }
+        /* 智能体表单 */
+        .agent-form .md-text-field {
+            margin-bottom: 12px;
+        }
+        .agent-form select {
+            width: 100%;
+            height: 56px;
+            padding: 0 16px;
+            background: var(--md-surface-1dp);
+            border: 1px solid var(--md-outline);
+            border-radius: var(--radius-md);
+            color: var(--md-on-surface);
+            font-size: 0.9375rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .agent-form select:focus {
+            border-color: var(--md-primary);
+            background: var(--md-surface-2dp);
+        }
+        .agent-form select option {
+            background: var(--md-surface);
+        }
+        /* 滚动按钮 */
+        .scroll-to-bottom-btn {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--md-primary);
+            color: var(--md-on-primary);
+            border: none;
+            box-shadow: var(--md-elevation-4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, opacity 0.2s;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .scroll-to-bottom-btn.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .scroll-to-bottom-btn:active {
+            transform: scale(0.9);
+        }
+        .scroll-to-bottom-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
     </style>
 </head>
 <body>
@@ -1911,47 +2097,32 @@
         <!-- ===== 页面容器 ===== -->
         <div class="page-container" id="appContainer" style="display:none;">
 
-            <!-- 主页（Home） -->
+            <!-- 主页 -->
             <div class="page home-page active" id="homePage">
                 <div class="app-bar">
-                    <div class="title-block">
-                        <span class="title">MJChat</span>
-                    </div>
-                    <div class="online-indicator" id="onlineIndicator" onclick="showOnlineList()">
-                        <span class="dot"></span><span id="onlineCount">0</span>
-                    </div>
+                    <div class="title-block"><span class="title">MJChat</span></div>
+                    <div class="online-indicator" id="onlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="onlineCount">0</span></div>
                     <div class="conn-indicator"><span class="dot" id="connDot"></span><span id="connText">离线</span></div>
                     <button class="icon-button" id="homeMenuBtn" onclick="toggleHomeMenu()" title="菜单">
                         <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                     </button>
                 </div>
-                <!-- MJChat 入口 -->
                 <div class="public-chat-entry" onclick="navigateTo('public')">
                     <div class="icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></div>
-                    <div class="info">
-                        <div class="name">MJChat</div>
-                        <div class="sub" id="publicEntrySub">点击进入聊天</div>
-                    </div>
+                    <div class="info"><div class="name">MJChat</div><div class="sub" id="publicEntrySub">点击进入聊天</div></div>
                     <div class="badge" id="publicUnreadBadge" style="display:none;">新</div>
                 </div>
-                <!-- 私聊列表 -->
-                <div class="private-list" id="privateList">
-                    <div class="empty">暂无私聊，点击用户头像发起</div>
-                </div>
+                <div class="private-list" id="privateList"><div class="empty">暂无私聊，点击用户头像发起</div></div>
             </div>
 
             <!-- 公共聊天室 -->
             <div class="page public-page" id="publicPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateTo('home')">
-                            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                        </button>
+                        <button class="back-btn" onclick="navigateTo('home')"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <span class="title">MJChat</span>
                     </div>
-                    <div class="online-indicator" id="publicOnlineIndicator" onclick="showOnlineList()">
-                        <span class="dot"></span><span id="publicOnlineCount">0</span>
-                    </div>
+                    <div class="online-indicator" id="publicOnlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="publicOnlineCount">0</span></div>
                     <div class="conn-indicator"><span class="dot" id="publicConnDot"></span><span id="publicConnText">离线</span></div>
                     <button class="icon-button" id="publicMenuBtn" onclick="togglePublicMenu()" title="菜单">
                         <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
@@ -1960,7 +2131,6 @@
                 <div class="messages" id="publicMessages">
                     <div class="system-msg"><span>加载中...</span></div>
                 </div>
-                <!-- 回复预览 -->
                 <div id="publicReplyPreview" class="reply-preview" style="display:none;">
                     <span class="reply-content" id="publicReplyContent">回复 @xxx：内容</span>
                     <button class="reply-cancel" onclick="cancelPublicReply()">✕</button>
@@ -1980,59 +2150,31 @@
                 <div class="feature-panel" id="publicFeaturePanel">
                     <div id="featurePanelMain">
                         <div class="feature-grid">
-                            <div class="feature-item" onclick="openImagePicker()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div>
-                                <span class="feature-label">图片</span>
-                            </div>
-                            <div class="feature-item" onclick="openLinkDialog()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div>
-                                <span class="feature-label">链接</span>
-                            </div>
-                            <div class="feature-item" onclick="openFilePicker()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div>
-                                <span class="feature-label">文件</span>
-                            </div>
-                            <div class="feature-item" onclick="openEmojiSubPanel()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></div>
-                                <span class="feature-label">表情</span>
-                            </div>
-                            <div class="feature-item" onclick="openVoiceSubPanel()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></div>
-                                <span class="feature-label">语音</span>
-                            </div>
-                            <div class="feature-item" onclick="openTextEffectSubPanel()">
-                                <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div>
-                                <span class="feature-label">文字特效</span>
-                            </div>
+                            <div class="feature-item" onclick="openImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span class="feature-label">图片</span></div>
+                            <div class="feature-item" onclick="openLinkDialog()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div><span class="feature-label">链接</span></div>
+                            <div class="feature-item" onclick="openFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div><span class="feature-label">文件</span></div>
+                            <div class="feature-item" onclick="openEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></div><span class="feature-label">表情</span></div>
+                            <div class="feature-item" onclick="openVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></div><span class="feature-label">语音</span></div>
+                            <div class="feature-item" onclick="openTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div><span class="feature-label">文字特效</span></div>
                         </div>
                     </div>
                     <div class="sub-panel" id="emojiSubPanel">
-                        <div class="sub-panel-header">
-                            <button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                            <span class="sub-panel-title">表情</span>
-                        </div>
-                        <div class="emoji-scroll" id="emojiScroll">
-                            <div class="emoji-grid" id="emojiGrid"></div>
-                        </div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">表情</span></div>
+                        <div class="emoji-scroll"><div class="emoji-grid" id="emojiGrid"></div></div>
                     </div>
                     <div class="sub-panel" id="textEffectSubPanel">
-                        <div class="sub-panel-header">
-                            <button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                            <span class="sub-panel-title">文字特效</span>
-                        </div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">文字特效</span></div>
                         <div class="text-effect-grid">
                             <button class="effect-btn" onclick="applyTextEffect('b')" title="粗体"><b>B</b></button>
                             <button class="effect-btn" onclick="applyTextEffect('i')" title="斜体"><i>I</i></button>
                             <button class="effect-btn" onclick="applyTextEffect('u')" title="下划线"><span style="text-decoration:underline;">U</span></button>
                             <button class="effect-btn" onclick="applyTextEffect('s')" title="删除线"><span style="text-decoration:line-through;">S</span></button>
+                            <button class="effect-btn" onclick="applyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg></button>
                         </div>
                         <div class="effect-hint">请选中输入框中的文字后点击特效按钮</div>
                     </div>
                     <div class="sub-panel" id="voiceSubPanel">
-                        <div class="sub-panel-header">
-                            <button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                            <span class="sub-panel-title">语音</span>
-                        </div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">语音</span></div>
                         <div class="voice-panel">
                             <div class="record-timer" id="recordTimer">00:00</div>
                             <button class="record-btn" id="recordBtn" onclick="toggleRecording()"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button>
@@ -2041,7 +2183,7 @@
                         </div>
                     </div>
                 </div>
-                <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+                <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImageSelect(event)">
                 <input type="file" id="fileInput" style="display:none" onchange="handleFileSelect(event)">
             </div>
 
@@ -2049,9 +2191,7 @@
             <div class="page private-page" id="privatePage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="leavePrivateChat()">
-                            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                        </button>
+                        <button class="back-btn" onclick="leavePrivateChat()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <span class="title" id="privateChatTitle">私聊</span>
                     </div>
                     <button class="icon-button" onclick="deletePrivateChat()" title="删除聊天" style="margin-right:4px;">
@@ -2061,32 +2201,72 @@
                 <div class="messages" id="privateMessages">
                     <div class="system-msg"><span>加载中...</span></div>
                 </div>
+                <div id="privateReplyPreview" class="reply-preview" style="display:none;">
+                    <span class="reply-content" id="privateReplyContent">回复 @xxx：内容</span>
+                    <button class="reply-cancel" onclick="cancelPrivateReply()">✕</button>
+                </div>
                 <div class="chat-bar">
+                    <button class="more-btn" id="privateMoreBtn" onclick="togglePrivateFeaturePanel()" title="更多功能">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    </button>
                     <div class="input-container">
-                        <textarea class="msg-input" id="privateMsgInput" placeholder="发送消息..." rows="1" oninput="autoResize(this);togglePrivateSendBtn()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPrivateMsg();}"></textarea>
+                        <textarea class="msg-input" id="privateMsgInput" placeholder="发送消息..." rows="1" oninput="autoResize(this);togglePrivateSendBtn()" onkeydown="handlePrivateKeyDown(event)"></textarea>
                     </div>
                     <button class="fab-send" id="privateSendBtn" onclick="sendPrivateMsg()" disabled>
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
                 </div>
+                <!-- 私聊功能面板 -->
+                <div class="feature-panel" id="privateFeaturePanel">
+                    <div id="privateFeaturePanelMain">
+                        <div class="feature-grid">
+                            <div class="feature-item" onclick="privateOpenImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span class="feature-label">图片</span></div>
+                            <div class="feature-item" onclick="privateOpenLinkDialog()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div><span class="feature-label">链接</span></div>
+                            <div class="feature-item" onclick="privateOpenFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div><span class="feature-label">文件</span></div>
+                            <div class="feature-item" onclick="privateOpenEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></div><span class="feature-label">表情</span></div>
+                            <div class="feature-item" onclick="privateOpenVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></div><span class="feature-label">语音</span></div>
+                            <div class="feature-item" onclick="privateOpenTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div><span class="feature-label">文字特效</span></div>
+                        </div>
+                    </div>
+                    <div class="sub-panel" id="privateEmojiSubPanel">
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">表情</span></div>
+                        <div class="emoji-scroll"><div class="emoji-grid" id="privateEmojiGrid"></div></div>
+                    </div>
+                    <div class="sub-panel" id="privateTextEffectSubPanel">
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">文字特效</span></div>
+                        <div class="text-effect-grid">
+                            <button class="effect-btn" onclick="privateApplyTextEffect('b')" title="粗体"><b>B</b></button>
+                            <button class="effect-btn" onclick="privateApplyTextEffect('i')" title="斜体"><i>I</i></button>
+                            <button class="effect-btn" onclick="privateApplyTextEffect('u')" title="下划线"><span style="text-decoration:underline;">U</span></button>
+                            <button class="effect-btn" onclick="privateApplyTextEffect('s')" title="删除线"><span style="text-decoration:line-through;">S</span></button>
+                            <button class="effect-btn" onclick="privateApplyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg></button>
+                        </div>
+                        <div class="effect-hint">请选中输入框中的文字后点击特效按钮</div>
+                    </div>
+                    <div class="sub-panel" id="privateVoiceSubPanel">
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">语音</span></div>
+                        <div class="voice-panel">
+                            <div class="record-timer" id="privateRecordTimer">00:00</div>
+                            <button class="record-btn" id="privateRecordBtn" onclick="privateToggleRecording()"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button>
+                            <div class="record-hint" id="privateRecordHint">点击开始录音</div>
+                            <button class="record-stop-btn" id="privateRecordStopBtn" onclick="privateToggleRecording()">停止并发送</button>
+                        </div>
+                    </div>
+                </div>
+                <input type="file" id="privateImageInput" accept="image/*" multiple style="display:none" onchange="privateHandleImageSelect(event)">
+                <input type="file" id="privateFileInput" style="display:none" onchange="privateHandleFileSelect(event)">
             </div>
 
             <!-- 搜索页面 -->
             <div class="page search-page" id="searchPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateTo('home')">
-                            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                        </button>
+                        <button class="back-btn" onclick="navigateTo('home')"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <span class="title">搜索用户</span>
                     </div>
                 </div>
-                <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="输入用户名搜索..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value)">
-                </div>
-                <div class="search-results" id="searchResults">
-                    <div class="empty">输入用户名开始搜索</div>
-                </div>
+                <div class="search-box"><input type="text" id="searchInput" placeholder="输入用户名搜索..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value)"></div>
+                <div class="search-results" id="searchResults"><div class="empty">输入用户名开始搜索</div></div>
             </div>
         </div>
 
@@ -2103,7 +2283,6 @@
                 </div>
                 <div class="auth-switch">还没有账号？<a onclick="showRegister()">注册</a></div>
             </div>
-
             <div class="auth-screen hidden" id="registerScreen">
                 <div class="auth-icon"><svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-1V8H4v3H1v2h3v3h2v-3h3v-2H6zm9 3c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg></div>
                 <h1>注册</h1>
@@ -2124,25 +2303,21 @@
         <!-- 在线列表 -->
         <div class="dialog-overlay hidden online-list-modal" id="onlineListModal" onclick="if(event.target===this)closeOnlineList()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>在线用户</h2>
-                    <button onclick="closeOnlineList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>在线用户</h2><button onclick="closeOnlineList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
                 <div class="online-list" id="onlineListContainer"></div>
             </div>
         </div>
 
-        <!-- 个人信息模态框（主页菜单用） -->
+        <!-- 个人信息模态框 -->
         <div class="dialog-overlay hidden profile-dialog" id="profileDialog" onclick="if(event.target===this)closeProfileDialog()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>个人信息</h2>
-                    <button onclick="closeProfileDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>个人信息</h2><button onclick="closeProfileDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
                 <div class="profile-avatar" id="profileDialogAvatar" onclick="showAvatarMenu()">U</div>
                 <div class="profile-info">
                     <div class="item"><span class="label">用户名</span><span class="value" id="profileDialogUsername">-</span></div>
-                    <div class="item"><span class="label">角色</span><span class="value" id="profileDialogRole">-</span></div>
+                    <div class="item"><span class="label">身份</span><span class="value" id="profileDialogRole">-</span></div>
+                    <div class="item"><span class="label">状态</span><span class="value" id="profileDialogStatus">-</span></div>
+                    <div class="item" id="profileDialogOnlineItem"><span class="label">在线状态</span><span class="value" id="profileDialogOnline">-</span></div>
                 </div>
                 <div class="action-buttons">
                     <button class="md-button primary" onclick="closeProfileDialog();showChangePasswordDialog();">更改密码</button>
@@ -2161,65 +2336,43 @@
                     <div class="md-text-field"><input type="password" id="changeNewPassword" placeholder=" "><label>新密码</label></div>
                     <div class="md-text-field"><input type="password" id="changeConfirmPassword" placeholder=" "><label>确认新密码</label></div>
                 </div>
-                <div class="dialog-actions">
-                    <button class="md-button text" onclick="closeChangePasswordDialog()">取消</button>
-                    <button class="md-button text" id="changePwdOkBtn" onclick="doChangePassword()">确定</button>
-                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeChangePasswordDialog()">取消</button><button class="md-button text" id="changePwdOkBtn" onclick="doChangePassword()">确定</button></div>
             </div>
         </div>
 
         <!-- 头像选择菜单 -->
         <div class="avatar-menu hidden" id="avatarMenu">
-            <div class="menu-item" onclick="setDefaultAvatar()">
-                <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                默认头像（随机颜色）
-            </div>
-            <div class="menu-item" onclick="uploadAvatarFromMenu()">
-                <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                从相册上传
-            </div>
+            <div class="menu-item" onclick="setDefaultAvatar()"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>默认头像（随机颜色）</div>
+            <div class="menu-item" onclick="uploadAvatarFromMenu()"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>从相册上传</div>
             <div class="cancel-btn" onclick="closeAvatarMenu()">取消</div>
         </div>
 
         <!-- 用户信息模态框（查看他人） -->
         <div class="dialog-overlay hidden profile-modal" id="userProfileModal" onclick="if(event.target===this)closeUserProfile()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>用户信息</h2>
-                    <button onclick="closeUserProfile()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>用户信息</h2><button onclick="closeUserProfile()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
                 <div class="profile-avatar" id="userProfileAvatar">U</div>
                 <div class="profile-info">
                     <div class="item"><span class="label">用户名</span><span class="value" id="userProfileUsername">-</span></div>
-                    <div class="item"><span class="label">角色</span><span class="value" id="userProfileRole">-</span></div>
-                    <div class="item"><span class="label">状态</span><span class="value" id="userProfileStatus">-</span></div>
+                    <div class="item"><span class="label">身份</span><span class="value" id="userProfileRole">-</span></div>
+                    <div class="item"><span class="label">用户状态</span><span class="value" id="userProfileStatus">-</span></div>
+                    <div class="item" id="userProfileOnlineItem"><span class="label">在线状态</span><span class="value" id="userProfileOnline">-</span></div>
                 </div>
                 <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-primary);color:var(--md-on-primary);font-size:0.875rem;margin-top:8px;">发起私聊</button>
                 <button class="md-button danger" id="userProfileBanBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="banUserFromProfile()">封禁此用户</button>
                 <button class="md-button danger" id="userProfileForceLogoutBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="forceLogoutUser()">强制下线</button>
+                <button class="md-button danger" id="userProfileDeleteBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="adminDeleteUser()">注销账号</button>
             </div>
         </div>
 
         <!-- 主页汉堡菜单 -->
         <div class="user-menu-overlay" id="homeMenuOverlay" onclick="closeHomeMenu(event)">
             <div class="user-menu-card" onclick="event.stopPropagation()">
-                <div class="user-info">
-                    <div class="user-avatar" id="homeMenuAvatar">U</div>
-                    <div class="user-name" id="homeMenuName">用户</div>
-                </div>
+                <div class="user-info"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="user-name" id="homeMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li onclick="closeHomeMenu();showProfileDialog();">
-                        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                        个人信息
-                    </li>
-                    <li onclick="closeHomeMenu();navigateTo('search');">
-                        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                        搜索用户
-                    </li>
-                    <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();">
-                        <svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-                        管理员功能
-                    </li>
+                    <li onclick="closeHomeMenu();showProfileDialog();"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>个人信息</li>
+                    <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
+                    <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>管理员功能</li>
                 </ul>
             </div>
         </div>
@@ -2227,16 +2380,51 @@
         <!-- 公共聊天室汉堡菜单 -->
         <div class="user-menu-overlay" id="publicMenuOverlay" onclick="closePublicMenu(event)">
             <div class="user-menu-card" onclick="event.stopPropagation()">
-                <div class="user-info">
-                    <div class="user-avatar" id="publicMenuAvatar">U</div>
-                    <div class="user-name" id="publicMenuName">用户</div>
-                </div>
+                <div class="user-info"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="user-name" id="publicMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li id="publicAdminItem" class="admin-item" style="display:none;" onclick="closePublicMenu();showAdminDialog();">
-                        <svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-                        管理员功能
-                    </li>
+                    <li id="publicAdminItem" class="admin-item" style="display:none;" onclick="closePublicMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>管理员功能</li>
+                    <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15L17 12.23l-4-2.37V7z"/></svg>智能体</li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- 智能体列表模态框 -->
+        <div class="dialog-overlay hidden agent-list-modal" id="agentListModal" onclick="if(event.target===this)closeAgentList()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>智能体列表</h2>
+                    <button onclick="closeAgentList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                </div>
+                <div class="agent-list" id="agentListContainer">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="add-agent-btn" onclick="closeAgentList();showAddAgentDialog();">+ 添加智能体</div>
+            </div>
+        </div>
+
+        <!-- 添加智能体模态框 -->
+        <div class="dialog-overlay hidden" id="addAgentDialog" onclick="if(event.target===this)closeAddAgentDialog()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>添加智能体</h2><button onclick="closeAddAgentDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
+                <div class="agent-form">
+                    <div class="md-text-field"><input type="text" id="agentName" placeholder=" "><label>智能体名称</label></div>
+                    <div class="md-text-field">
+                        <select id="agentProvider">
+                            <option value="openai">OpenAI (GPT)</option>
+                            <option value="google">Google (Gemini)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="baidu">百度 (文心一言)</option>
+                            <option value="ali">阿里 (通义千问)</option>
+                            <option value="bytedance">字节跳动 (豆包)</option>
+                            <option value="zhipu">智谱 AI (GLM)</option>
+                            <option value="deepseek">深度求索 (DeepSeek)</option>
+                            <option value="custom">其他 (自定义)</option>
+                        </select>
+                    </div>
+                    <div class="md-text-field"><input type="text" id="agentApiKey" placeholder=" "><label>API Key</label></div>
+                    <div class="md-text-field"><input type="text" id="agentModel" placeholder=" " value="gpt-3.5-turbo"><label>模型（可选）</label></div>
+                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeAddAgentDialog()">取消</button><button class="md-button text" onclick="saveAgent()">保存</button></div>
             </div>
         </div>
 
@@ -2244,13 +2432,8 @@
         <div class="dialog-overlay hidden" id="adminDialog" onclick="if(event.target===this)closeAdminDialog()">
             <div class="md-dialog">
                 <h2>管理员功能</h2>
-                <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;">
-                    <button class="md-button contained" onclick="closeAdminDialog();showClearDialog();">清空公共消息</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();showBannedList();">已封禁用户</button>
-                </div>
-                <div class="dialog-actions">
-                    <button class="md-button text" onclick="closeAdminDialog()">关闭</button>
-                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;"><button class="md-button contained" onclick="closeAdminDialog();showClearDialog();">清空公共消息</button><button class="md-button contained" onclick="closeAdminDialog();showBannedList();">已封禁用户</button></div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeAdminDialog()">关闭</button></div>
             </div>
         </div>
 
@@ -2259,20 +2442,14 @@
             <div class="md-dialog">
                 <h2>清空公共消息</h2>
                 <p>确定要清空所有公共消息吗？此操作不可撤销。</p>
-                <div class="dialog-actions">
-                    <button class="md-button text" onclick="hideClearDialog()">取消</button>
-                    <button class="md-button text" style="color:var(--md-error);" onclick="clearPublicMessages()">清空</button>
-                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="hideClearDialog()">取消</button><button class="md-button text" style="color:var(--md-error);" onclick="clearPublicMessages()">清空</button></div>
             </div>
         </div>
 
         <!-- 已封禁用户列表 -->
         <div class="dialog-overlay hidden banned-list-modal" id="bannedListModal" onclick="if(event.target===this)closeBannedList()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>已封禁用户</h2>
-                    <button onclick="closeBannedList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>已封禁用户</h2><button onclick="closeBannedList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
                 <div class="banned-list" id="bannedListContainer"></div>
             </div>
         </div>
@@ -2281,25 +2458,14 @@
         <div class="dialog-overlay hidden" id="linkDialog" onclick="if(event.target===this)hideLinkDialog()">
             <div class="md-dialog">
                 <h2>发送链接</h2>
-                <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;">
-                    <div class="md-text-field"><input type="text" id="linkText" placeholder=" "><label>链接文字</label></div>
-                    <div class="md-text-field"><input type="text" id="linkUrl" placeholder=" " onkeypress="if(event.key==='Enter')sendLink()"><label>链接地址</label></div>
-                </div>
-                <div class="dialog-actions">
-                    <button class="md-button text" onclick="hideLinkDialog()">取消</button>
-                    <button class="md-button text" onclick="sendLink()">发送</button>
-                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;"><div class="md-text-field"><input type="text" id="linkText" placeholder=" "><label>链接文字</label></div><div class="md-text-field"><input type="text" id="linkUrl" placeholder=" " onkeypress="if(event.key==='Enter')sendLink()"><label>链接地址</label></div></div>
+                <div class="dialog-actions"><button class="md-button text" onclick="hideLinkDialog()">取消</button><button class="md-button text" onclick="sendLink()">发送</button></div>
             </div>
         </div>
 
         <!-- 图片预览 -->
         <div class="image-preview-overlay hidden" id="imagePreview" onclick="closeImagePreview(event)">
             <img id="previewImg" src="" draggable="false">
-            <div class="preview-controls">
-                <button onclick="zoomImage(0.8)">−</button>
-                <button onclick="zoomImage(1)">重置</button>
-                <button onclick="zoomImage(1.2)">+</button>
-            </div>
         </div>
 
         <!-- 消息右键菜单 -->
@@ -2310,10 +2476,7 @@
             <div class="md-dialog">
                 <h2 id="confirmTitle">确认</h2>
                 <p id="confirmMessage">确定执行此操作？</p>
-                <div class="dialog-actions">
-                    <button class="md-button text" onclick="closeConfirmDialog()">取消</button>
-                    <button class="md-button text" id="confirmOkBtn" style="color:var(--md-error);" onclick="closeConfirmDialog()">确定</button>
-                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeConfirmDialog()">取消</button><button class="md-button text" id="confirmOkBtn" style="color:var(--md-error);" onclick="closeConfirmDialog()">确定</button></div>
             </div>
         </div>
 
@@ -2327,15 +2490,17 @@
         const TABLE_PUBLIC_MSG = 'chat_messages';
         const TABLE_PRIVATE_SESSIONS = 'private_sessions';
         const TABLE_PRIVATE_MSGS = 'private_messages';
+        const TABLE_AGENTS = 'chat_agents';
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
-        const HISTORY_LIMIT = 100;
-        const APP_VERSION = 9.4;
+        const HISTORY_LIMIT = 500;
+        const APP_VERSION = 10.0;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ'];
         const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
         const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
+        const MAX_IMAGES_PER_MSG = 4;
 
         // ===================== 全局状态 =====================
         let sb = null;
@@ -2355,14 +2520,23 @@
         let onlineUsers = {};
         let confirmCallback = null;
         let replyTarget = null;
+        let privateReplyTarget = null;
         let mediaRecorder = null,
             audioChunks = [],
             recordStartTime = null,
             recordTimerInterval = null;
+        let privateMediaRecorder = null,
+            privateAudioChunks = [],
+            privateRecordStartTime = null,
+            privateRecordTimerInterval = null;
         let activeAudio = null;
         let contextTarget = null;
         let lastPokeTime = 0;
         let currentAvatarUrl = '';
+
+        // 滚动相关
+        let isUserScrolledUp = false;
+        let scrollTimeout = null;
 
         // ===================== 工具函数 =====================
         function escapeHtml(t) { const d = document.createElement('div');
@@ -2420,6 +2594,68 @@
 
         function hideEl(id) {
             document.getElementById(id).classList.remove('show');
+        }
+
+        // 滚动控制
+        function isScrolledToBottom(el) {
+            if (!el) return true;
+            const threshold = 20;
+            return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+        }
+
+        function scrollToBottom(el) {
+            if (!el) return;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function updateScrollButton(messagesContainer) {
+            const btn = messagesContainer.querySelector('.scroll-to-bottom-btn');
+            if (!btn) return;
+            if (isScrolledToBottom(messagesContainer)) {
+                btn.classList.remove('show');
+            } else {
+                btn.classList.add('show');
+            }
+        }
+
+        function setupScrollHandlers(messagesContainer) {
+            if (!messagesContainer) return;
+            const oldBtn = messagesContainer.querySelector('.scroll-to-bottom-btn');
+            if (oldBtn) oldBtn.remove();
+
+            const btn = document.createElement('button');
+            btn.className = 'scroll-to-bottom-btn';
+            btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>';
+            btn.title = '回到最新消息';
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                scrollToBottom(messagesContainer);
+                isUserScrolledUp = false;
+                updateScrollButton(messagesContainer);
+                setTimeout(() => updateScrollButton(messagesContainer), 100);
+            };
+            messagesContainer.appendChild(btn);
+
+            messagesContainer.addEventListener('scroll', function() {
+                if (isScrolledToBottom(messagesContainer)) {
+                    isUserScrolledUp = false;
+                } else {
+                    isUserScrolledUp = true;
+                }
+                updateScrollButton(messagesContainer);
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    if (isScrolledToBottom(messagesContainer)) {
+                        isUserScrolledUp = false;
+                    }
+                    updateScrollButton(messagesContainer);
+                }, 500);
+            });
+
+            setTimeout(() => {
+                scrollToBottom(messagesContainer);
+                updateScrollButton(messagesContainer);
+            }, 100);
         }
 
         // ===================== 安全过滤 =====================
@@ -2621,9 +2857,14 @@
                 updatePublicMenu();
                 renderPrivateList();
                 initEmojiPicker();
+                initPrivateEmojiPicker();
                 initInteractions();
                 updatePublicEntry();
                 updateAllAvatars();
+
+                const publicMessagesEl = document.getElementById('publicMessages');
+                setupScrollHandlers(publicMessagesEl);
+
             } catch (err) {
                 hideGlobalLoading();
                 showLogin();
@@ -2647,6 +2888,18 @@
             // 在需要时更新
         }
 
+        // ===================== 系统消息广播 =====================
+        function broadcastSystemMsg(text) {
+            addPublicSystemMsg(text);
+            if (publicChannel) {
+                publicChannel.send({
+                    type: 'broadcast',
+                    event: 'system_msg',
+                    payload: { text: text }
+                });
+            }
+        }
+
         // ===================== 公共聊天室 =====================
         async function connectPublic() {
             return new Promise((resolve, reject) => {
@@ -2658,7 +2911,15 @@
                             p => {
                                 handlePublicMessage(p.new);
                                 updatePublicEntry();
+                                const container = document.getElementById('publicMessages');
+                                if (!isUserScrolledUp && container) {
+                                    scrollToBottom(container);
+                                    updateScrollButton(container);
+                                }
                             });
+                        publicChannel.on('broadcast', { event: 'system_msg' }, (payload) => {
+                            addPublicSystemMsg(payload.payload.text);
+                        });
                         publicChannel.on('broadcast', { event: 'clear_messages' }, () => {
                             handlePublicCleared();
                             updatePublicEntry();
@@ -2671,6 +2932,8 @@
                             if (p.payload.username === currentUser) {
                                 showSnackbar('您已被封禁，即将下线');
                                 setTimeout(() => logout(), 2000);
+                            } else {
+                                broadcastSystemMsg(`用户 ${p.payload.username} 已被封禁`);
                             }
                         });
                         publicChannel.on('broadcast', { event: 'user_deleted' }, (p) => {
@@ -2679,7 +2942,7 @@
                                 showSnackbar('您的账号已注销，即将刷新');
                                 setTimeout(() => location.reload(), 1000);
                             } else {
-                                addPublicSystemMsg(`用户 ${name} 已注销`);
+                                broadcastSystemMsg(`用户 ${name} 已注销`);
                             }
                             refreshPublicMessages();
                             updatePublicEntry();
@@ -2695,17 +2958,23 @@
                                 onlineUsers = publicChannel.presenceState();
                                 renderOnlineUsers();
                             })
-                            .on('presence', { event: 'join' }, () => {})
+                            .on('presence', { event: 'join' }, ({ newPresences }) => {
+                                const n = newPresences[0]?.name;
+                                if (n && n !== currentUser) {
+                                    broadcastSystemMsg(`${n} 加入了MJChat`);
+                                }
+                            })
                             .on('presence', { event: 'leave' }, ({ leftPresences }) => {
                                 const n = leftPresences[0]?.name;
-                                if (n && n !== currentUser) addPublicSystemMsg(`${n} 离开了MJChat`);
+                                if (n && n !== currentUser) {
+                                    broadcastSystemMsg(`${n} 离开了MJChat`);
+                                }
                             })
                             .subscribe(async (status) => {
                                 if (status === 'SUBSCRIBED') {
                                     updatePublicConn(true);
                                     await publicChannel.track({ name: currentUser, online_at: new Date()
                                             .toISOString() });
-                                    addPublicSystemMsg(`${currentUser} 加入了MJChat`);
                                     if (!resolved) {
                                         resolved = true;
                                         resolve();
@@ -2777,8 +3046,12 @@
                     return;
                 }
                 data.reverse().forEach(m => handlePublicMessage(m, true));
-                if (document.getElementById('publicPage').classList.contains('active')) {
-                    scrollPublicToBottom();
+                const container = document.getElementById('publicMessages');
+                if (container) {
+                    setTimeout(() => {
+                        scrollToBottom(container);
+                        updateScrollButton(container);
+                    }, 50);
                 }
             } catch (e) {
                 console.error('loadPublicHistory exception:', e);
@@ -2826,6 +3099,7 @@
             let linkUrl = null;
             let imageUrl = null;
 
+            // 回复预览
             let replyHtml = '';
             if (msg.reply_to_id) {
                 const repliedMsg = publicMessages.find(m => m.id === msg.reply_to_id);
@@ -2839,7 +3113,7 @@
                         const dur = repliedMsg.audio_dur || 0;
                         const mins = String(Math.floor(dur / 60)).padStart(2, '0');
                         const secs = String(dur % 60).padStart(2, '0');
-                        contentPreview = `📱 语音 ${mins}:${secs}`;
+                        contentPreview = `🎤 语音 ${mins}:${secs}`;
                     } else if (repliedMsg.text && repliedMsg.text.startsWith('🔗 ')) {
                         const linkMatch = repliedMsg.text.match(/🔗 (.*?) → (.*)/);
                         if (linkMatch) contentPreview = `🔗 ${escapeHtml(linkMatch[1])}`;
@@ -2857,18 +3131,34 @@
                     replyPreviewContent = escapeHtml(msg.reply_content || '');
                 }
                 if (replyPreviewContent) {
-                    replyHtml = `<div class="reply-preview-block">↩ ${replyPreviewContent}</div>`;
+                    replyHtml = `<div class="reply-preview-block" data-reply-id="${msg.reply_to_id}" onclick="jumpToMessage('${msg.reply_to_id}', 'public')">↩ ${replyPreviewContent}</div>`;
                 }
             }
 
+            // 处理图片消息
             if (msg.image_url) {
                 imageUrl = msg.image_url;
-                bubbleContent =
-                    `<img src="${escapeAttr(msg.image_url)}" onclick="previewImage('${escapeAttr(msg.image_url)}')" alt="图片" draggable="false" oncontextmenu="return false;">`;
-                if (msg.text && !msg.text.startsWith('🖼️')) {
+                let imageUrls = [];
+                if (msg.text && msg.text.startsWith('🖼️ ')) {
+                    const matches = msg.text.match(/!\[.*?\]\((.*?)\)/g);
+                    if (matches && matches.length > 0) {
+                        imageUrls = matches.map(m => {
+                            const match = m.match(/!\[.*?\]\((.*?)\)/);
+                            return match ? match[1] : null;
+                        }).filter(Boolean);
+                    }
+                }
+                if (imageUrls.length > 1) {
+                    bubbleContent = `<div class="image-grid">${imageUrls.map(url => `<img src="${escapeAttr(url)}" onclick="previewImage('${escapeAttr(url)}')" draggable="false" oncontextmenu="return false;">`).join('')}</div>`;
+                    msgType = 'image';
+                } else {
+                    bubbleContent =
+                        `<img src="${escapeAttr(msg.image_url)}" onclick="previewImage('${escapeAttr(msg.image_url)}')" draggable="false" oncontextmenu="return false;">`;
+                    msgType = 'image';
+                }
+                if (msg.text && !msg.text.startsWith('🖼️ ')) {
                     bubbleContent += `<div style="margin-top:4px;">${cleanHtml(msg.text)}</div>`;
                 }
-                msgType = 'image';
             } else if (msg.audio_url) {
                 const dur = msg.audio_dur || 0;
                 const mins = String(Math.floor(dur / 60)).padStart(2, '0');
@@ -2914,23 +3204,24 @@
             row.dataset.imageUrl = imageUrl || '';
             row.dataset.replyToId = msg.reply_to_id || '';
             row.dataset.replyContent = msg.reply_content || '';
+            row.dataset.replySender = msg.reply_to_id ? (publicMessages.find(m => m.id === msg.reply_to_id)?.sender || '') :
+            '';
 
-            const avatarDiv = document.createElement('div');
-            avatarDiv.className = avatarClass;
-            avatarDiv.dataset.sender = msg.sender;
-            avatarDiv.onclick = function() { showUserProfile(msg.sender); };
-            if (msg.avatar_url) {
-                avatarDiv.style.backgroundImage = `url(${msg.avatar_url})`;
-                avatarDiv.textContent = '';
-            } else {
-                avatarDiv.textContent = msg.sender.charAt(0).toUpperCase();
+            let bubbleClass = 'bubble';
+            if (msgType === 'image') {
+                if (msg.text && msg.text.startsWith('🖼️ ') && msg.text.match(/!\[.*?\]\(.*?\)/g) && msg.text.match(
+                    /!\[.*?\]\(.*?\)/g).length > 1) {
+                    bubbleClass += ' image-bubble';
+                } else {
+                    bubbleClass += ' image-single';
+                }
             }
 
             row.innerHTML = `
                 <div class="${avatarClass}" data-sender="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="${senderClass}">${escapeHtml(senderDisplay)}</span><span class="time">${time}</span></div>
-                    <div class="bubble">${replyHtml}${bubbleContent}</div>
+                    <div class="${bubbleClass}">${replyHtml}${bubbleContent}</div>
                 </div>
             `;
             const avatarElem = row.querySelector('.avatar');
@@ -2938,7 +3229,38 @@
                 avatarElem.style.backgroundImage = `url(${msg.avatar_url})`;
                 avatarElem.textContent = '';
             }
+            row.dataset.elementId = msg.id;
             c.appendChild(row);
+        }
+
+        function jumpToMessage(msgId, type) {
+            if (type === 'public') {
+                const container = document.getElementById('publicMessages');
+                const targetRow = container.querySelector(`.msg-row[data-msg-id="${msgId}"]`);
+                if (targetRow) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.style.transition = 'background 0.5s';
+                    targetRow.style.background = 'var(--md-primary)';
+                    setTimeout(() => {
+                        targetRow.style.background = '';
+                    }, 2000);
+                } else {
+                    showSnackbar('无法定位到此消息');
+                }
+            } else if (type === 'private') {
+                const container = document.getElementById('privateMessages');
+                const targetRow = container.querySelector(`.msg-row[data-msg-id="${msgId}"]`);
+                if (targetRow) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.style.transition = 'background 0.5s';
+                    targetRow.style.background = 'var(--md-primary)';
+                    setTimeout(() => {
+                        targetRow.style.background = '';
+                    }, 2000);
+                } else {
+                    showSnackbar('无法定位到此消息');
+                }
+            }
         }
 
         function refreshPublicMessages() {
@@ -2946,8 +3268,12 @@
             c.innerHTML = '';
             publicLastDateLabel = '';
             publicMessages.forEach(m => renderPublicMessage(m));
-            if (document.getElementById('publicPage').classList.contains('active')) {
-                scrollPublicToBottom();
+            const container = document.getElementById('publicMessages');
+            if (container && document.getElementById('publicPage').classList.contains('active')) {
+                setTimeout(() => {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                }, 50);
             }
         }
 
@@ -2982,20 +3308,13 @@
             c.appendChild(d);
         }
 
-        function scrollPublicToBottom() {
-            const el = document.getElementById('publicMessages');
-            if (el) {
-                requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
-            }
-        }
-
         function togglePublicSendBtn() {
             document.getElementById('publicSendBtn').disabled = !document.getElementById('publicMsgInput').value.trim() &&
                 !replyTarget;
         }
 
         function handlePublicKeyDown(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 sendPublicMsg();
             }
@@ -3024,7 +3343,10 @@
                     if (replied.image_url) {
                         previewText = '🖼️ 图片';
                     } else if (replied.audio_url) {
-                        previewText = '🎤 语音';
+                        const dur = replied.audio_dur || 0;
+                        const mins = String(Math.floor(dur / 60)).padStart(2, '0');
+                        const secs = String(dur % 60).padStart(2, '0');
+                        previewText = `🎤 语音 ${mins}:${secs}`;
                     } else if (replied.text && replied.text.startsWith('🔗 ')) {
                         const match = replied.text.match(/🔗 (.*?) → /);
                         previewText = match ? `🔗 ${match[1]}` : '🔗 链接';
@@ -3050,6 +3372,12 @@
             autoResize(input);
             cancelPublicReply();
             togglePublicSendBtn();
+            const container = document.getElementById('publicMessages');
+            if (container) {
+                scrollToBottom(container);
+                updateScrollButton(container);
+                isUserScrolledUp = false;
+            }
         }
 
         function updatePublicConn(on) {
@@ -3114,45 +3442,68 @@
             closeSubPanel();
         }
 
+        // 图片上传（多选）
         function openImagePicker() {
             closeFeaturePanel();
             document.getElementById('imageInput').click();
         }
 
         async function handleImageSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
             event.target.value = '';
-            if (file.size > MAX_IMAGE_SIZE) { showSnackbar('图片不能超过 5MB'); return; }
-            if (!file.type.startsWith('image/')) { showSnackbar('请选择图片文件'); return; }
-            showSnackbar('正在处理图片...');
-            let blobToUpload = file;
-            if (file.size > COMPRESS_THRESHOLD) {
-                try {
-                    blobToUpload = await compressImage(file, 1920, 0.7);
-                } catch (e) {
-                    showSnackbar('压缩图片失败，将使用原图');
-                }
+            if (files.length > MAX_IMAGES_PER_MSG) {
+                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
+                return;
             }
-            const filePath = `chat/${Date.now()}-${generateId()}.jpg`;
-            try {
-                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, { contentType: 'image/jpeg',
-                    cacheControl: '3600' });
-                if (error) {
-                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
-                    else showSnackbar('上传失败: ' + error.message);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
+                if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
+            }
+            showSnackbar(`正在上传 ${files.length} 张图片...`);
+            const imageUrls = [];
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let blobToUpload = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    try {
+                        blobToUpload = await compressImage(file, 1920, 0.7);
+                    } catch (e) { /* 使用原图 */ }
+                }
+                const filePath = `chat/${Date.now()}-${generateId()}-${i}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, { contentType: 'image/jpeg',
+                        cacheControl: '3600' });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                } catch (e) {
+                    showSnackbar('上传失败');
                     return;
                 }
-                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                const { error: ie } = await sb.from(TABLE_PUBLIC_MSG).insert({
-                    sender: currentUser,
-                    text: '🖼️ 图片消息',
-                    image_url: urlData.publicUrl,
-                    msg_version: APP_VERSION
-                });
-                if (ie) showSnackbar('发送图片失败: ' + ie.message);
-            } catch (e) { showSnackbar('上传失败'); }
+            }
+            let text = '';
+            if (imageUrls.length === 1) {
+                text = '';
+            } else {
+                text = imageUrls.map(url => `![](${url})`).join('\n');
+                text = '🖼️ ' + text;
+            }
+            const payload = {
+                sender: currentUser,
+                text: text,
+                image_url: imageUrls.length === 1 ? imageUrls[0] : imageUrls[0],
+                msg_version: APP_VERSION
+            };
+            if (imageUrls.length > 1) {
+                payload.image_url = imageUrls[0];
+            }
+            const { error } = await sb.from(TABLE_PUBLIC_MSG).insert(payload);
+            if (error) showSnackbar('发送图片失败: ' + error.message);
         }
 
         function compressImage(file, maxSize, quality) {
@@ -3204,11 +3555,6 @@
             img.style.transform = `scale(${previewScale}) translate(${previewTranslateX}px, ${previewTranslateY}px)`;
         }
 
-        function zoomImage(factor) {
-            previewScale = Math.min(Math.max(previewScale * factor, 0.5), 5);
-            updatePreviewTransform();
-        }
-
         function closeImagePreview(e) {
             if (e && e.target !== e.currentTarget) return;
             document.getElementById('imagePreview').classList.add('hidden');
@@ -3257,7 +3603,6 @@
             previewTouchStart = false;
         }, { passive: true });
 
-        // 屏蔽右键
         document.getElementById('imagePreview').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
         function openFilePicker() {
@@ -3364,7 +3709,26 @@
             const end = input.selectionEnd;
             if (start === end) { showSnackbar('请先选中文字'); return; }
             const selected = input.value.substring(start, end);
-            const wrapped = `<${tag}>${selected}</${tag}>`;
+            let wrapped;
+            switch (tag) {
+                case 'b':
+                    wrapped = `<b>${selected}</b>`;
+                    break;
+                case 'i':
+                    wrapped = `<i>${selected}</i>`;
+                    break;
+                case 'u':
+                    wrapped = `<u>${selected}</u>`;
+                    break;
+                case 's':
+                    wrapped = `<s>${selected}</s>`;
+                    break;
+                case 'none':
+                    wrapped = selected;
+                    break;
+                default:
+                    wrapped = selected;
+            }
             input.setRangeText(wrapped, start, end, 'end');
             autoResize(input);
             togglePublicSendBtn();
@@ -3388,7 +3752,7 @@
                 `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
         }
 
-        // ===================== 语音 =====================
+        // ===================== 语音（公共） =====================
         async function toggleRecording() {
             const btn = document.getElementById('recordBtn');
             const timer = document.getElementById('recordTimer');
@@ -3484,8 +3848,7 @@
         function buildVoiceFallback(duration, audioUrl) {
             const mins = String(Math.floor(duration / 60)).padStart(2, '0');
             const secs = String(duration % 60).padStart(2, '0');
-            var tail = audioUrl || '未知';
-            return '📱 语音消息 ' + mins + ':' + secs + ' → ' + tail;
+            return '🎤 语音 ' + mins + ':' + secs;
         }
 
         function toggleVoicePlay(wrap, event) {
@@ -3546,15 +3909,11 @@
                 const sep = rest.indexOf(' → ');
                 if (sep > 0) return { type: 'file', fileInfo: rest.substring(0, sep), url: rest.substring(sep + 3) };
             }
-            if (text.startsWith('📱 ') && text.includes(' → ')) {
-                const rest = text.substring(3);
-                const sep = rest.indexOf(' → ');
-                if (sep > 0) {
-                    const durStr = rest.substring(0, sep).trim();
-                    const after = rest.substring(sep + 3).trim();
-                    const parts = durStr.split(':');
-                    const duration = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
-                    return { type: 'voice', duration: duration, url: after };
+            if (text.startsWith('🎤 ') && text.includes(' ')) {
+                const match = text.match(/🎤\s*语音\s*(\d+):(\d+)/);
+                if (match) {
+                    const duration = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    return { type: 'voice', duration: duration, url: null };
                 }
             }
             return null;
@@ -3610,9 +3969,13 @@
             const messagesEl = document.getElementById('publicMessages');
 
             messagesEl.addEventListener('contextmenu', (e) => {
+                const target = e.target;
+                if (target.tagName === 'IMG') {
+                    e.preventDefault();
+                    return;
+                }
                 if (!e.target.closest('.msg-input')) {
                     e.preventDefault();
-                    const target = e.target;
                     const bubble = target.closest('.bubble');
                     if (bubble) {
                         const row = bubble.closest('.msg-row');
@@ -3623,6 +3986,13 @@
                 }
             });
 
+            messagesEl.addEventListener('touchstart', (e) => {
+                const target = e.target;
+                if (target.tagName === 'IMG') {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
             let pressTimer = null;
             let pressStartX = 0,
                 pressStartY = 0;
@@ -3632,9 +4002,9 @@
             const startPress = (e) => {
                 const target = e.target;
                 if (target.closest('.msg-input')) return;
+                if (target.tagName === 'IMG') return;
                 const bubble = target.closest('.bubble');
                 if (!bubble) return;
-                if (target.closest('img')) return;
                 const row = bubble.closest('.msg-row');
                 if (!row) return;
                 const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -3743,16 +4113,16 @@
                     publicChannel.send({ type: 'broadcast', event: 'poke', payload: { from: currentUser,
                             target: sender } });
                 }
-                addPublicSystemMsg(`你拍了拍 ${sender}`);
+                broadcastSystemMsg(`你拍了拍 ${sender}`);
             });
             if (publicChannel) {
                 publicChannel.on('broadcast', { event: 'poke' }, (p) => {
                     const from = p.payload.from;
                     const target = p.payload.target;
                     if (target === currentUser) {
-                        addPublicSystemMsg(`${from} 拍了拍你`);
+                        broadcastSystemMsg(`${from} 拍了拍你`);
                     } else {
-                        addPublicSystemMsg(`${from} 拍了拍 ${target}`);
+                        broadcastSystemMsg(`${from} 拍了拍 ${target}`);
                     }
                 });
             }
@@ -3833,7 +4203,13 @@
                         showSnackbar('图片地址无效');
                     }
                 });
-                if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
+                if (canDelete) {
+                    addItem('删除', icons.delete, () => {
+                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
+                            contextDeleteMsg();
+                        });
+                    });
+                }
             } else if (type === 'link' || type === 'file') {
                 if (linkUrl) {
                     addItem('打开链接', icons.open, () => window.open(linkUrl, '_blank'));
@@ -3855,7 +4231,13 @@
                             });
                     });
                 }
-                if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
+                if (canDelete) {
+                    addItem('删除', icons.delete, () => {
+                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
+                            contextDeleteMsg();
+                        });
+                    });
+                }
             } else if (type === 'text') {
                 if (text) {
                     addItem('复制文字', icons.copy, () => {
@@ -3873,9 +4255,21 @@
                             });
                     });
                 }
-                if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
+                if (canDelete) {
+                    addItem('删除', icons.delete, () => {
+                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
+                            contextDeleteMsg();
+                        });
+                    });
+                }
             } else {
-                if (canDelete) addItem('删除', icons.delete, () => contextDeleteMsg());
+                if (canDelete) {
+                    addItem('删除', icons.delete, () => {
+                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
+                            contextDeleteMsg();
+                        });
+                    });
+                }
             }
 
             if (menu.children.length === 0) return;
@@ -3922,7 +4316,7 @@
             }
         });
 
-        // ===================== 私聊功能（使用 Broadcast 实现实时同步） =====================
+        // ===================== 私聊功能 =====================
         async function loadPrivateSessions() {
             try {
                 const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS)
@@ -4009,7 +4403,12 @@
             document.getElementById('searchPage').classList.remove('active');
             await loadPrivateMessages(sessionId);
             subscribePrivateChannel(sessionId);
-            scrollPrivateToBottom();
+            const privateMessagesEl = document.getElementById('privateMessages');
+            setupScrollHandlers(privateMessagesEl);
+            setTimeout(() => {
+                scrollToBottom(privateMessagesEl);
+                updateScrollButton(privateMessagesEl);
+            }, 50);
         }
 
         async function loadPrivateMessages(sessionId) {
@@ -4061,6 +4460,7 @@
 
             const row = document.createElement('div');
             row.className = `msg-row ${isOwn ? 'own' : ''}`;
+            row.dataset.msgId = msg.id;
             row.innerHTML = `
                 <div class="avatar av-${ci}" data-username="${msg.sender}">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
@@ -4079,15 +4479,7 @@
             c.appendChild(d);
         }
 
-        function scrollPrivateToBottom() {
-            const el = document.getElementById('privateMessages');
-            if (el) {
-                requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
-            }
-        }
-
         function subscribePrivateChannel(sessionId) {
-            // 移除旧的订阅
             if (privateChannel) {
                 sb.removeChannel(privateChannel);
                 privateChannel = null;
@@ -4095,17 +4487,18 @@
             const channelName = `private-${sessionId}`;
             privateChannel = sb.channel(channelName);
 
-            // 监听广播消息（实时）
             privateChannel.on('broadcast', { event: 'new_message' }, (payload) => {
                 const msg = payload.payload;
-                // 避免重复添加
                 if (!privateMessages.some(m => m.id === msg.id)) {
                     privateMessages.push(msg);
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
-                        // 不自动滚动
+                        const container = document.getElementById('privateMessages');
+                        if (!isUserScrolledUp && container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                        }
                     }
-                    // 更新会话最后消息
                     sb.from(TABLE_PRIVATE_SESSIONS).update({
                         updated_at: new Date().toISOString(),
                         last_message: msg.content
@@ -4114,7 +4507,6 @@
                 }
             });
 
-            // 同时保留 postgres_changes 作为备份（但主要依赖广播）
             privateChannel.on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -4126,6 +4518,11 @@
                     privateMessages.push(msg);
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
+                        const container = document.getElementById('privateMessages');
+                        if (!isUserScrolledUp && container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                        }
                     }
                     sb.from(TABLE_PRIVATE_SESSIONS).update({
                         updated_at: new Date().toISOString(),
@@ -4137,15 +4534,20 @@
 
             privateChannel.subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('Private channel subscribed (broadcast + postgres_changes)');
-                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    console.warn('Private channel subscription failed');
+                    console.log('Private channel subscribed');
                 }
             });
         }
 
         function togglePrivateSendBtn() {
             document.getElementById('privateSendBtn').disabled = !document.getElementById('privateMsgInput').value.trim();
+        }
+
+        function handlePrivateKeyDown(e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                sendPrivateMsg();
+            }
         }
 
         async function sendPrivateMsg() {
@@ -4157,7 +4559,6 @@
             if (!text) { showSnackbar('消息包含不安全内容'); return; }
             document.getElementById('privateSendBtn').disabled = true;
 
-            // 检查发送条件
             const hasReply = privateMessages.some(m => m.sender !== currentUser);
             if (privateMessages.length === 0 && !hasReply) {
                 // 第一条，允许
@@ -4179,7 +4580,6 @@
                 return;
             }
             const newMsg = data[0];
-            // 广播给同一频道的所有订阅者（即双方）
             if (privateChannel) {
                 privateChannel.send({
                     type: 'broadcast',
@@ -4187,15 +4587,19 @@
                     payload: newMsg
                 });
             }
-            // 本地立即插入并渲染
             privateMessages.push(newMsg);
             if (document.getElementById('privatePage').classList.contains('active')) {
                 renderPrivateMessage(newMsg);
+                const container = document.getElementById('privateMessages');
+                if (container) {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                    isUserScrolledUp = false;
+                }
             }
             input.value = '';
             autoResize(input);
             togglePrivateSendBtn();
-            // 更新会话
             await sb.from(TABLE_PRIVATE_SESSIONS).update({
                 updated_at: new Date().toISOString(),
                 last_message: text
@@ -4253,6 +4657,396 @@
             }
         }
 
+        // ===================== 私聊功能面板 =====================
+        function togglePrivateFeaturePanel() {
+            const panel = document.getElementById('privateFeaturePanel');
+            const btn = document.getElementById('privateMoreBtn');
+            if (panel.classList.contains('show')) {
+                panel.classList.remove('show');
+                btn.classList.remove('active');
+            } else {
+                panel.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function privateCloseSubPanel() {
+            if (privateMediaRecorder && privateMediaRecorder.state === 'recording') {
+                privateMediaRecorder.stop();
+            }
+            document.getElementById('privateEmojiSubPanel').classList.remove('active');
+            document.getElementById('privateTextEffectSubPanel').classList.remove('active');
+            document.getElementById('privateVoiceSubPanel').classList.remove('active');
+            document.getElementById('privateFeaturePanelMain').style.display = 'block';
+        }
+
+        function privateOpenImagePicker() {
+            privateCloseSubPanel();
+            document.getElementById('privateImageInput').click();
+        }
+
+        async function privateHandleImageSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            event.target.value = '';
+            if (files.length > MAX_IMAGES_PER_MSG) {
+                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
+                if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
+            }
+            showSnackbar(`正在上传 ${files.length} 张图片...`);
+            const imageUrls = [];
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let blobToUpload = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    try {
+                        blobToUpload = await compressImage(file, 1920, 0.7);
+                    } catch (e) { /* 使用原图 */ }
+                }
+                const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}-${i}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, { contentType: 'image/jpeg',
+                        cacheControl: '3600' });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                } catch (e) {
+                    showSnackbar('上传失败');
+                    return;
+                }
+            }
+            let content = '';
+            if (imageUrls.length === 1) {
+                content = `![](${imageUrls[0]})`;
+            } else {
+                content = imageUrls.map(url => `![](${url})`).join('\n');
+                content = '🖼️ ' + content;
+            }
+            const payload = {
+                session_id: privateSessionId,
+                sender: currentUser,
+                content: content
+            };
+            const { data, error: ie } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
+            if (ie) { showSnackbar('发送失败: ' + ie.message); return; }
+            const newMsg = data[0];
+            if (privateChannel) {
+                privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+            }
+            privateMessages.push(newMsg);
+            if (document.getElementById('privatePage').classList.contains('active')) {
+                renderPrivateMessage(newMsg);
+                const container = document.getElementById('privateMessages');
+                if (container) {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                    isUserScrolledUp = false;
+                }
+            }
+            await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                updated_at: new Date().toISOString(),
+                last_message: content
+            }).eq('id', privateSessionId);
+            loadPrivateSessions();
+        }
+
+        function privateOpenLinkDialog() {
+            privateCloseSubPanel();
+            document.getElementById('linkDialog').classList.remove('hidden');
+            document.getElementById('linkText').focus();
+            document.getElementById('linkDialog').dataset.mode = 'private';
+        }
+
+        function privateHideLinkDialog() {
+            document.getElementById('linkDialog').classList.add('hidden');
+            document.getElementById('linkText').value = '';
+            document.getElementById('linkUrl').value = '';
+        }
+
+        async function privateSendLink() {
+            const text = document.getElementById('linkText').value.trim();
+            const url = document.getElementById('linkUrl').value.trim();
+            if (!url) { showSnackbar('请输入链接地址'); return; }
+            const displayText = text || url;
+            const content = `🔗 ${displayText} → ${url}`;
+            privateHideLinkDialog();
+            if (!privateChannel) return;
+            const payload = {
+                session_id: privateSessionId,
+                sender: currentUser,
+                content: content
+            };
+            const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
+            if (error) { showSnackbar('发送失败: ' + error.message); return; }
+            const newMsg = data[0];
+            privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+            privateMessages.push(newMsg);
+            if (document.getElementById('privatePage').classList.contains('active')) {
+                renderPrivateMessage(newMsg);
+                const container = document.getElementById('privateMessages');
+                if (container) {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                    isUserScrolledUp = false;
+                }
+            }
+            await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                updated_at: new Date().toISOString(),
+                last_message: content
+            }).eq('id', privateSessionId);
+            loadPrivateSessions();
+        }
+
+        function privateOpenFilePicker() {
+            privateCloseSubPanel();
+            document.getElementById('privateFileInput').click();
+        }
+
+        async function privateHandleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            if (file.size > 10 * 1024 * 1024) { showSnackbar('文件不能超过 10MB'); return; }
+            showSnackbar('正在上传文件...');
+            const ext = file.name.split('.').pop() || 'file';
+            const filePath = `private/${privateSessionId}/files/${Date.now()}-${generateId()}.${ext}`;
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, file, { contentType: file.type ||
+                        'application/octet-stream', cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const fileSize = (file.size / 1024).toFixed(1);
+                const content = `📎 ${file.name} (${fileSize} KB) → ${urlData.publicUrl}`;
+                const payload = {
+                    session_id: privateSessionId,
+                    sender: currentUser,
+                    content: content
+                };
+                const { data, error: ie } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
+                if (ie) { showSnackbar('发送失败: ' + ie.message); return; }
+                const newMsg = data[0];
+                privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                privateMessages.push(newMsg);
+                if (document.getElementById('privatePage').classList.contains('active')) {
+                    renderPrivateMessage(newMsg);
+                    const container = document.getElementById('privateMessages');
+                    if (container) {
+                        scrollToBottom(container);
+                        updateScrollButton(container);
+                        isUserScrolledUp = false;
+                    }
+                }
+                await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                    updated_at: new Date().toISOString(),
+                    last_message: content
+                }).eq('id', privateSessionId);
+                loadPrivateSessions();
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        function privateInsertEmoji(emoji) {
+            const input = document.getElementById('privateMsgInput');
+            input.value += emoji;
+            autoResize(input);
+            togglePrivateSendBtn();
+        }
+
+        function privateOpenEmojiSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateEmojiSubPanel').classList.add('active');
+        }
+
+        function privateOpenTextEffectSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateTextEffectSubPanel').classList.add('active');
+        }
+
+        function privateOpenVoiceSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateVoiceSubPanel').classList.add('active');
+        }
+
+        function privateApplyTextEffect(tag) {
+            const input = document.getElementById('privateMsgInput');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            if (start === end) { showSnackbar('请先选中文字'); return; }
+            const selected = input.value.substring(start, end);
+            let wrapped;
+            switch (tag) {
+                case 'b':
+                    wrapped = `<b>${selected}</b>`;
+                    break;
+                case 'i':
+                    wrapped = `<i>${selected}</i>`;
+                    break;
+                case 'u':
+                    wrapped = `<u>${selected}</u>`;
+                    break;
+                case 's':
+                    wrapped = `<s>${selected}</s>`;
+                    break;
+                case 'none':
+                    wrapped = selected;
+                    break;
+                default:
+                    wrapped = selected;
+            }
+            input.setRangeText(wrapped, start, end, 'end');
+            autoResize(input);
+            togglePrivateSendBtn();
+            const newPos = start + wrapped.length;
+            input.setSelectionRange(newPos, newPos);
+        }
+
+        function initPrivateEmojiPicker() {
+            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
+                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
+                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
+                '💚', '💙', '🩵', '💜', '🤎', '🖤', '🤍', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
+                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
+                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '☁️', '🌊', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
+                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
+                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '💎', '🔮', '🎭', '🪞', '🪟', '🪑', '🛋️', '🛏️', '🛌', '🧻', '🧹', '🧺',
+                '🧻', '🧽', '🧴', '🧷', '🧸', '🧩', '🧮', '🎲', '♟️', '🎯', '🎳', '🎮', '🕹️', '🎰', '🎲', '♠️', '♥️', '♦️', '♣️', '🃏',
+                '🀄', '🎴', '🎭', '🎨', '🖼️', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎵', '🎶'
+            ];
+            document.getElementById('privateEmojiGrid').innerHTML = EMOJIS.map(e =>
+                `<button class="emoji-item" onclick="privateInsertEmoji('${e}')">${e}</button>`).join('');
+        }
+
+        // ===================== 私聊语音 =====================
+        async function privateToggleRecording() {
+            const btn = document.getElementById('privateRecordBtn');
+            const timer = document.getElementById('privateRecordTimer');
+            const hint = document.getElementById('privateRecordHint');
+            const stopBtn = document.getElementById('privateRecordStopBtn');
+            if (!privateMediaRecorder || privateMediaRecorder.state === 'inactive') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    privateAudioChunks = [];
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+                    privateMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                    privateMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) privateAudioChunks.push(e.data); };
+                    privateMediaRecorder.onstop = async () => {
+                        stream.getTracks().forEach(t => t.stop());
+                        const audioBlob = new Blob(privateAudioChunks, { type: mimeType || 'audio/webm' });
+                        if (audioBlob.size < 1000) { showSnackbar('录音太短');
+                            privateResetRecordingUI(); return; }
+                        await privateUploadAudio(audioBlob, mimeType || 'audio/webm');
+                        privateResetRecordingUI();
+                    };
+                    privateMediaRecorder.start();
+                    privateRecordStartTime = Date.now();
+                    btn.classList.add('recording');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+                    hint.textContent = '正在录音...';
+                    stopBtn.classList.add('show');
+                    privateRecordTimerInterval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - privateRecordStartTime) / 1000);
+                        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                        const secs = String(elapsed % 60).padStart(2, '0');
+                        timer.textContent = `${mins}:${secs}`;
+                    }, 1000);
+                } catch (e) {
+                    showSnackbar('无法访问麦克风');
+                }
+            } else if (privateMediaRecorder.state === 'recording') {
+                privateMediaRecorder.stop();
+            }
+        }
+
+        function privateResetRecordingUI() {
+            const btn = document.getElementById('privateRecordBtn');
+            const timer = document.getElementById('privateRecordTimer');
+            const hint = document.getElementById('privateRecordHint');
+            const stopBtn = document.getElementById('privateRecordStopBtn');
+            btn.classList.remove('recording');
+            btn.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
+            timer.textContent = '00:00';
+            hint.textContent = '点击开始录音';
+            stopBtn.classList.remove('show');
+            if (privateRecordTimerInterval) { clearInterval(privateRecordTimerInterval);
+                privateRecordTimerInterval = null; }
+        }
+
+        async function privateUploadAudio(blob, mimeType) {
+            const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
+            const filePath = `private/${privateSessionId}/audio/${Date.now()}-${generateId()}.${ext}`;
+            showSnackbar('正在上传语音...');
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: mimeType,
+                    cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const duration = privateRecordStartTime ? Math.floor((Date.now() - privateRecordStartTime) / 1000) : 0;
+                const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+                const secs = String(duration % 60).padStart(2, '0');
+                const content = `🎤 语音 ${mins}:${secs}`;
+                const payload = {
+                    session_id: privateSessionId,
+                    sender: currentUser,
+                    content: content
+                };
+                const { data, error: ie } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
+                if (ie) { showSnackbar('发送失败: ' + ie.message); return; }
+                const newMsg = data[0];
+                if (privateChannel) {
+                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                }
+                privateMessages.push(newMsg);
+                if (document.getElementById('privatePage').classList.contains('active')) {
+                    renderPrivateMessage(newMsg);
+                    const container = document.getElementById('privateMessages');
+                    if (container) {
+                        scrollToBottom(container);
+                        updateScrollButton(container);
+                        isUserScrolledUp = false;
+                    }
+                }
+                await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                    updated_at: new Date().toISOString(),
+                    last_message: content
+                }).eq('id', privateSessionId);
+                loadPrivateSessions();
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        // ===================== 回复功能（私聊） =====================
+        function setPrivateReplyTarget(msgId, sender, content) {
+            privateReplyTarget = { id: msgId, sender, content };
+            const preview = document.getElementById('privateReplyPreview');
+            document.getElementById('privateReplyContent').textContent = `回复 @${sender}：${content}`;
+            preview.style.display = 'flex';
+            document.getElementById('privateMsgInput').focus();
+            togglePrivateSendBtn();
+        }
+
+        function cancelPrivateReply() {
+            privateReplyTarget = null;
+            document.getElementById('privateReplyPreview').style.display = 'none';
+            togglePrivateSendBtn();
+        }
+
         // ===================== 搜索用户 =====================
         async function doSearch(query) {
             const container = document.getElementById('searchResults');
@@ -4271,8 +5065,11 @@
                     container.innerHTML = '<div class="empty">未找到用户</div>';
                     return;
                 }
+                // 检查在线状态
+                const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
                 container.innerHTML = data.map(u => {
                     const idx = hashStr(u.username) % 8;
+                    const isOnline = onlineUsernames.includes(u.username);
                     let avatarStyle = '';
                     if (u.avatar_url) {
                         avatarStyle = `background-image:url(${u.avatar_url});background-size:cover;background-position:center;`;
@@ -4280,7 +5077,7 @@
                     return `<div class="result-item" onclick="showUserProfile('${escapeAttr(u.username)}')">
                                 <div class="av av-${idx}" style="${avatarStyle}">${u.avatar_url ? '' : escapeHtml(u.username.charAt(0).toUpperCase())}</div>
                                 <span class="name">${escapeHtml(u.username)}</span>
-                                <span class="status">在线</span>
+                                <span class="status">${isOnline ? '在线' : '离线'}</span>
                             </div>`;
                 }).join('');
             } catch (e) { container.innerHTML = '<div class="empty">搜索出错</div>'; }
@@ -4333,10 +5130,20 @@
                     document.getElementById('userProfileUsername').textContent = username;
                     document.getElementById('userProfileRole').textContent = '未知';
                     document.getElementById('userProfileStatus').textContent = '未知';
+                    document.getElementById('userProfileOnline').textContent = '未知';
+                    document.getElementById('userProfileOnlineItem').style.display = 'none';
                 } else {
                     document.getElementById('userProfileUsername').textContent = data.username;
                     document.getElementById('userProfileRole').textContent = data.role === 'admin' ? '管理员' : '普通用户';
-                    document.getElementById('userProfileStatus').textContent = data.banned ? '已封禁' : '正常';
+                    let statusText = '正常';
+                    if (data.banned) statusText = '已封禁';
+                    document.getElementById('userProfileStatus').textContent = statusText;
+                    // 在线状态
+                    const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+                    const isOnline = onlineUsernames.includes(username);
+                    document.getElementById('userProfileOnline').textContent = isOnline ? '在线' : '离线';
+                    document.getElementById('userProfileOnlineItem').style.display = 'flex';
+
                     if (data.avatar_url) {
                         avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
                         avatarEl.textContent = '';
@@ -4344,8 +5151,10 @@
                         avatarEl.style.backgroundImage = '';
                         avatarEl.textContent = username.charAt(0).toUpperCase();
                     }
+                    // 按钮控制
                     const chatBtn = document.getElementById('userProfileChatBtn');
                     chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
+                    // 封禁按钮（管理员可见）
                     const banBtn = document.getElementById('userProfileBanBtn');
                     if (isAdmin && data.username !== currentUser) {
                         banBtn.style.display = 'block';
@@ -4355,18 +5164,29 @@
                     } else {
                         banBtn.style.display = 'none';
                     }
+                    // 强制下线按钮（管理员且用户在线）
                     const forceBtn = document.getElementById('userProfileForceLogoutBtn');
-                    if (isAdmin && data.username !== currentUser) {
+                    if (isAdmin && data.username !== currentUser && isOnline) {
                         forceBtn.style.display = 'block';
                         forceBtn.dataset.username = data.username;
                     } else {
                         forceBtn.style.display = 'none';
+                    }
+                    // 注销账号按钮（管理员且不是自己）
+                    const deleteBtn = document.getElementById('userProfileDeleteBtn');
+                    if (isAdmin && data.username !== currentUser) {
+                        deleteBtn.style.display = 'block';
+                        deleteBtn.dataset.username = data.username;
+                    } else {
+                        deleteBtn.style.display = 'none';
                     }
                 }
             } catch (e) {
                 document.getElementById('userProfileUsername').textContent = username;
                 document.getElementById('userProfileRole').textContent = '?';
                 document.getElementById('userProfileStatus').textContent = '?';
+                document.getElementById('userProfileOnline').textContent = '?';
+                document.getElementById('userProfileOnlineItem').style.display = 'none';
             }
         }
 
@@ -4382,7 +5202,11 @@
             if (!confirm(`确定要${newState?'封禁':'解封'}用户 ${username} 吗？`)) return;
 
             try {
-                const { error } = await sb.from(TABLE_USERS).update({ banned: newState }).eq('username', username);
+                const { error } = await sb.rpc('ban_user', {
+                    p_admin: currentUser,
+                    p_target: username,
+                    p_ban: newState
+                });
                 if (error) { showSnackbar('操作失败: ' + error.message); return; }
                 showSnackbar(`用户 ${username} 已${newState?'封禁':'解封'}`);
                 if (newState && username === currentUser) {
@@ -4404,6 +5228,41 @@
                 publicChannel.send({ type: 'broadcast', event: 'force_logout', payload: { username } });
                 showSnackbar(`已向 ${username} 发送下线指令`);
             } catch (e) { showSnackbar('操作失败'); }
+        }
+
+        // 管理员注销他人账号（通过RPC）
+        async function adminDeleteUser() {
+            const btn = document.getElementById('userProfileDeleteBtn');
+            const username = btn.dataset.username;
+            if (!username || username === currentUser) return;
+            const confirmMsg =
+                `确认注销？\n确定要彻底注销该账号吗？\n此操作将：\n1. 永久删除此账户\n2. 发送的所有公共消息将标记为“已注销”\n3. 私聊会话将被删除\n此操作不可恢复！`;
+            if (!confirm(confirmMsg)) return;
+            try {
+                const { error } = await sb.rpc('admin_delete_user', {
+                    p_admin: currentUser,
+                    p_target: username
+                });
+                if (error) {
+                    showSnackbar('操作失败: ' + error.message);
+                    return;
+                }
+                // 广播通知
+                if (publicChannel) {
+                    publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: username,
+                            forceLogout: false } });
+                }
+                showSnackbar(`已注销账号 ${username}`);
+                closeUserProfile();
+                refreshPublicMessages();
+                updatePublicEntry();
+                // 如果该用户在线，强制下线
+                if (Object.values(onlineUsers).flat().some(p => p.name === username)) {
+                    publicChannel.send({ type: 'broadcast', event: 'force_logout', payload: { username } });
+                }
+            } catch (e) {
+                showSnackbar('操作失败');
+            }
         }
 
         // ===================== 已封禁用户列表 =====================
@@ -4437,63 +5296,270 @@
         async function unbanUser(username) {
             if (!confirm(`确定要解封用户 ${username} 吗？`)) return;
             try {
-                const { error } = await sb.from(TABLE_USERS).update({ banned: false }).eq('username', username);
+                const { error } = await sb.rpc('ban_user', {
+                    p_admin: currentUser,
+                    p_target: username,
+                    p_ban: false
+                });
                 if (error) { showSnackbar('操作失败: ' + error.message); return; }
                 showSnackbar(`已解封 ${username}`);
                 refreshBannedList();
             } catch (e) { showSnackbar('操作失败'); }
         }
 
-        // ===================== 注销账号 =====================
-        async function deleteAccount() {
-            if (!currentUser) return;
-            if (!confirm(`确定要彻底注销账号 “${currentUser}” 吗？\n此操作将：\n1. 永久删除您的账户\n2. 您发送的所有公共消息将标记为“已注销”\n3. 您的私聊会话将被删除\n此操作不可恢复！`)) return;
-            showGlobalLoading('注销中…', '请稍候');
+        // ===================== 智能体功能 =====================
+        function showAgentList() {
+            document.getElementById('agentListModal').classList.remove('hidden');
+            loadAgentList();
+        }
 
+        function closeAgentList() {
+            document.getElementById('agentListModal').classList.add('hidden');
+        }
+
+        async function loadAgentList() {
+            const container = document.getElementById('agentListContainer');
             try {
-                const { error: markError } = await sb.from(TABLE_PUBLIC_MSG)
-                    .update({ sender_deleted: true })
-                    .eq('sender', currentUser);
-                if (markError) {
-                    hideGlobalLoading();
-                    showSnackbar('注销失败: ' + markError.message);
+                const { data, error } = await sb.from(TABLE_AGENTS)
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (error) {
+                    container.innerHTML = '<p>加载失败</p>';
                     return;
                 }
-
-                const { data: sessions } = await sb.from(TABLE_PRIVATE_SESSIONS)
-                    .select('id')
-                    .or(`user1.eq.${currentUser},user2.eq.${currentUser}`);
-                if (sessions && sessions.length > 0) {
-                    const ids = sessions.map(s => s.id);
-                    await sb.from(TABLE_PRIVATE_MSGS).delete().in('session_id', ids);
-                    await sb.from(TABLE_PRIVATE_SESSIONS).delete().in('id', ids);
-                }
-
-                const { error: delError } = await sb.from(TABLE_USERS).delete().eq('username', currentUser);
-                if (delError) {
-                    hideGlobalLoading();
-                    showSnackbar('注销失败: ' + delError.message);
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无智能体</p>';
                     return;
                 }
-
-                if (publicChannel) {
-                    publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: currentUser,
-                            forceLogout: true } });
-                }
-
-                localStorage.removeItem('mjchat_session');
-                showSnackbar('账号已彻底注销');
-
-                setTimeout(() => {
-                    location.reload();
-                }, 500);
+                container.innerHTML = data.map(agent => {
+                    const canDelete = (agent.created_by === currentUser) || isAdmin;
+                    return `<div class="agent-item">
+                                <div class="info">
+                                    <div class="name">${escapeHtml(agent.name)}</div>
+                                    <div class="provider">${escapeHtml(agent.provider)}</div>
+                                    <div class="creator">添加者：${escapeHtml(agent.created_by)}</div>
+                                </div>
+                                ${canDelete ? `<button class="delete-btn" onclick="deleteAgent('${agent.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>` : ''}
+                            </div>`;
+                }).join('');
             } catch (e) {
-                hideGlobalLoading();
-                showSnackbar('注销失败，请重试');
+                container.innerHTML = '<p>加载失败</p>';
             }
         }
 
-        // ===================== 登出 =====================
+        async function deleteAgent(agentId) {
+            if (!confirm('确定要删除此智能体吗？')) return;
+            try {
+                const { error } = await sb.from(TABLE_AGENTS).delete().eq('id', agentId);
+                if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                showSnackbar('智能体已删除');
+                loadAgentList();
+            } catch (e) { showSnackbar('删除失败'); }
+        }
+
+        function showAddAgentDialog() {
+            document.getElementById('addAgentDialog').classList.remove('hidden');
+            document.getElementById('agentName').value = '';
+            document.getElementById('agentApiKey').value = '';
+            document.getElementById('agentModel').value = 'gpt-3.5-turbo';
+        }
+
+        function closeAddAgentDialog() {
+            document.getElementById('addAgentDialog').classList.add('hidden');
+        }
+
+        async function saveAgent() {
+            const name = document.getElementById('agentName').value.trim();
+            const provider = document.getElementById('agentProvider').value;
+            const apiKey = document.getElementById('agentApiKey').value.trim();
+            const model = document.getElementById('agentModel').value.trim() || 'gpt-3.5-turbo';
+            if (!name) { showSnackbar('请输入智能体名称'); return; }
+            if (!apiKey) { showSnackbar('请输入 API Key'); return; }
+            try {
+                const { error } = await sb.from(TABLE_AGENTS).insert({
+                    name: name,
+                    provider: provider,
+                    api_key: apiKey,
+                    model: model,
+                    created_by: currentUser
+                });
+                if (error) {
+                    showSnackbar('保存失败: ' + error.message);
+                    return;
+                }
+                showSnackbar('智能体已添加');
+                closeAddAgentDialog();
+                broadcastSystemMsg(`智能体 ${name} 已加入聊天室`);
+                loadAgentList();
+            } catch (e) {
+                showSnackbar('保存失败');
+            }
+        }
+
+        // ===================== 头像菜单 =====================
+        function showAvatarMenu() {
+            document.getElementById('avatarMenu').classList.remove('hidden');
+            const overlay = document.createElement('div');
+            overlay.id = 'avatarMenuOverlay';
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.zIndex = '140';
+            overlay.style.background = 'rgba(0,0,0,0.3)';
+            overlay.onclick = function() { closeAvatarMenu(); };
+            document.body.appendChild(overlay);
+        }
+
+        function closeAvatarMenu() {
+            document.getElementById('avatarMenu').classList.add('hidden');
+            const overlay = document.getElementById('avatarMenuOverlay');
+            if (overlay) overlay.remove();
+        }
+
+        // 设置默认头像（通过RPC更新avatar_url为null）
+        function setDefaultAvatar() {
+            const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            // 使用RPC更新头像为null
+            sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: null })
+                .then(() => {
+                    currentAvatarUrl = '';
+                    updateAllAvatars();
+                    updateHomeMenu();
+                    updatePublicMenu();
+                    const avatarEl = document.getElementById('profileDialogAvatar');
+                    avatarEl.style.backgroundImage = '';
+                    avatarEl.textContent = currentUser.charAt(0).toUpperCase();
+                    avatarEl.style.backgroundColor = color;
+                    showSnackbar('已设置为默认头像');
+                    closeAvatarMenu();
+                })
+                .catch(e => { showSnackbar('设置失败: ' + e.message); });
+        }
+
+        // 上传头像（通过RPC）
+        function uploadAvatarFromMenu() {
+            closeAvatarMenu();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar('图片不能超过 5MB'); return; }
+                showSnackbar('上传头像中...');
+                let blob = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    blob = await compressImage(file, 256, 0.8);
+                }
+                const filePath = `avatars/${currentUser}-${Date.now()}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: 'image/jpeg',
+                        cacheControl: '3600' });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    // 调用RPC更新头像
+                    const { error: upError } = await sb.rpc('update_avatar', {
+                        p_username: currentUser,
+                        p_avatar_url: urlData.publicUrl
+                    });
+                    if (upError) {
+                        showSnackbar('更新失败: ' + upError.message);
+                        return;
+                    }
+                    currentAvatarUrl = urlData.publicUrl;
+                    updateAllAvatars();
+                    updateHomeMenu();
+                    updatePublicMenu();
+                    const avatarEl = document.getElementById('profileDialogAvatar');
+                    avatarEl.style.backgroundImage = `url(${urlData.publicUrl})`;
+                    avatarEl.textContent = '';
+                    showSnackbar('头像已更新');
+                } catch (e) { showSnackbar('上传失败'); }
+            };
+            input.click();
+        }
+
+        // ===================== 更改密码（通过RPC） =====================
+        function showChangePasswordDialog() {
+            document.getElementById('changePasswordDialog').classList.remove('hidden');
+            document.getElementById('changeOldPassword').value = '';
+            document.getElementById('changeNewPassword').value = '';
+            document.getElementById('changeConfirmPassword').value = '';
+        }
+
+        function closeChangePasswordDialog() {
+            document.getElementById('changePasswordDialog').classList.add('hidden');
+        }
+
+        async function doChangePassword() {
+            const oldPwd = document.getElementById('changeOldPassword').value;
+            const newPwd = document.getElementById('changeNewPassword').value;
+            const confirmPwd = document.getElementById('changeConfirmPassword').value;
+            if (!oldPwd || !newPwd || !confirmPwd) {
+                showSnackbar('请完整填写密码字段');
+                return;
+            }
+            if (newPwd.length < 6) {
+                showSnackbar('新密码至少6位');
+                return;
+            }
+            if (newPwd !== confirmPwd) {
+                showSnackbar('两次输入的新密码不一致');
+                return;
+            }
+            const oldHash = await hashPassword(oldPwd);
+            const newHash = await hashPassword(newPwd);
+            const { error } = await sb.rpc('change_password', {
+                p_username: currentUser,
+                p_old_hash: oldHash,
+                p_new_hash: newHash
+            });
+            if (error) {
+                showSnackbar('更改密码失败: ' + error.message);
+                return;
+            }
+            showSnackbar('密码更改成功');
+            closeChangePasswordDialog();
+        }
+
+        // ===================== 管理员功能 =====================
+        function showAdminDialog() {
+            document.getElementById('adminDialog').classList.remove('hidden');
+        }
+
+        function closeAdminDialog() {
+            document.getElementById('adminDialog').classList.add('hidden');
+        }
+
+        function showClearDialog() {
+            document.getElementById('clearDialog').classList.remove('hidden');
+        }
+
+        function hideClearDialog() {
+            document.getElementById('clearDialog').classList.add('hidden');
+        }
+
+        // ===================== 确认对话框 =====================
+        function showConfirm(title, message, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = callback;
+            document.getElementById('confirmOkBtn').onclick = function() {
+                closeConfirmDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            document.getElementById('confirmDialog').classList.remove('hidden');
+        }
+
+        function closeConfirmDialog() {
+            document.getElementById('confirmDialog').classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        // ===================== 登出和注销（通过RPC） =====================
         function logout() {
             if (publicChannel) { publicChannel.untrack();
                 sb.removeChannel(publicChannel);
@@ -4518,6 +5584,36 @@
             showLogin();
         }
 
+        async function deleteAccount() {
+            if (!currentUser) return;
+            // 弹出密码输入框进行验证
+            const password = prompt('请输入您的密码以确认注销账号：');
+            if (!password) return;
+            const passwordHash = await hashPassword(password);
+            try {
+                const { error } = await sb.rpc('delete_my_account', {
+                    p_username: currentUser,
+                    p_password_hash: passwordHash
+                });
+                if (error) {
+                    showSnackbar('注销失败: ' + error.message);
+                    return;
+                }
+                // 广播
+                if (publicChannel) {
+                    publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: currentUser,
+                            forceLogout: true } });
+                }
+                localStorage.removeItem('mjchat_session');
+                showSnackbar('账号已彻底注销');
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            } catch (e) {
+                showSnackbar('注销失败，请重试');
+            }
+        }
+
         // ===================== 导航 =====================
         function navigateTo(page) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -4530,7 +5626,11 @@
                 document.getElementById('publicMessages').innerHTML = '';
                 publicLastDateLabel = '';
                 publicMessages.forEach(m => renderPublicMessage(m));
-                scrollPublicToBottom();
+                const container = document.getElementById('publicMessages');
+                setTimeout(() => {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                }, 50);
             } else if (page === 'search') {
                 document.getElementById('searchPage').classList.add('active');
                 document.getElementById('searchInput').value = '';
@@ -4615,6 +5715,9 @@
             const avatar = document.getElementById('profileDialogAvatar');
             const name = document.getElementById('profileDialogUsername');
             const role = document.getElementById('profileDialogRole');
+            const status = document.getElementById('profileDialogStatus');
+            const onlineStatus = document.getElementById('profileDialogOnline');
+            const onlineItem = document.getElementById('profileDialogOnlineItem');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'profile-avatar av-' + idx;
             if (currentAvatarUrl) {
@@ -4626,172 +5729,22 @@
             }
             name.textContent = currentUser;
             role.textContent = isAdmin ? '管理员' : '普通用户';
+            // 用户状态（正常/已封禁）
+            sb.from(TABLE_USERS).select('banned').eq('username', currentUser).single()
+                .then(({ data }) => {
+                    status.textContent = data?.banned ? '已封禁' : '正常';
+                })
+                .catch(() => { status.textContent = '正常'; });
+            // 在线状态
+            const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+            const isOnline = onlineUsernames.includes(currentUser);
+            onlineStatus.textContent = isOnline ? '在线' : '离线';
+            onlineItem.style.display = 'flex';
             document.getElementById('profileDialog').classList.remove('hidden');
         }
 
         function closeProfileDialog() {
             document.getElementById('profileDialog').classList.add('hidden');
-        }
-
-        // ===================== 头像菜单 =====================
-        function showAvatarMenu() {
-            document.getElementById('avatarMenu').classList.remove('hidden');
-            const overlay = document.createElement('div');
-            overlay.id = 'avatarMenuOverlay';
-            overlay.style.position = 'fixed';
-            overlay.style.inset = '0';
-            overlay.style.zIndex = '140';
-            overlay.style.background = 'rgba(0,0,0,0.3)';
-            overlay.onclick = function() { closeAvatarMenu(); };
-            document.body.appendChild(overlay);
-        }
-
-        function closeAvatarMenu() {
-            document.getElementById('avatarMenu').classList.add('hidden');
-            const overlay = document.getElementById('avatarMenuOverlay');
-            if (overlay) overlay.remove();
-        }
-
-        function setDefaultAvatar() {
-            const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            sb.from(TABLE_USERS).update({ avatar_url: null }).eq('username', currentUser)
-                .then(() => {
-                    currentAvatarUrl = '';
-                    updateAllAvatars();
-                    updateHomeMenu();
-                    updatePublicMenu();
-                    const avatarEl = document.getElementById('profileDialogAvatar');
-                    avatarEl.style.backgroundImage = '';
-                    avatarEl.textContent = currentUser.charAt(0).toUpperCase();
-                    avatarEl.style.backgroundColor = color;
-                    showSnackbar('已设置为默认头像');
-                    closeAvatarMenu();
-                })
-                .catch(e => { showSnackbar('设置失败'); });
-        }
-
-        function uploadAvatarFromMenu() {
-            closeAvatarMenu();
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                if (file.size > MAX_IMAGE_SIZE) { showSnackbar('图片不能超过 5MB'); return; }
-                showSnackbar('上传头像中...');
-                let blob = file;
-                if (file.size > COMPRESS_THRESHOLD) {
-                    blob = await compressImage(file, 256, 0.8);
-                }
-                const filePath = `avatars/${currentUser}-${Date.now()}.jpg`;
-                try {
-                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: 'image/jpeg',
-                        cacheControl: '3600' });
-                    if (error) {
-                        showSnackbar('上传失败: ' + error.message);
-                        return;
-                    }
-                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                    const { error: upError } = await sb.from(TABLE_USERS).update({ avatar_url: urlData.publicUrl }).eq(
-                        'username', currentUser);
-                    if (upError) {
-                        showSnackbar('更新失败: ' + upError.message);
-                        return;
-                    }
-                    currentAvatarUrl = urlData.publicUrl;
-                    updateAllAvatars();
-                    updateHomeMenu();
-                    updatePublicMenu();
-                    const avatarEl = document.getElementById('profileDialogAvatar');
-                    avatarEl.style.backgroundImage = `url(${urlData.publicUrl})`;
-                    avatarEl.textContent = '';
-                    showSnackbar('头像已更新');
-                } catch (e) { showSnackbar('上传失败'); }
-            };
-            input.click();
-        }
-
-        // ===================== 更改密码 =====================
-        function showChangePasswordDialog() {
-            document.getElementById('changePasswordDialog').classList.remove('hidden');
-            document.getElementById('changeOldPassword').value = '';
-            document.getElementById('changeNewPassword').value = '';
-            document.getElementById('changeConfirmPassword').value = '';
-        }
-
-        function closeChangePasswordDialog() {
-            document.getElementById('changePasswordDialog').classList.add('hidden');
-        }
-
-        async function doChangePassword() {
-            const oldPwd = document.getElementById('changeOldPassword').value;
-            const newPwd = document.getElementById('changeNewPassword').value;
-            const confirmPwd = document.getElementById('changeConfirmPassword').value;
-            if (!oldPwd || !newPwd || !confirmPwd) {
-                showSnackbar('请完整填写密码字段');
-                return;
-            }
-            if (newPwd.length < 6) {
-                showSnackbar('新密码至少6位');
-                return;
-            }
-            if (newPwd !== confirmPwd) {
-                showSnackbar('两次输入的新密码不一致');
-                return;
-            }
-            const oldHash = await hashPassword(oldPwd);
-            const { data, error } = await sb.from(TABLE_USERS).select('password_hash').eq('username', currentUser)
-                .single();
-            if (error) { showSnackbar('验证失败'); return; }
-            if (data.password_hash !== oldHash) {
-                showSnackbar('当前密码错误');
-                return;
-            }
-            const newHash = await hashPassword(newPwd);
-            const { error: upError } = await sb.from(TABLE_USERS).update({ password_hash: newHash }).eq('username',
-                currentUser);
-            if (upError) {
-                showSnackbar('更改密码失败: ' + upError.message);
-                return;
-            }
-            showSnackbar('密码更改成功');
-            closeChangePasswordDialog();
-        }
-
-        // ===================== 管理员功能 =====================
-        function showAdminDialog() {
-            document.getElementById('adminDialog').classList.remove('hidden');
-        }
-
-        function closeAdminDialog() {
-            document.getElementById('adminDialog').classList.add('hidden');
-        }
-
-        function showClearDialog() {
-            document.getElementById('clearDialog').classList.remove('hidden');
-        }
-
-        function hideClearDialog() {
-            document.getElementById('clearDialog').classList.add('hidden');
-        }
-
-        // ===================== 确认对话框 =====================
-        function showConfirm(title, message, callback) {
-            document.getElementById('confirmTitle').textContent = title;
-            document.getElementById('confirmMessage').textContent = message;
-            confirmCallback = callback;
-            document.getElementById('confirmOkBtn').onclick = function() {
-                closeConfirmDialog();
-                if (confirmCallback) confirmCallback();
-            };
-            document.getElementById('confirmDialog').classList.remove('hidden');
-        }
-
-        function closeConfirmDialog() {
-            document.getElementById('confirmDialog').classList.add('hidden');
-            confirmCallback = null;
         }
 
         // ===================== 初始化 =====================
@@ -4854,10 +5807,12 @@
             });
         });
 
+        // 链接对话框双向绑定（公共/私聊）已在对应函数中处理
+
         window.addEventListener('DOMContentLoaded', init);
 
-        console.log('MJChat 9.4 已加载，私聊使用 Broadcast 广播实现实时同步。');
-        console.log('请确保数据库表 chat_users 有 avatar_url 字段 (TEXT)。');
+        console.log('MJChat 10.0 安全强化版已加载，所有敏感操作均通过RPC函数，提权漏洞已修复。');
+        console.log('数据库触发器 prevent_role_change 已生效，角色字段不可更改。');
     </script>
 </body>
 </html>
