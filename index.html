@@ -420,6 +420,35 @@
             flex-shrink: 0;
             margin-left: 8px;
         }
+        .home-page .private-list .list-item .unread-badge {
+            background: var(--md-error);
+            color: white;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            font-size: 0.6875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            margin-left: 6px;
+            flex-shrink: 0;
+            font-weight: 600;
+        }
+        .home-page .private-list .list-item .unread-badge.hidden {
+            display: none;
+        }
+        .back-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--md-error);
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+        .back-badge.hidden {
+            display: none;
+        }
         .home-page .private-list .empty {
             text-align: center;
             color: var(--md-on-surface-dim);
@@ -618,25 +647,21 @@
         .public-page .messages .msg-row .bubble s {
             text-decoration: line-through;
         }
-        .public-page .messages .msg-row .bubble .file-msg {
+        .msg-row .bubble .file-msg {
             display: inline-flex;
             align-items: center;
             gap: 8px;
             text-decoration: none;
             color: inherit;
         }
-        .public-page .messages .msg-row .bubble .file-msg svg {
+        .msg-row .bubble .file-msg svg {
             flex-shrink: 0;
             opacity: 0.8;
         }
-        .public-page .messages .msg-row .bubble .file-msg .file-info b {
-            display: block;
+        .msg-row .bubble .file-msg span {
+            font-size: 0.875rem;
         }
-        .public-page .messages .msg-row .bubble .file-msg .file-info .file-size {
-            font-size: 0.75rem;
-            opacity: 0.7;
-        }
-        .public-page .messages .msg-row .bubble .voice-msg-wrap {
+        .msg-row .bubble .voice-msg-wrap {
             display: inline-flex;
             align-items: center;
             gap: 10px;
@@ -649,7 +674,7 @@
             -webkit-user-select: none;
             background: var(--md-surface-4dp);
         }
-        .public-page .messages .msg-row.own .bubble .voice-msg-wrap {
+        .msg-row.own .bubble .voice-msg-wrap {
             background: rgba(255,255,255,0.15);
         }
         .voice-msg-wrap .voice-play-btn {
@@ -1076,6 +1101,24 @@
         }
         .record-stop-btn.show {
             display: block;
+        }
+        .privacy-banner {
+            background: rgba(207, 102, 121, 0.12);
+            color: var(--md-error);
+            text-align: center;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-bottom: 1px solid rgba(207, 102, 121, 0.2);
+            transition: opacity 0.3s, height 0.3s, padding 0.3s;
+            overflow: hidden;
+        }
+        .privacy-banner.hidden-banner {
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            border-bottom: none;
+            pointer-events: none;
         }
         .private-page .messages {
             flex: 1;
@@ -2114,6 +2157,7 @@
                 <div class="app-bar">
                     <div class="title-block">
                         <button class="back-btn" onclick="navigateTo('home')"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                        <div class="back-badge hidden"></div>
                         <span class="title">MJChat</span>
                     </div>
                     <div class="online-indicator" id="publicOnlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="publicOnlineCount">0</span></div>
@@ -2186,12 +2230,14 @@
                 <div class="app-bar">
                     <div class="title-block">
                         <button class="back-btn" onclick="leavePrivateChat()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                        <div class="back-badge hidden"></div>
                         <span class="title" id="privateChatTitle">私聊</span>
                     </div>
                     <button class="icon-button" onclick="deletePrivateChat()" title="删除聊天" style="margin-right:4px;">
                         <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                     </button>
                 </div>
+                <div class="privacy-banner" id="privacyBanner">注意：当前为临时私聊页面，请注意隐私安全</div>
                 <div class="messages" id="privateMessages">
                     <div class="system-msg"><span>加载中...</span></div>
                 </div>
@@ -2537,10 +2583,10 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 500;
-        const APP_VERSION = 10.0;
+        const APP_VERSION = 18;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
-        const FORBIDDEN_WORDS = ['漫卷', 'MJ'];
+        const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
         const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
         const MAX_IMAGES_PER_MSG = 4;
@@ -2580,12 +2626,29 @@
 
         let isUserScrolledUp = false;
         let scrollTimeout = null;
+        let presenceSynced = false;
+        let knownOnlineUsers = new Set();
+        let privateUnreadCounts = {};
+        let globalPrivateChannel = null;
+        let publicUnread = 0;
 
         // ===================== 工具函数 =====================
-        function escapeHtml(t) { const d = document.createElement('div');
-            d.textContent = t; return d.innerHTML; }
+        function escapeHtml(t) { if (t == null) return ''; const d = document.createElement('div');
+            d.textContent = String(t); return d.innerHTML; }
 
-        function escapeAttr(t) { return t.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+        function escapeAttr(t) { if (t == null) return ''; return String(t).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+
+        function getMessagePreview(text) {
+            if (!text) return '';
+            if (text.startsWith('🎤 ')) return text.replace(/ → .*$/, '');
+            if (text.startsWith('🔗 ')) return '🔗 链接';
+            if (text.startsWith('📎 ')) {
+                const m = text.match(/📎 (.*?) \(/);
+                return m ? '📎 ' + m[1] : '📎 文件';
+            }
+            if (text.startsWith('🖼️ ')) return '🖼️ 图片';
+            return text.length > 40 ? text.substring(0, 40) + '…' : text;
+        }
 
         function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i);
                 h |= 0; } return Math.abs(h); }
@@ -2910,6 +2973,7 @@
             try {
                 await connectPublic();
                 await loadPrivateSessions();
+                setupGlobalPrivateListener();
                 document.getElementById('homePage').classList.add('active');
                 document.getElementById('publicPage').classList.remove('active');
                 document.getElementById('privatePage').classList.remove('active');
@@ -2924,6 +2988,7 @@
                 initInteractions();
                 initPrivateInteractions();
                 updatePublicEntry();
+                updatePublicBadge();
                 updateAllAvatars();
 
                 const publicMessagesEl = document.getElementById('publicMessages');
@@ -3026,20 +3091,30 @@
                         publicChannel
                             .on('presence', { event: 'sync' }, () => {
                                 onlineUsers = publicChannel.presenceState();
+                                const allNames = new Set();
+                                Object.values(onlineUsers).flat().forEach(p => {
+                                    if (p.name) allNames.add(p.name);
+                                });
+                                if (!presenceSynced) {
+                                    knownOnlineUsers = allNames;
+                                    presenceSynced = true;
+                                } else {
+                                    allNames.forEach(n => {
+                                        if (!knownOnlineUsers.has(n) && n !== currentUser) {
+                                            broadcastSystemMsg(`${n} 加入了MJChat`);
+                                        }
+                                    });
+                                    knownOnlineUsers.forEach(n => {
+                                        if (!allNames.has(n) && n !== currentUser) {
+                                            broadcastSystemMsg(`${n} 离开了MJChat`);
+                                        }
+                                    });
+                                    knownOnlineUsers = allNames;
+                                }
                                 renderOnlineUsers();
                             })
-                            .on('presence', { event: 'join' }, ({ newPresences }) => {
-                                const n = newPresences[0]?.name;
-                                if (n && n !== currentUser) {
-                                    broadcastSystemMsg(`${n} 加入了MJChat`);
-                                }
-                            })
-                            .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-                                const n = leftPresences[0]?.name;
-                                if (n && n !== currentUser) {
-                                    broadcastSystemMsg(`${n} 离开了MJChat`);
-                                }
-                            })
+                            .on('presence', { event: 'join' }, () => {})
+                            .on('presence', { event: 'leave' }, () => {})
                             .subscribe(async (status) => {
                                 if (status === 'SUBSCRIBED') {
                                     updatePublicConn(true);
@@ -3148,6 +3223,10 @@
             publicMessages.push(nm);
             if (document.getElementById('publicPage').classList.contains('active')) {
                 renderPublicMessage(nm);
+            } else if (!isHistory && nm.sender !== currentUser && !nm.is_system) {
+                publicUnread++;
+                updatePublicBadge();
+                updateBackBadge();
             }
         }
 
@@ -3252,15 +3331,32 @@
                 msgType = 'voice';
             } else {
                 const marked = parseMarkedText(msg.text);
-                if (marked && marked.type === 'link') {
+                if (marked && marked.type === 'voice') {
+                    const dur = marked.duration || 0;
+                    const mins = String(Math.floor(dur / 60)).padStart(2, '0');
+                    const secs = String(dur % 60).padStart(2, '0');
+                    const durStr = `${mins}:${secs}`;
+                    const waveBars = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16 + 4)).map(h =>
+                        `<div class="voice-wave" style="height:${h}px"></div>`).join('');
+                    if (marked.url) {
+                        bubbleContent =
+                            `<div class="voice-msg-wrap" data-audio="${escapeAttr(marked.url)}" data-dur="${dur}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="voice-waves">${waveBars}</div><span class="voice-dur">${durStr}</span></div>`;
+                    } else {
+                        bubbleContent = `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">请升级到最新版本播放</span></div>`;
+                    }
+                    msgType = 'voice';
+                } else if (marked && marked.type === 'link') {
                     linkUrl = marked.url;
                     bubbleContent =
                         `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(marked.displayText)}</a>`;
                     msgType = 'link';
                 } else if (marked && marked.type === 'file') {
                     const iconPath = getFileIconSvg(marked.fileInfo);
+                    const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
+                    const fileName = fileParts ? fileParts[1] : marked.fileInfo;
+                    const fileSize = fileParts ? fileParts[2] : '';
                     bubbleContent =
-                        `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(marked.fileInfo)}</span></a>`;
+                        `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)} KB)` : ''}</span></a>`;
                     msgType = 'file';
                     linkUrl = marked.url;
                 } else {
@@ -3388,12 +3484,8 @@
                 content = '🖼️ 图片';
             } else if (last.audio_url) {
                 content = '🎤 语音';
-            } else if (last.text && last.text.startsWith('🔗 ')) {
-                content = '🔗 链接';
-            } else if (last.text && last.text.startsWith('📎 ')) {
-                content = '📎 文件';
             } else {
-                content = last.text || '';
+                content = getMessagePreview(last.text);
             }
             sub.textContent = `${sender}：${content}`;
         }
@@ -3549,13 +3641,12 @@
         }
 
         async function handleImageSelect(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) {
+            const files = Array.from(event.target.files || []);
+            event.target.value = '';
+            if (files.length === 0) {
                 showSnackbar('未选择图片');
                 return;
             }
-            // 立即清空input，防止重复选择同一文件不触发
-            event.target.value = '';
 
             if (files.length > MAX_IMAGES_PER_MSG) {
                 showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
@@ -3998,7 +4089,8 @@
         function buildVoiceFallback(duration, audioUrl) {
             const mins = String(Math.floor(duration / 60)).padStart(2, '0');
             const secs = String(duration % 60).padStart(2, '0');
-            return '🎤 语音 ' + mins + ':' + secs;
+            var tail = audioUrl || '请升级 MJChat 到最新版本查看此消息';
+            return '🎤 语音 ' + mins + ':' + secs + ' → ' + tail;
         }
 
         function toggleVoicePlay(wrap, event) {
@@ -4059,10 +4151,16 @@
                 const sep = rest.indexOf(' → ');
                 if (sep > 0) return { type: 'file', fileInfo: rest.substring(0, sep), url: rest.substring(sep + 3) };
             }
-            if (text.startsWith('🎤 ') && text.includes(' ')) {
-                const match = text.match(/🎤\s*语音\s*(\d+):(\d+)/);
+            if (text.startsWith('🎤 ') && text.includes('语音')) {
+                const match = text.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
                 if (match) {
                     const duration = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    var url = match[3] && match[3].startsWith('http') ? match[3].trim() : null;
+                    return { type: 'voice', duration: duration, url: url };
+                }
+                const match2 = text.match(/🎤\s*语音\s*(\d+):(\d+)/);
+                if (match2) {
+                    const duration = parseInt(match2[1]) * 60 + parseInt(match2[2]);
                     return { type: 'voice', duration: duration, url: null };
                 }
             }
@@ -4414,7 +4512,7 @@
                 menu.appendChild(item);
             };
 
-            const replyContentText = text || '消息';
+            const replyContentText = (msgType === 'voice' || msgType === 'link' || msgType === 'file') ? getMessagePreview(text) : (text || '消息');
             addItem('回复', icons.reply, () => {
                 if (type === 'public') {
                     setPublicReplyTarget(msgId, sender, replyContentText);
@@ -4597,9 +4695,11 @@
             container.innerHTML = sessions.map(s => {
                 const other = s.user1 === currentUser ? s.user2 : s.user1;
                 const idx = hashStr(other) % 8;
-                const lastMsg = s.last_message || '暂无消息';
+                const lastMsg = getMessagePreview(s.last_message) || '暂无消息';
                 const time = s.updated_at ? new Date(s.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit',
                     minute: '2-digit' }) : '';
+                const unread = privateUnreadCounts[s.id] || 0;
+                const unreadBadge = unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : '<div class="unread-badge hidden"></div>';
                 return `<div class="list-item" onclick="openPrivateChat('${s.id}','${escapeAttr(other)}')">
                             <div class="av av-${idx}" data-username="${other}">${escapeHtml(other.charAt(0).toUpperCase())}</div>
                             <div class="info">
@@ -4607,6 +4707,7 @@
                                 <div class="last-msg">${escapeHtml(lastMsg)}</div>
                             </div>
                             <div class="time">${time}</div>
+                            ${unreadBadge}
                         </div>`;
             }).join('');
         }
@@ -4643,18 +4744,68 @@
             privateOtherUser = otherUser;
             privateChatActive = true;
             document.getElementById('privateChatTitle').textContent = `私聊 ${otherUser}`;
+            document.getElementById('privacyBanner').classList.remove('hidden-banner');
             document.getElementById('privatePage').classList.add('active');
             document.getElementById('homePage').classList.remove('active');
             document.getElementById('publicPage').classList.remove('active');
             document.getElementById('searchPage').classList.remove('active');
+            clearUnread(sessionId);
             await loadPrivateMessages(sessionId);
             subscribePrivateChannel(sessionId);
+            checkPrivacyBanner();
             const privateMessagesEl = document.getElementById('privateMessages');
             setupScrollHandlers(privateMessagesEl);
             setTimeout(() => {
                 scrollToBottom(privateMessagesEl);
                 updateScrollButton(privateMessagesEl);
             }, 50);
+        }
+
+        function checkPrivacyBanner() {
+            const senders = new Set(privateMessages.map(m => m.sender));
+            if (senders.size >= 2) {
+                document.getElementById('privacyBanner').classList.add('hidden-banner');
+            } else {
+                document.getElementById('privacyBanner').classList.remove('hidden-banner');
+            }
+        }
+
+        function incrementUnread(sessionId) {
+            privateUnreadCounts[sessionId] = (privateUnreadCounts[sessionId] || 0) + 1;
+            renderPrivateList();
+            updateBackBadge();
+        }
+
+        function clearUnread(sessionId) {
+            if (privateUnreadCounts[sessionId]) {
+                delete privateUnreadCounts[sessionId];
+                renderPrivateList();
+                updateBackBadge();
+            }
+        }
+
+        function getTotalUnread() {
+            return Object.values(privateUnreadCounts).reduce((a, b) => a + b, 0) + publicUnread;
+        }
+
+        function updateBackBadge() {
+            const total = getTotalUnread();
+            const badges = document.querySelectorAll('.back-badge');
+            badges.forEach(b => {
+                if (total > 0) b.classList.remove('hidden');
+                else b.classList.add('hidden');
+            });
+        }
+
+        function updatePublicBadge() {
+            const badge = document.getElementById('publicUnreadBadge');
+            if (!badge) return;
+            if (publicUnread > 0) {
+                badge.textContent = publicUnread > 99 ? '99+' : publicUnread;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
         }
 
         async function loadPrivateMessages(sessionId) {
@@ -4673,14 +4824,7 @@
                 } else {
                     privateMessages.forEach(m => renderPrivateMessage(m));
                 }
-                if (privateMessages.length > 0) {
-                    const last = privateMessages[privateMessages.length - 1];
-                    await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                        updated_at: new Date().toISOString(),
-                        last_message: last.content
-                    }).eq('id', sessionId);
-                }
-            } catch (e) { console.error('loadPrivateMessages exception:', e); }
+            } catch (e) { /* ignore */ }
         }
 
         // ===== 私聊消息渲染 - 修复文件/链接显示 =====
@@ -4700,12 +4844,27 @@
             const ci = hashStr(msg.sender) % 8;
             let contentHtml = cleanHtml(msg.content);
 
-            // 检测链接、文件、图片
+            // 检测链接、文件、图片、语音
             const linkMatch = msg.content.match(/🔗 (.*?) → (.*)/);
             const fileMatch = msg.content.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
             const imgMatch = msg.content.match(/!\[.*?\]\((.*?)\)/);
+            const voiceMatch = msg.content.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
 
-            if (imgMatch) {
+            if (voiceMatch) {
+                const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
+                const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
+                const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+                const secs = String(duration % 60).padStart(2, '0');
+                const durStr = `${mins}:${secs}`;
+                const waveBars = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16 + 4)).map(h =>
+                    `<div class="voice-wave" style="height:${h}px"></div>`).join('');
+                if (audioUrl) {
+                    contentHtml =
+                        `<div class="voice-msg-wrap" data-audio="${escapeAttr(audioUrl)}" data-dur="${duration}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="voice-waves">${waveBars}</div><span class="voice-dur">${durStr}</span></div>`;
+                } else {
+                    contentHtml = `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">语音消息</span></div>`;
+                }
+            } else if (imgMatch) {
                 contentHtml =
                     `<img src="${escapeAttr(imgMatch[1])}" onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片" style="max-width:180px;max-height:180px;border-radius:8px;display:block;" oncontextmenu="return false;">`;
                 // 如果还有额外文本，追加
@@ -4719,7 +4878,7 @@
             } else if (fileMatch) {
                 const iconPath = getFileIconSvg(fileMatch[1]);
                 contentHtml =
-                    `<a href="${escapeAttr(fileMatch[3])}" target="_blank" rel="noopener noreferrer" class="file-msg" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:inherit;"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></a>`;
+                    `<a href="${escapeAttr(fileMatch[3])}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></a>`;
             } else {
                 // 普通文本
                 contentHtml = cleanHtml(msg.content);
@@ -4731,7 +4890,11 @@
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
             row.dataset.msgText = msg.content || '';
-            row.dataset.msgType = 'text';
+            if (voiceMatch) row.dataset.msgType = 'voice';
+            else if (imgMatch) row.dataset.msgType = 'image';
+            else if (linkMatch) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
+            else if (fileMatch) { row.dataset.msgType = 'file'; row.dataset.linkUrl = fileMatch[3] || ''; }
+            else row.dataset.msgType = 'text';
             row.innerHTML = `
                 <div class="avatar av-${ci}" data-username="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
@@ -4764,16 +4927,21 @@
                     privateMessages.push(msg);
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
+                        checkPrivacyBanner();
                         const container = document.getElementById('privateMessages');
                         if (!isUserScrolledUp && container) {
                             scrollToBottom(container);
                             updateScrollButton(container);
                         }
+                    } else {
+                        incrementUnread(sessionId);
                     }
-                    sb.from(TABLE_PRIVATE_SESSIONS).update({
-                        updated_at: new Date().toISOString(),
-                        last_message: msg.content
-                    }).eq('id', sessionId);
+                    if (msg.created_at) {
+                        sb.from(TABLE_PRIVATE_SESSIONS).update({
+                            updated_at: msg.created_at,
+                            last_message: msg.content
+                        }).eq('id', sessionId);
+                    }
                     loadPrivateSessions();
                 }
             });
@@ -4789,25 +4957,64 @@
                     privateMessages.push(msg);
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
+                        checkPrivacyBanner();
                         const container = document.getElementById('privateMessages');
                         if (!isUserScrolledUp && container) {
                             scrollToBottom(container);
                             updateScrollButton(container);
                         }
+                    } else {
+                        incrementUnread(sessionId);
                     }
-                    sb.from(TABLE_PRIVATE_SESSIONS).update({
-                        updated_at: new Date().toISOString(),
-                        last_message: msg.content
-                    }).eq('id', sessionId);
+                    if (msg.created_at) {
+                        sb.from(TABLE_PRIVATE_SESSIONS).update({
+                            updated_at: msg.created_at,
+                            last_message: msg.content
+                        }).eq('id', sessionId);
+                    }
                     loadPrivateSessions();
                 }
             });
 
-            privateChannel.subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('Private channel subscribed');
+            privateChannel.subscribe((status) => {});
+        }
+
+        function setupGlobalPrivateListener() {
+            if (globalPrivateChannel) {
+                sb.removeChannel(globalPrivateChannel);
+                globalPrivateChannel = null;
+            }
+            globalPrivateChannel = sb.channel('global-private-msgs');
+            globalPrivateChannel.on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: TABLE_PRIVATE_MSGS
+            }, (payload) => {
+                const msg = payload.new;
+                const sessions = window.privateSessions || [];
+                const session = sessions.find(s => s.id === msg.session_id);
+                if (!session) return;
+                if (privateChatActive && privateSessionId === msg.session_id) return;
+                if (msg.sender === currentUser) {
+                    if (msg.created_at) {
+                        sb.from(TABLE_PRIVATE_SESSIONS).update({
+                            updated_at: msg.created_at,
+                            last_message: msg.content
+                        }).eq('id', msg.session_id);
+                    }
+                    loadPrivateSessions();
+                    return;
                 }
+                incrementUnread(msg.session_id);
+                if (msg.created_at) {
+                    sb.from(TABLE_PRIVATE_SESSIONS).update({
+                        updated_at: msg.created_at,
+                        last_message: msg.content
+                    }).eq('id', msg.session_id);
+                }
+                loadPrivateSessions();
             });
+            globalPrivateChannel.subscribe();
         }
 
         function togglePrivateSendBtn() {
@@ -4831,12 +5038,13 @@
             document.getElementById('privateSendBtn').disabled = true;
 
             const hasReply = privateMessages.some(m => m.sender !== currentUser);
-            if (privateMessages.length === 0 && !hasReply) {
-                // 第一条，允许
-            } else if (privateMessages.length === 1 && !hasReply) {
-                showSnackbar('等待对方回复后才能继续发送');
-                document.getElementById('privateSendBtn').disabled = false;
-                return;
+            if (!hasReply) {
+                const myMsgCount = privateMessages.filter(m => m.sender === currentUser).length;
+                if (myMsgCount >= 3) {
+                    showSnackbar('对方暂未回复，请稍后再发送');
+                    document.getElementById('privateSendBtn').disabled = false;
+                    return;
+                }
             }
 
             const payload = {
@@ -4871,10 +5079,13 @@
             input.value = '';
             autoResize(input);
             togglePrivateSendBtn();
-            await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                updated_at: new Date().toISOString(),
-                last_message: text
-            }).eq('id', privateSessionId);
+            checkPrivacyBanner();
+            if (newMsg.created_at) {
+                await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                    updated_at: newMsg.created_at,
+                    last_message: text
+                }).eq('id', privateSessionId);
+            }
             loadPrivateSessions();
         }
 
@@ -4893,6 +5104,8 @@
             document.getElementById('publicPage').classList.remove('active');
             document.getElementById('searchPage').classList.remove('active');
             loadPrivateSessions();
+            updateBackBadge();
+            updatePublicBadge();
         }
 
         async function deletePrivateChat() {
@@ -4957,9 +5170,9 @@
         }
 
         async function privateHandleImageSelect(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
+            const files = Array.from(event.target.files || []);
             event.target.value = '';
+            if (files.length === 0) return;
             if (files.length > MAX_IMAGES_PER_MSG) {
                 showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
                 return;
@@ -5015,6 +5228,7 @@
             privateMessages.push(newMsg);
             if (document.getElementById('privatePage').classList.contains('active')) {
                 renderPrivateMessage(newMsg);
+                checkPrivacyBanner();
                 const container = document.getElementById('privateMessages');
                 if (container) {
                     scrollToBottom(container);
@@ -5022,10 +5236,12 @@
                     isUserScrolledUp = false;
                 }
             }
-            await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                updated_at: new Date().toISOString(),
-                last_message: content
-            }).eq('id', privateSessionId);
+            if (newMsg.created_at) {
+                await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                    updated_at: newMsg.created_at,
+                    last_message: content
+                }).eq('id', privateSessionId);
+            }
             loadPrivateSessions();
         }
 
@@ -5066,6 +5282,7 @@
                 privateMessages.push(newMsg);
                 if (document.getElementById('privatePage').classList.contains('active')) {
                     renderPrivateMessage(newMsg);
+                    checkPrivacyBanner();
                     const container = document.getElementById('privateMessages');
                     if (container) {
                         scrollToBottom(container);
@@ -5073,10 +5290,12 @@
                         isUserScrolledUp = false;
                     }
                 }
-                await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                    updated_at: new Date().toISOString(),
-                    last_message: content
-                }).eq('id', privateSessionId);
+                if (newMsg.created_at) {
+                    await sb.from(TABLE_PRIVATE_SESSIONS).update({
+                        updated_at: newMsg.created_at,
+                        last_message: content
+                    }).eq('id', privateSessionId);
+                }
                 loadPrivateSessions();
             } catch (e) { showSnackbar('上传失败'); }
         }
@@ -5225,7 +5444,7 @@
                 const duration = privateRecordStartTime ? Math.floor((Date.now() - privateRecordStartTime) / 1000) : 0;
                 const mins = String(Math.floor(duration / 60)).padStart(2, '0');
                 const secs = String(duration % 60).padStart(2, '0');
-                const content = `🎤 语音 ${mins}:${secs}`;
+                const content = `🎤 语音 ${mins}:${secs} → ${urlData.publicUrl}`;
                 const payload = {
                     session_id: privateSessionId,
                     sender: currentUser,
@@ -5439,6 +5658,7 @@
         }
 
         async function forceLogoutUser() {
+            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
             const btn = document.getElementById('userProfileForceLogoutBtn');
             const username = btn.dataset.username;
             if (!confirm(`确定要强制下线用户 ${username} 吗？`)) return;
@@ -5485,7 +5705,7 @@
             document.getElementById('allUsersModal').classList.remove('hidden');
             try {
                 const { data, error } = await sb.from(TABLE_USERS)
-                    .select('username, avatar_url, password_hash, role, banned')
+                    .select('username, avatar_url, role, banned')
                     .order('username', { ascending: true });
                 if (error) {
                     document.getElementById('allUsersList').innerHTML = '<p>加载失败</p>';
@@ -5504,15 +5724,6 @@
                     }
                     const isBanned = u.banned ? '🚫' : '✅';
                     const roleIcon = u.role === 'admin' ? '👑' : '👤';
-                    let pwdDisplay = '无';
-                    if (u.password_hash) {
-                        const len = u.password_hash.length;
-                        if (len > 8) {
-                            pwdDisplay = u.password_hash.substring(0, 4) + '…' + u.password_hash.substring(len - 4);
-                        } else {
-                            pwdDisplay = u.password_hash;
-                        }
-                    }
                     html += `
                         <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--md-outline);gap:8px;">
                             <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:white;flex-shrink:0;${avatarStyle}" class="av-${idx}">${u.avatar_url ? '' : u.username.charAt(0).toUpperCase()}</div>
@@ -5521,7 +5732,6 @@
                                 <div style="font-size:0.7rem;color:var(--md-on-surface-dim);display:flex;gap:6px;flex-wrap:wrap;">
                                     <span>${roleIcon} ${u.role}</span>
                                     <span>${isBanned}</span>
-                                    <span style="font-family:monospace;font-size:0.6rem;">🔑 ${escapeHtml(pwdDisplay)}</span>
                                 </div>
                             </div>
                             <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;background:var(--md-primary);color:var(--md-on-primary);border-radius:12px;" onclick="simulateLogin('${escapeAttr(u.username)}')">登录</button>
@@ -5539,8 +5749,14 @@
         }
 
         async function simulateLogin(username) {
+            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
             if (!confirm(`确定要以 ${username} 的身份登录吗？此操作不会修改任何密码或数据。`)) return;
             try {
+                const { data: adminCheck } = await sb.from(TABLE_USERS).select('role').eq('username', currentUser).maybeSingle();
+                if (!adminCheck || (adminCheck.role !== 'admin' && !ADMIN_USERS.includes(currentUser))) {
+                    showSnackbar('权限验证失败');
+                    return;
+                }
                 currentUser = username;
                 const { data } = await sb.from(TABLE_USERS).select('role, avatar_url, banned').eq('username', username)
                     .single();
@@ -5951,8 +6167,10 @@
             document.getElementById('confirmMessage').textContent = message;
             confirmCallback = callback;
             document.getElementById('confirmOkBtn').onclick = function() {
-                closeConfirmDialog();
-                if (confirmCallback) confirmCallback();
+                var cb = confirmCallback;
+                document.getElementById('confirmDialog').classList.add('hidden');
+                confirmCallback = null;
+                if (cb) cb();
             };
             document.getElementById('confirmDialog').classList.remove('hidden');
         }
@@ -5969,6 +6187,8 @@
                 publicChannel = null; }
             if (privateChannel) { sb.removeChannel(privateChannel);
                 privateChannel = null; }
+            if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel);
+                globalPrivateChannel = null; }
             localStorage.removeItem('mjchat_session');
             currentUser = '';
             isAdmin = false;
@@ -5977,6 +6197,8 @@
             onlineUsers = {};
             isEntered = false;
             privateChatActive = false;
+            publicUnread = 0;
+            privateUnreadCounts = {};
             document.getElementById('authContainer').style.display = 'flex';
             document.getElementById('appContainer').style.display = 'none';
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -6022,8 +6244,11 @@
                 document.getElementById('homePage').classList.add('active');
                 loadPrivateSessions();
                 updatePublicEntry();
+                updatePublicBadge();
             } else if (page === 'public') {
                 document.getElementById('publicPage').classList.add('active');
+                publicUnread = 0;
+                updatePublicBadge();
                 document.getElementById('publicMessages').innerHTML = '';
                 publicLastDateLabel = '';
                 publicMessages.forEach(m => renderPublicMessage(m));
@@ -6037,6 +6262,7 @@
                 document.getElementById('searchInput').value = '';
                 document.getElementById('searchResults').innerHTML = '<div class="empty">输入用户名开始搜索</div>';
             }
+            updateBackBadge();
         }
 
         // ===== 菜单 =====
@@ -6206,8 +6432,6 @@
         });
 
         window.addEventListener('DOMContentLoaded', init);
-
-        console.log('MJChat 10.0 最终修复版已加载：图片上传修复、图片预览修复、注册权限修复、私聊文件/链接显示修复、历史登录修复。');
     </script>
 </body>
 </html>
