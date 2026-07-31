@@ -2481,7 +2481,7 @@
                             <option value="custom">其他 (自定义)</option>
                         </select>
                     </div>
-                    <div class="md-text-field"><input type="text" id="agentApiKey" placeholder=" "><label>API Key</label></div>
+                    <div class="md-text-field"><input type="password" id="agentApiKey" placeholder=" "><label>API Key</label></div>
                     <div class="md-text-field"><input type="text" id="agentModel" placeholder=" " value="gpt-3.5-turbo"><label>模型（可选）</label></div>
                 </div>
                 <div class="dialog-actions"><button class="md-button text" onclick="closeAddAgentDialog()">取消</button><button class="md-button text" onclick="saveAgent()">保存</button></div>
@@ -2603,10 +2603,28 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 21;
+        const APP_VERSION = 22;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
+        /*
+         * ==================== 安全说明 ====================
+         * 需要在 Supabase 后端创建以下 RPC 函数：
+         *
+         * 1. verify_login(p_username text, p_password_hash text)
+         *    返回: { success boolean, username text, role text, banned boolean, avatar_url text }
+         *    功能: 验证密码哈希是否匹配，匹配则返回用户信息（不含password_hash），否则返回 success=false
+         *
+         * 2. verify_session(p_username text, p_token text)
+         *    返回: { success boolean, username text, role text, banned boolean, avatar_url text }
+         *    功能: 验证会话令牌（password_hash的SHA-256二次哈希），用于会话恢复
+         *
+         * 同时确保 RLS 策略：
+         * - chat_users 表: anon 角色不可直接 select password_hash 字段
+         * - chat_agents 表: anon 角色不可直接 select api_key 字段
+         * - 建议为 chat_users 设置: SELECT 策略仅允许查询非敏感字段
+         * ===================================================
+         */
         const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
         const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
         const MAX_IMAGES_PER_MSG = 4;
@@ -2944,11 +2962,13 @@
 
                 currentUser = username;
                 isAdmin = ADMIN_USERS.includes(currentUser);
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
+                const sessionToken = await hashPassword(passwordHash);
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken }));
                 showEl('regSuccess', '注册成功！正在进入...');
                 setTimeout(() => {
                     clearRegForm();
                     showGlobalLoading('登录中…', '欢迎 ' + currentUser);
+                    authorizeEnterApp();
                     enterApp();
                 }, 1200);
             } catch (e) {
@@ -2971,33 +2991,36 @@
             showGlobalLoading('登录中…', '验证身份中');
             try {
                 const passwordHash = await hashPassword(password);
-                const { data, error } = await sb.from(TABLE_USERS).select('username, password_hash, banned, role, avatar_url')
-                    .eq('username', username).maybeSingle();
+                // 通过 RPC 验证密码，不暴露 password_hash 到前端
+                const { data, error } = await sb.rpc('verify_login', {
+                    p_username: username,
+                    p_password_hash: passwordHash
+                });
                 if (error) {
                     hideGlobalLoading();
                     return showEl('loginError', '登录失败: ' + error.message);
                 }
-                if (!data) {
+                if (!data || data.success === false) {
                     hideGlobalLoading();
-                    return showEl('loginError', '用户名不存在');
+                    return showEl('loginError', data?.message || '用户名或密码错误');
                 }
-                if (data.banned) {
+                const userData = data;
+                if (userData.banned) {
                     hideGlobalLoading();
                     return showEl('loginError', '您已被封禁，无法登录');
                 }
-                if (data.password_hash !== passwordHash) {
-                    hideGlobalLoading();
-                    return showEl('loginError', '密码错误');
-                }
                 currentUser = username;
-                isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(username);
-                currentAvatarUrl = data.avatar_url || '';
+                isAdmin = (userData.role === 'admin') || ADMIN_USERS.includes(username);
+                currentAvatarUrl = userData.avatar_url || '';
                 userAvatarCache[currentUser] = currentAvatarUrl;
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
+                // 存储会话令牌（密码哈希的二次哈希，用于会话恢复验证）
+                const sessionToken = await hashPassword(passwordHash);
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken }));
                 document.getElementById('loginPassword').value = '';
                 updateLoadingText('登录中…', '欢迎 ' + currentUser);
                 const ip = await getClientIP();
                 await recordLogin(username, ip);
+                authorizeEnterApp();
                 enterApp();
             } catch (e) {
                 hideGlobalLoading();
@@ -3006,8 +3029,16 @@
         }
 
         // ===================== 进入应用 =====================
+        let _enterAppAuthorized = false;
+        function authorizeEnterApp() { _enterAppAuthorized = true; }
         async function enterApp() {
             if (isEntered) return;
+            if (!_enterAppAuthorized) {
+                console.error('enterApp 未授权调用');
+                showLogin();
+                return;
+            }
+            _enterAppAuthorized = false;
             showGlobalLoading('连接中…', '正在加载数据');
             document.getElementById('authContainer').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
@@ -3127,6 +3158,12 @@
         }
 
         function setupGlobalPrivateListener() {
+            // 防御性清理：确保旧的频道被移除
+            if (globalPrivateChannel) {
+                try { sb.removeChannel(globalPrivateChannel); } catch(e) {}
+                globalPrivateChannel = null;
+            }
+            if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
             // 方法1：专用频道监听 postgres_changes
             globalPrivateChannel = sb.channel('global-private-' + currentUser);
             globalPrivateChannel.on('postgres_changes', {
@@ -6155,13 +6192,15 @@
                     isAdmin = ADMIN_USERS.includes(username);
                     currentAvatarUrl = '';
                 }
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: 'admin_switch_' + Date.now() }));
                 showSnackbar(`已切换至 ${username}`);
                 closeAllUsersModal();
                 isEntered = false;
                 publicMessages = [];
                 privateMessages = [];
                 onlineUsers = {};
+                if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
+                if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel); globalPrivateChannel = null; }
                 if (publicChannel) { publicChannel.untrack();
                     sb.removeChannel(publicChannel);
                     publicChannel = null; }
@@ -6169,6 +6208,7 @@
                     privateChannel = null; }
                 document.getElementById('authContainer').style.display = 'none';
                 document.getElementById('appContainer').style.display = 'flex';
+                authorizeEnterApp();
                 enterApp();
             } catch (e) {
                 showSnackbar('登录失败: ' + e.message);
@@ -6329,7 +6369,7 @@
             const container = document.getElementById('agentListContainer');
             try {
                 const { data, error } = await sb.from(TABLE_AGENTS)
-                    .select('*')
+                    .select('id, name, provider, model, created_by, created_at')
                     .order('created_at', { ascending: true });
                 if (error) {
                     container.innerHTML = '<p>加载失败</p>';
@@ -6785,28 +6825,38 @@
             if (saved) {
                 try {
                     const session = JSON.parse(saved);
-                    sb.from(TABLE_USERS).select('username, banned, role, avatar_url').eq('username', session.username)
-                        .maybeSingle()
-                        .then(({ data }) => {
-                            if (data && !isEntered) {
-                                if (data.banned) {
-                                    localStorage.removeItem('mjchat_session');
-                                    hideGlobalLoading();
-                                    showLogin();
-                                    showEl('loginError', '您已被封禁');
-                                    return;
-                                }
-                                currentUser = session.username;
-                                isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(currentUser);
-                                currentAvatarUrl = data.avatar_url || '';
-                                userAvatarCache[currentUser] = currentAvatarUrl;
-                                updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
-                                enterApp();
-                            } else {
-                                if (!data) localStorage.removeItem('mjchat_session');
+                    // 必须同时有 username 和 token 才能恢复会话
+                    if (!session.username || !session.token) {
+                        localStorage.removeItem('mjchat_session');
+                        hideGlobalLoading();
+                        showLogin();
+                        return;
+                    }
+                    // 通过 RPC 验证会话令牌，防止伪造
+                    sb.rpc('verify_session', { p_username: session.username, p_token: session.token })
+                        .then(({ data, error }) => {
+                            if (error || !data || data.success === false || isEntered) {
+                                localStorage.removeItem('mjchat_session');
                                 hideGlobalLoading();
                                 showLogin();
+                                if (error) console.error('Session verify error:', error.message);
+                                return;
                             }
+                            const userData = data;
+                            if (userData.banned) {
+                                localStorage.removeItem('mjchat_session');
+                                hideGlobalLoading();
+                                showLogin();
+                                showEl('loginError', '您已被封禁');
+                                return;
+                            }
+                            currentUser = session.username;
+                            isAdmin = (userData.role === 'admin') || ADMIN_USERS.includes(currentUser);
+                            currentAvatarUrl = userData.avatar_url || '';
+                            userAvatarCache[currentUser] = currentAvatarUrl;
+                            updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
+                            authorizeEnterApp();
+                            enterApp();
                         })
                         .catch(() => {
                             localStorage.removeItem('mjchat_session');
