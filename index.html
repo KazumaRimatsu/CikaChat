@@ -2498,6 +2498,7 @@
                     <button class="md-button contained" onclick="closeAdminDialog();showAllUsers();">MJChat 用户</button>
                     <button class="md-button contained" onclick="closeAdminDialog();showStats();">数据统计</button>
                     <button class="md-button contained" onclick="closeAdminDialog();showLoginHistory();">历史登录</button>
+                    <button class="md-button contained" onclick="closeAdminDialog();cleanupGarbledMsgs();">清理乱码消息</button>
                 </div>
                 <div class="dialog-actions"><button class="md-button text" onclick="closeAdminDialog()">关闭</button></div>
             </div>
@@ -2603,7 +2604,7 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 22;
+        const APP_VERSION = 23;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
@@ -2623,6 +2624,21 @@
          * - chat_users 表: anon 角色不可直接 select password_hash 字段
          * - chat_agents 表: anon 角色不可直接 select api_key 字段
          * - 建议为 chat_users 设置: SELECT 策略仅允许查询非敏感字段
+         *
+         * 3. get_user_profile(p_username text)
+         *    返回: { success boolean, username text, role text, banned boolean, avatar_url text, deleted boolean }
+         *    功能: 获取用户公开信息（不含密码等敏感字段），用于用户资料页面显示
+         *    SECURITY DEFINER，绕过 RLS 限制安全返回非敏感字段
+         *
+         * 4. search_users(p_query text, p_limit int)
+         *    返回: [{ username text, avatar_url text }]
+         *    功能: 模糊搜索用户名，仅返回公开字段
+         *    SECURITY DEFINER
+         *
+         * 5. get_all_users()
+         *    返回: [{ username text, avatar_url text, role text, banned boolean }]
+         *    功能: 获取所有用户列表（仅公开字段），仅管理员可调用
+         *    SECURITY DEFINER
          * ===================================================
          */
         const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -3106,12 +3122,27 @@
             const unique = [...new Set(usernames.filter(n => n && !userAvatarCache.hasOwnProperty(n)))];
             if (unique.length === 0) return;
             try {
+                // 尝试直接查询
                 const { data, error } = await sb.from(TABLE_USERS)
                     .select('username, avatar_url')
                     .in('username', unique);
-                if (data) {
+                if (!error && data) {
                     data.forEach(u => { userAvatarCache[u.username] = u.avatar_url || ''; });
                     unique.forEach(n => { if (!userAvatarCache.hasOwnProperty(n)) userAvatarCache[n] = ''; });
+                } else if (error) {
+                    // RLS 限制时，逐个尝试或使用 RPC
+                    for (const name of unique) {
+                        try {
+                            const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: name });
+                            if (rpcData && rpcData.success !== false) {
+                                userAvatarCache[name] = rpcData.avatar_url || '';
+                            } else {
+                                userAvatarCache[name] = '';
+                            }
+                        } catch (e) {
+                            userAvatarCache[name] = '';
+                        }
+                    }
                 }
             } catch (e) { /* 忽略 */ }
         }
@@ -3227,7 +3258,66 @@
 
         // ===================== 系统消息广播 =====================
         let recentSystemMsgs = {};
+
+        // 检查文本是否包含乱码字符（UTF-8/GBK编码错误的特征）
+        function isGarbledText(text) {
+            if (!text) return false;
+            // 1. U+FFFD 替换字符 - 编码错误的标志
+            if (text.includes('\uFFFD')) return true;
+            // 2. "锟斤拷" 序列 - 经典 UTF-8/GBK 乱码特征
+            if (text.includes('锟斤拷')) return true;
+            // 3. 连续出现多个生僻字（正常系统消息不会包含大量生僻字）
+            let rareCharCount = 0;
+            let consecutiveRare = 0;
+            let maxConsecutiveRare = 0;
+            for (let i = 0; i < text.length; i++) {
+                const c = text.charCodeAt(i);
+                // CJK统一汉字扩展A区（生僻字集中区域）
+                if (c >= 0x3400 && c <= 0x4DBF) {
+                    rareCharCount++;
+                    consecutiveRare++;
+                    maxConsecutiveRare = Math.max(maxConsecutiveRare, consecutiveRare);
+                } else if (c >= 0x4E00 && c <= 0x9FFF) {
+                    // 常用CJK汉字区域内的罕见字也计入
+                    // 检查是否在常见字范围内（基本汉字常用部分）
+                    consecutiveRare = 0;
+                } else {
+                    consecutiveRare = 0;
+                }
+                // CJK统一汉字扩展B区及以后
+                if (c >= 0x20000) {
+                    rareCharCount++;
+                    consecutiveRare++;
+                    maxConsecutiveRare = Math.max(maxConsecutiveRare, consecutiveRare);
+                }
+            }
+            // 超过3个生僻字或有连续2个以上生僻字
+            if (rareCharCount > 3 || maxConsecutiveRare >= 2) return true;
+            // 4. 包含大量非常用CJK字符（系统消息应为简单中文）
+            // 统计非常用字（不在GB2312常用字范围内的字）
+            let uncommonCount = 0;
+            const commonRange = /^[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEFa-zA-Z0-9\s\u3001\u3002\uff0c\uff01\uff1f\uff1a\uff1b\u300a\u300b\u3010\u3011+\-_=!@#$%^&*(){}[\]|;:'",.<>?\/\\`~]*$/;
+            if (!commonRange.test(text)) {
+                // 如果包含非常见字符，进一步检查
+                for (let i = 0; i < text.length; i++) {
+                    const c = text.charCodeAt(i);
+                    // 日文片假名/平假名在系统消息中不常见
+                    if ((c >= 0x3040 && c <= 0x30FF) || (c >= 0x3400 && c <= 0x4DBF)) {
+                        uncommonCount++;
+                    }
+                }
+                if (uncommonCount > 2) return true;
+            }
+            return false;
+        }
+
         async function broadcastSystemMsg(text) {
+            // 验证文本有效性，防止乱码
+            if (!text || typeof text !== 'string') return;
+            if (isGarbledText(text)) {
+                console.warn('拦截到乱码系统消息，已阻止:', text);
+                return;
+            }
             const now = Date.now();
             if (recentSystemMsgs[text] && now - recentSystemMsgs[text] < 5000) return;
             recentSystemMsgs[text] = now;
@@ -3491,7 +3581,9 @@
                     is_system: msg.is_system || false
                 }));
                 const unique = newMsgs.filter(m => !publicMessages.some(e => e.id === m.id));
-                publicMessages = unique.concat(publicMessages);
+                // 过滤乱码系统消息
+                const filtered = unique.filter(m => !(m.is_system && isGarbledText(m.text)));
+                publicMessages = filtered.concat(publicMessages);
                 // 重建 DOM
                 const container = document.getElementById('publicMessages');
                 const prevScrollHeight = container.scrollHeight;
@@ -3530,6 +3622,8 @@
 
         function handlePublicMessage(msg, isHistory = false) {
             if (publicMessages.some(m => m.id === msg.id)) return;
+            // 过滤乱码系统消息，不加入消息列表
+            if (msg.is_system && isGarbledText(msg.text)) return;
             const nm = {
                 id: msg.id,
                 sender: msg.sender,
@@ -3561,6 +3655,10 @@
             const isSystem = msg.is_system || false;
 
             if (isSystem) {
+                // 过滤乱码系统消息
+                if (isGarbledText(msg.text)) {
+                    return; // 跳过乱码消息，不渲染
+                }
                 const d = document.createElement('div');
                 d.className = 'system-msg';
                 d.innerHTML = `<span>${escapeHtml(msg.text)}</span>`;
@@ -3815,6 +3913,8 @@
         }
 
         function addPublicSystemMsg(text) {
+            // 过滤乱码系统消息
+            if (isGarbledText(text)) return;
             const c = document.getElementById('publicMessages');
             const d = document.createElement('div');
             d.className = 'system-msg';
@@ -5883,18 +5983,28 @@
                 return;
             }
             try {
-                const { data, error } = await sb.from(TABLE_USERS)
-                    .select('username, avatar_url')
-                    .ilike('username', `%${query.trim()}%`)
-                    .neq('username', currentUser)
-                    .limit(20);
-                if (error) { container.innerHTML = '<div class="empty">搜索失败</div>'; return; }
-                if (!data || data.length === 0) {
+                let users = null;
+                // 方法1：RPC 搜索
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('search_users', { p_query: query.trim(), p_limit: 20 });
+                    if (!rpcError && rpcData) { users = rpcData; }
+                } catch (e) { /* RPC 不存在则继续 */ }
+                // 方法2：直接查询（后备）
+                if (!users) {
+                    const { data, error } = await sb.from(TABLE_USERS)
+                        .select('username, avatar_url')
+                        .ilike('username', `%${query.trim()}%`)
+                        .neq('username', currentUser)
+                        .limit(20);
+                    if (error) { container.innerHTML = '<div class="empty">搜索失败（数据库权限受限）</div>'; return; }
+                    users = data;
+                }
+                if (!users || users.length === 0) {
                     container.innerHTML = '<div class="empty">未找到用户</div>';
                     return;
                 }
                 const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
-                container.innerHTML = data.map(u => {
+                container.innerHTML = users.map(u => {
                     const idx = hashStr(u.username) % 8;
                     const isOnline = onlineUsernames.includes(u.username);
                     let avatarStyle = '';
@@ -5965,86 +6075,147 @@
             // 显示模态框（此时显示加载中状态）
             modal.classList.remove('hidden');
 
+            // 辅助函数：获取在线状态
+            function getOnlineStatus(name) {
+                const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+                return onlineUsernames.includes(name);
+            }
+
+            // 辅助函数：渲染用户资料
+            function renderUserProfile(data, isOnline) {
+                const idx = hashStr(data.username) % 8;
+                avatarEl.className = 'profile-avatar av-' + idx;
+                if (data.avatar_url) {
+                    avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
+                    avatarEl.textContent = '';
+                    userAvatarCache[data.username] = data.avatar_url;
+                } else {
+                    avatarEl.style.backgroundImage = '';
+                    avatarEl.textContent = data.username.charAt(0).toUpperCase();
+                }
+                document.getElementById('userProfileUsername').textContent = data.username;
+                document.getElementById('userProfileRole').textContent = data.role === 'admin' ? '管理员' : '普通用户';
+                let statusText = '正常';
+                if (data.banned) statusText = '已封禁';
+                document.getElementById('userProfileStatus').textContent = statusText;
+                document.getElementById('userProfileOnline').textContent = isOnline ? '在线' : '离线';
+                document.getElementById('userProfileOnlineItem').style.display = 'flex';
+
+                const chatBtn = document.getElementById('userProfileChatBtn');
+                chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
+                const banBtn = document.getElementById('userProfileBanBtn');
+                if (isAdmin && data.username !== currentUser) {
+                    banBtn.style.display = 'block';
+                    banBtn.textContent = data.banned ? '解封此用户' : '封禁此用户';
+                    banBtn.dataset.username = data.username;
+                    banBtn.dataset.banned = data.banned;
+                } else {
+                    banBtn.style.display = 'none';
+                }
+                const forceBtn = document.getElementById('userProfileForceLogoutBtn');
+                if (isAdmin && data.username !== currentUser && isOnline) {
+                    forceBtn.style.display = 'block';
+                    forceBtn.dataset.username = data.username;
+                } else {
+                    forceBtn.style.display = 'none';
+                }
+                const deleteBtn = document.getElementById('userProfileDeleteBtn');
+                if (isAdmin && data.username !== currentUser) {
+                    deleteBtn.style.display = 'block';
+                    deleteBtn.dataset.username = data.username;
+                } else {
+                    deleteBtn.style.display = 'none';
+                }
+            }
+
+            // 辅助函数：渲染已注销/未知用户
+            function renderDeletedUser(name) {
+                const idx = hashStr(name) % 8;
+                avatarEl.className = 'profile-avatar av-' + idx;
+                avatarEl.style.backgroundImage = '';
+                avatarEl.textContent = name.charAt(0).toUpperCase();
+                document.getElementById('userProfileUsername').textContent = name;
+                document.getElementById('userProfileRole').textContent = '未知';
+                document.getElementById('userProfileStatus').textContent = '已注销';
+                document.getElementById('userProfileOnline').textContent = '离线';
+                document.getElementById('userProfileOnlineItem').style.display = 'flex';
+                document.getElementById('userProfileChatBtn').style.display = 'none';
+                document.getElementById('userProfileBanBtn').style.display = 'none';
+                document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
+                document.getElementById('userProfileDeleteBtn').style.display = 'none';
+            }
+
             try {
-                const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
-                    .eq('username', username).maybeSingle();
-                if (error || !data) {
-                    // 用户不存在（已注销/未知用户）
+                // 方法1：优先使用 RPC 函数 get_user_profile（安全，不受 RLS 限制）
+                let profileData = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                    if (!rpcError && rpcData && rpcData.success !== false) {
+                        profileData = rpcData;
+                    }
+                } catch (e) { /* RPC 不存在则继续尝试其他方法 */ }
+
+                // 方法2：直接查询（RLS 可能限制，但作为后备）
+                if (!profileData) {
+                    const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
+                        .eq('username', username).maybeSingle();
+                    if (!error && data) {
+                        profileData = data;
+                    }
+                    // 尝试仅查询非敏感字段
+                    if (error && error.message && (error.message.includes('role') || error.message.includes('banned'))) {
+                        const { data: data2 } = await sb.from(TABLE_USERS).select('username, avatar_url')
+                            .eq('username', username).maybeSingle();
+                        if (data2) {
+                            profileData = { username: data2.username, avatar_url: data2.avatar_url, role: 'user', banned: false };
+                        }
+                    }
+                }
+
+                // 方法3：检查用户是否在线（即使数据库查询失败，也可能是在线用户）
+                const isOnline = getOnlineStatus(username);
+
+                if (profileData) {
+                    renderUserProfile(profileData, isOnline);
+                } else if (isOnline) {
+                    // 数据库查询失败但用户在线 -> 用缓存/默认信息显示
+                    const cachedAvatar = userAvatarCache[username] || '';
+                    renderUserProfile({
+                        username: username,
+                        avatar_url: cachedAvatar,
+                        role: 'user',
+                        banned: false
+                    }, true);
+                } else {
+                    // 用户确实不存在
+                    renderDeletedUser(username);
+                }
+            } catch (e) {
+                // 异常情况下，检查是否在线，避免误显示"已注销"
+                const isOnline = getOnlineStatus(username);
+                if (isOnline) {
+                    const cachedAvatar = userAvatarCache[username] || '';
+                    renderUserProfile({
+                        username: username,
+                        avatar_url: cachedAvatar,
+                        role: 'user',
+                        banned: false
+                    }, true);
+                } else {
                     const idx = hashStr(username) % 8;
                     avatarEl.className = 'profile-avatar av-' + idx;
                     avatarEl.style.backgroundImage = '';
                     avatarEl.textContent = username.charAt(0).toUpperCase();
                     document.getElementById('userProfileUsername').textContent = username;
                     document.getElementById('userProfileRole').textContent = '未知';
-                    document.getElementById('userProfileStatus').textContent = '已注销';
+                    document.getElementById('userProfileStatus').textContent = '未知';
                     document.getElementById('userProfileOnline').textContent = '离线';
-                    document.getElementById('userProfileOnlineItem').style.display = 'flex';
-                    // 隐藏发起私聊按钮
+                    document.getElementById('userProfileOnlineItem').style.display = 'none';
                     document.getElementById('userProfileChatBtn').style.display = 'none';
                     document.getElementById('userProfileBanBtn').style.display = 'none';
                     document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
                     document.getElementById('userProfileDeleteBtn').style.display = 'none';
-                } else {
-                    const idx = hashStr(data.username) % 8;
-                    avatarEl.className = 'profile-avatar av-' + idx;
-                    if (data.avatar_url) {
-                        avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
-                        avatarEl.textContent = '';
-                        userAvatarCache[data.username] = data.avatar_url;
-                    } else {
-                        avatarEl.style.backgroundImage = '';
-                        avatarEl.textContent = data.username.charAt(0).toUpperCase();
-                    }
-                    document.getElementById('userProfileUsername').textContent = data.username;
-                    document.getElementById('userProfileRole').textContent = data.role === 'admin' ? '管理员' : '普通用户';
-                    let statusText = '正常';
-                    if (data.banned) statusText = '已封禁';
-                    document.getElementById('userProfileStatus').textContent = statusText;
-                    const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
-                    const isOnline = onlineUsernames.includes(data.username);
-                    document.getElementById('userProfileOnline').textContent = isOnline ? '在线' : '离线';
-                    document.getElementById('userProfileOnlineItem').style.display = 'flex';
-
-                    const chatBtn = document.getElementById('userProfileChatBtn');
-                    chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
-                    const banBtn = document.getElementById('userProfileBanBtn');
-                    if (isAdmin && data.username !== currentUser) {
-                        banBtn.style.display = 'block';
-                        banBtn.textContent = data.banned ? '解封此用户' : '封禁此用户';
-                        banBtn.dataset.username = data.username;
-                        banBtn.dataset.banned = data.banned;
-                    } else {
-                        banBtn.style.display = 'none';
-                    }
-                    const forceBtn = document.getElementById('userProfileForceLogoutBtn');
-                    if (isAdmin && data.username !== currentUser && isOnline) {
-                        forceBtn.style.display = 'block';
-                        forceBtn.dataset.username = data.username;
-                    } else {
-                        forceBtn.style.display = 'none';
-                    }
-                    const deleteBtn = document.getElementById('userProfileDeleteBtn');
-                    if (isAdmin && data.username !== currentUser) {
-                        deleteBtn.style.display = 'block';
-                        deleteBtn.dataset.username = data.username;
-                    } else {
-                        deleteBtn.style.display = 'none';
-                    }
                 }
-            } catch (e) {
-                const idx = hashStr(username) % 8;
-                avatarEl.className = 'profile-avatar av-' + idx;
-                avatarEl.style.backgroundImage = '';
-                avatarEl.textContent = username.charAt(0).toUpperCase();
-                document.getElementById('userProfileUsername').textContent = username;
-                document.getElementById('userProfileRole').textContent = '未知';
-                document.getElementById('userProfileStatus').textContent = '未知';
-                document.getElementById('userProfileOnline').textContent = '未知';
-                document.getElementById('userProfileOnlineItem').style.display = 'none';
-                document.getElementById('userProfileChatBtn').style.display = 'none';
-                document.getElementById('userProfileBanBtn').style.display = 'none';
-                document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
-                document.getElementById('userProfileDeleteBtn').style.display = 'none';
             }
         }
 
@@ -6125,19 +6296,29 @@
         async function showAllUsers() {
             document.getElementById('allUsersModal').classList.remove('hidden');
             try {
-                const { data, error } = await sb.from(TABLE_USERS)
-                    .select('username, avatar_url, role, banned')
-                    .order('username', { ascending: true });
-                if (error) {
-                    document.getElementById('allUsersList').innerHTML = '<p>加载失败</p>';
-                    return;
+                let users = null;
+                // 方法1：RPC 获取所有用户
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_all_users');
+                    if (!rpcError && rpcData) { users = rpcData; }
+                } catch (e) { /* RPC 不存在则继续 */ }
+                // 方法2：直接查询（后备）
+                if (!users) {
+                    const { data, error } = await sb.from(TABLE_USERS)
+                        .select('username, avatar_url, role, banned')
+                        .order('username', { ascending: true });
+                    if (error) {
+                        document.getElementById('allUsersList').innerHTML = '<p>加载失败（数据库权限受限，请创建 get_all_users RPC 函数）</p>';
+                        return;
+                    }
+                    users = data;
                 }
-                if (!data || data.length === 0) {
+                if (!users || users.length === 0) {
                     document.getElementById('allUsersList').innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无用户</p>';
                     return;
                 }
                 let html = '';
-                data.forEach(u => {
+                users.forEach(u => {
                     const idx = hashStr(u.username) % 8;
                     let avatarStyle = '';
                     if (u.avatar_url) {
@@ -6151,7 +6332,7 @@
                             <div style="flex:1;min-width:0;">
                                 <div style="font-weight:500;font-size:0.875rem;">${escapeHtml(u.username)}</div>
                                 <div style="font-size:0.7rem;color:var(--md-on-surface-dim);display:flex;gap:6px;flex-wrap:wrap;">
-                                    <span>${roleIcon} ${u.role}</span>
+                                    <span>${roleIcon} ${escapeHtml(u.role || 'user')}</span>
                                     <span>${isBanned}</span>
                                 </div>
                             </div>
@@ -6173,19 +6354,37 @@
             if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
             if (!confirm(`确定要以 ${username} 的身份登录吗？此操作不会修改任何密码或数据。`)) return;
             try {
-                const { data: adminCheck } = await sb.from(TABLE_USERS).select('role').eq('username', currentUser).maybeSingle();
-                if (!adminCheck || (adminCheck.role !== 'admin' && !ADMIN_USERS.includes(currentUser))) {
+                // 权限验证：优先用 RPC，后备直接查询
+                let adminRole = null;
+                try {
+                    const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                    if (rpcData && rpcData.success !== false) adminRole = rpcData;
+                } catch (e) { /* RPC 不存在 */ }
+                if (!adminRole) {
+                    const { data: adminCheck } = await sb.from(TABLE_USERS).select('role').eq('username', currentUser).maybeSingle();
+                    adminRole = adminCheck;
+                }
+                if (!adminRole || (adminRole.role !== 'admin' && !ADMIN_USERS.includes(currentUser))) {
                     showSnackbar('权限验证失败');
                     return;
                 }
                 currentUser = username;
-                const { data } = await sb.from(TABLE_USERS).select('role, avatar_url, banned').eq('username', username)
-                    .single();
-                if (data) {
-                    isAdmin = (data.role === 'admin') || ADMIN_USERS.includes(username);
-                    currentAvatarUrl = data.avatar_url || '';
+                // 获取目标用户信息：优先 RPC，后备直接查询
+                let userData = null;
+                try {
+                    const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: username });
+                    if (rpcData && rpcData.success !== false) userData = rpcData;
+                } catch (e) { /* RPC 不存在 */ }
+                if (!userData) {
+                    const { data } = await sb.from(TABLE_USERS).select('role, avatar_url, banned').eq('username', username)
+                        .maybeSingle();
+                    userData = data;
+                }
+                if (userData) {
+                    isAdmin = (userData.role === 'admin') || ADMIN_USERS.includes(username);
+                    currentAvatarUrl = userData.avatar_url || '';
                     userAvatarCache[currentUser] = currentAvatarUrl;
-                    if (data.banned) {
+                    if (userData.banned) {
                         showSnackbar('该用户已被封禁，但您仍可登录（仅查看）');
                     }
                 } else {
@@ -6220,8 +6419,16 @@
             document.getElementById('statsModal').classList.remove('hidden');
             try {
                 const { count: totalMsgs } = await sb.from(TABLE_PUBLIC_MSG).select('*', { count: 'exact', head: true });
-                const { count: totalUsers } = await sb.from(TABLE_USERS).select('*', { count: 'exact', head: true })
-                    .eq('banned', false);
+                // 用户数：优先 RPC，后备直接查询
+                let totalUsers = 0;
+                try {
+                    const { data: rpcData } = await sb.rpc('get_all_users');
+                    if (rpcData) totalUsers = rpcData.filter(u => !u.banned).length;
+                } catch (e) {
+                    const { count } = await sb.from(TABLE_USERS).select('*', { count: 'exact', head: true })
+                        .eq('banned', false);
+                    totalUsers = count || 0;
+                }
                 const currentOnline = Object.keys(onlineUsers).length;
                 // 获取今日消息数（从0点开始）
                 const today = new Date();
@@ -6236,7 +6443,7 @@
                     <div><strong>当前在线用户数：</strong>${currentOnline}</div>
                     <div><strong>历史最高在线用户数：</strong>${currentOnline}（需额外存储）</div>
                     <div><strong>今日最高在线用户数：</strong>${currentOnline}（需额外存储）</div>
-                    <div><strong>有效账号数（不含封禁/注销）：</strong>${totalUsers || 0}</div>
+                    <div><strong>有效账号数（不含封禁/注销）：</strong>${totalUsers}</div>
                     <div style="font-size:0.7rem;color:var(--md-on-surface-dim);margin-top:8px;">注：历史峰值和今日峰值需额外实现存储。</div>
                 `;
                 document.getElementById('statsContent').innerHTML = html;
@@ -6266,31 +6473,47 @@
                         '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无登录记录</p>';
                     return;
                 }
-                // 获取用户信息
+                // 获取用户信息（优先使用缓存，后备 RPC，最后直接查询）
                 const usernames = [...new Set(data.map(d => d.username))];
                 const userInfoMap = {};
                 for (const uname of usernames) {
+                    if (userAvatarCache.hasOwnProperty(uname)) {
+                        userInfoMap[uname] = { avatar_url: userAvatarCache[uname], banned: false };
+                        continue;
+                    }
                     try {
-                        const { data: uinfo } = await sb.from(TABLE_USERS).select('avatar_url, banned').eq('username', uname)
-                            .maybeSingle();
-                        userInfoMap[uname] = uinfo || { avatar_url: null, banned: false };
-                    } catch (e) { userInfoMap[uname] = { avatar_url: null, banned: false }; }
+                        let uinfo = null;
+                        try {
+                            const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: uname });
+                            if (rpcData && rpcData.success !== false) uinfo = rpcData;
+                        } catch (e) { /* RPC 不存在 */ }
+                        if (!uinfo) {
+                            const { data: directData } = await sb.from(TABLE_USERS).select('avatar_url, banned').eq('username', uname)
+                                .maybeSingle();
+                            uinfo = directData;
+                        }
+                        if (uinfo) {
+                            userInfoMap[uname] = uinfo;
+                            if (uinfo.avatar_url) userAvatarCache[uname] = uinfo.avatar_url;
+                        } else {
+                            userInfoMap[uname] = null; // 用户已注销
+                        }
+                    } catch (e) { userInfoMap[uname] = null; }
                 }
                 let html = '';
                 data.forEach(record => {
                     const uname = record.username;
                     const uinfo = userInfoMap[uname] || { avatar_url: null, banned: false };
-                    const isBanned = uinfo.banned;
+                    const isBanned = uinfo ? uinfo.banned : false;
                     const idx = hashStr(uname) % 8;
                     let avatarStyle = '';
-                    if (uinfo.avatar_url) {
+                    if (uinfo && uinfo.avatar_url) {
                         avatarStyle = `background-image:url(${uinfo.avatar_url});background-size:cover;background-position:center;`;
                     }
                     const time = new Date(record.login_time).toLocaleString('zh-CN');
                     const ip = record.ip_address || 'unknown';
                     // 检查是否已注销（在users表中不存在）
-                    const isDeleted = !userInfoMap[uname] || (userInfoMap[uname] && !userInfoMap[uname].avatar_url && userInfoMap[
-                        uname].banned === undefined);
+                    const isDeleted = !uinfo;
                     const disabled = isBanned || isDeleted;
                     html += `
                         <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--md-outline);gap:8px;${disabled ? 'opacity:0.5;' : ''}">
@@ -6326,13 +6549,25 @@
         async function refreshBannedList() {
             const container = document.getElementById('bannedListContainer');
             try {
-                const { data, error } = await sb.from(TABLE_USERS).select('username').eq('banned', true);
-                if (error) { container.innerHTML = '<p>加载失败</p>'; return; }
-                if (!data || data.length === 0) {
+                let bannedUsers = null;
+                // 方法1：RPC 获取所有用户然后筛选
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_all_users');
+                    if (!rpcError && rpcData) {
+                        bannedUsers = rpcData.filter(u => u.banned);
+                    }
+                } catch (e) { /* RPC 不存在 */ }
+                // 方法2：直接查询
+                if (!bannedUsers) {
+                    const { data, error } = await sb.from(TABLE_USERS).select('username').eq('banned', true);
+                    if (error) { container.innerHTML = '<p>加载失败（数据库权限受限）</p>'; return; }
+                    bannedUsers = data;
+                }
+                if (!bannedUsers || bannedUsers.length === 0) {
                     container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无封禁用户</p>';
                     return;
                 }
-                container.innerHTML = data.map(u =>
+                container.innerHTML = bannedUsers.map(u =>
                     `<div class="banned-item">
                             <span class="name">${escapeHtml(u.username)}</span>
                             <button class="unban-btn" onclick="unbanUser('${escapeAttr(u.username)}')">解封</button>
@@ -6586,6 +6821,55 @@
             document.getElementById('adminDialog').classList.add('hidden');
         }
 
+        // 清理数据库中的乱码系统消息
+        async function cleanupGarbledMsgs() {
+            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
+            if (!confirm('确定要清理所有乱码系统消息吗？此操作将删除所有包含乱码字符的系统消息，不可撤销。')) return;
+            showGlobalLoading('清理中…', '正在扫描乱码消息');
+            try {
+                // 获取所有系统消息
+                const { data, error } = await sb.from(TABLE_PUBLIC_MSG)
+                    .select('id, text, created_at')
+                    .eq('sender', 'system')
+                    .order('created_at', { ascending: false })
+                    .limit(500);
+                if (error) {
+                    hideGlobalLoading();
+                    showSnackbar('查询失败: ' + error.message);
+                    return;
+                }
+                if (!data || data.length === 0) {
+                    hideGlobalLoading();
+                    showSnackbar('没有系统消息');
+                    return;
+                }
+                // 找出乱码消息
+                const garbledIds = data.filter(m => isGarbledText(m.text)).map(m => m.id);
+                if (garbledIds.length === 0) {
+                    hideGlobalLoading();
+                    showSnackbar('未发现乱码消息');
+                    return;
+                }
+                // 删除乱码消息
+                const { error: delError } = await sb.from(TABLE_PUBLIC_MSG)
+                    .delete()
+                    .in('id', garbledIds);
+                if (delError) {
+                    hideGlobalLoading();
+                    showSnackbar('删除失败: ' + delError.message);
+                    return;
+                }
+                hideGlobalLoading();
+                showSnackbar(`已清理 ${garbledIds.length} 条乱码消息`);
+                // 刷新消息列表
+                refreshPublicMessages();
+                updatePublicEntry();
+            } catch (e) {
+                hideGlobalLoading();
+                showSnackbar('清理失败: ' + e.message);
+            }
+        }
+
         function showClearDialog() {
             document.getElementById('clearDialog').classList.remove('hidden');
         }
@@ -6796,11 +7080,20 @@
             }
             name.textContent = currentUser;
             role.textContent = isAdmin ? '管理员' : '普通用户';
-            sb.from(TABLE_USERS).select('banned').eq('username', currentUser).single()
-                .then(({ data }) => {
+            // 获取封禁状态：优先 RPC，后备直接查询
+            (async () => {
+                try {
+                    const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                    if (rpcData && rpcData.success !== false) {
+                        status.textContent = rpcData.banned ? '已封禁' : '正常';
+                        return;
+                    }
+                } catch (e) { /* RPC 不存在 */ }
+                try {
+                    const { data } = await sb.from(TABLE_USERS).select('banned').eq('username', currentUser).maybeSingle();
                     status.textContent = data?.banned ? '已封禁' : '正常';
-                })
-                .catch(() => { status.textContent = '正常'; });
+                } catch (e) { status.textContent = '正常'; }
+            })();
             const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
             const isOnline = onlineUsernames.includes(currentUser);
             onlineStatus.textContent = isOnline ? '在线' : '离线';
