@@ -1,4 +1,4 @@
-﻿        const _d = function(s) { var k = 'mjchat2026'; var r = ''; try { var d = atob(s); for (var i = 0; i < d.length; i++) { r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length)); } } catch(e) { r = s; } return r; };
+        const _d = function(s) { var k = 'mjchat2026'; var r = ''; try { var d = atob(s); for (var i = 0; i < d.length; i++) { r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length)); } } catch(e) { r = s; } return r; };
         const SUPABASE_URL = _d('BR4XGBJOHR9VTwQeGh0CF0JGWVgcHwIJCwBXVhxFGBoCCgAHVx5RWQ==');
         const SUPABASE_ANON_KEY = _d('Hgg8GBQWXllBXgwIDw0+JVtoWWkyGyBZCEJfd1p/DC8CGSICY29wUV8nBiosLQ==');
         const TABLE_USERS = 'chat_users';
@@ -11,7 +11,7 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const MJCHAT_VERSION = 40;
-        const APP_VERSION = '26.8.105';
+        const APP_VERSION = '26.8.201';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
@@ -2668,11 +2668,16 @@
         }
 
         function insertAtMention(sender) {
+            if (!sender) return;
             const input = document.getElementById('publicMsgInput');
+            if (!input) return;
             const atText = `@${sender} `;
             const start = input.selectionStart;
             const end = input.selectionEnd;
-            input.value = input.value.substring(0, start) + atText + input.value.substring(end);
+            // Avoid duplicate consecutive @mentions
+            const before = input.value.substring(0, start);
+            if (before.endsWith(atText) && end === start) return;
+            input.value = before + atText + input.value.substring(end);
             input.focus();
             const newPos = start + atText.length;
             input.setSelectionRange(newPos, newPos);
@@ -4166,22 +4171,6 @@
 
         function closeOnlineList() {
             document.getElementById('onlineListModal').classList.add('hidden');
-        }
-
-        function insertAtMention(username) {
-            if (!username) return;
-            var input = document.getElementById('publicMsgInput');
-            if (!input) return;
-            var currentVal = input.value;
-            var mention = '@' + username + ' ';
-            // Avoid duplicate consecutive @mentions
-            if (currentVal.endsWith(mention)) return;
-            input.value = currentVal + mention;
-            input.focus();
-            // Move cursor to end
-            input.selectionStart = input.selectionEnd = input.value.length;
-            autoResize(input);
-            togglePublicSendBtn();
         }
 
         async function showUserProfile(username) {

@@ -98,7 +98,7 @@
             console.groupCollapsed = function() { _origWarn.apply(console, ['[Blocked: console.groupCollapsed]']); };
         })();
     </script>
-    <link rel="stylesheet" href="css/phone.css">
+    <link rel="stylesheet" href="app-pc.css">
 </head>
 <body>
     <div class="app">
@@ -111,6 +111,9 @@
 
         <div class="page-container" id="appContainer" style="display:none;">
 
+            <div class="app-layout">
+
+            <div class="chat-sidebar">
             <div class="page home-page active" id="homePage">
                 <div class="app-bar">
                     <div class="title-block"><span class="title">CikaChat</span></div>
@@ -127,12 +130,24 @@
                 </div>
                 <div class="private-list" id="privateList"><div class="empty">暂无私聊，点击用户头像发起</div></div>
             </div>
+            <div class="user-menu-overlay sidebar-menu" id="homeMenuOverlay" onclick="closeHomeMenu(event)">
+                <div class="user-menu-card" onclick="event.stopPropagation()">
+                    <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="avatar-status-dot" id="homeAvatarDot"></div></div><div class="user-name" id="homeMenuName">用户</div></div>
+                    <ul class="menu-list">
+                        <li onclick="closeHomeMenu();navigateTo('settings');"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</li>
+                        <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
+                        <li onclick="closeHomeMenu();navigateTo('about');"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>关于</li>
+                        <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
+                        <li class="logout-item" onclick="closeHomeMenu();logout();"><svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>退出登录</li>
+                    </ul>
+                </div>
+            </div>
+            </div>
 
+            <div class="chat-main">
             <div class="page public-page" id="publicPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                        <div class="back-badge hidden"></div>
                         <span class="title">公共</span>
                     </div>
                     <button class="icon-button" id="publicMenuBtn" onclick="togglePublicMenu()" title="菜单">
@@ -200,8 +215,6 @@
             <div class="page private-page" id="privatePage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="leavePrivateChat()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-                        <div class="back-badge hidden"></div>
                         <span class="title" id="privateChatTitle"></span>
                         <span class="private-status" id="privateChatStatus"></span>
                     </div>
@@ -271,7 +284,6 @@
             <div class="page search-page" id="searchPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <span class="title">搜索用户</span>
                     </div>
                 </div>
@@ -282,7 +294,6 @@
             <div class="page settings-page" id="settingsPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <span class="title">设置</span>
                     </div>
                 </div>
@@ -332,11 +343,17 @@
                         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                     </div>
                     <div class="about-name">CikaChat</div>
-                    <div class="about-version" id="aboutVersion">版本 v36</div>
-                    <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v36.0.0.</div>
+                    <div class="about-version" id="aboutVersion">版本 v33</div>
+                    <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v33.0.0.</div>
                     <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat">KazumaRimatsu/CikaChat</a></div>
                     <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat"> MJChat </a>及其他<a href="opensource.html"> 开源项目 </a></div>
                 </div>
+            </div>
+            <div class="chat-placeholder" id="chatPlaceholder">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                <span>选择一个聊天开始</span>
+            </div>
+            </div>
             </div>
         </div>
 
@@ -432,19 +449,6 @@
                 <button class="md-button danger" id="userProfileBanBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="banUserFromProfile()">封禁此用户</button>
                 <button class="md-button danger" id="userProfileForceLogoutBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="forceLogoutUser()">强制下线</button>
                 <button class="md-button danger" id="userProfileDeleteBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="adminDeleteUser()">注销账号</button>
-            </div>
-        </div>
-
-        <div class="user-menu-overlay" id="homeMenuOverlay" onclick="closeHomeMenu(event)">
-            <div class="user-menu-card" onclick="event.stopPropagation()">
-                <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="avatar-status-dot" id="homeAvatarDot"></div></div><div class="user-name" id="homeMenuName">用户</div></div>
-                <ul class="menu-list">
-                    <li onclick="closeHomeMenu();navigateTo('settings');"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</li>
-                    <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
-                    <li onclick="closeHomeMenu();navigateTo('about');"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>关于</li>
-                    <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
-                    <li class="logout-item" onclick="closeHomeMenu();logout();"><svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>退出登录</li>
-                </ul>
             </div>
         </div>
 
@@ -607,6 +611,6 @@
     </div>
 
 
-    <script src="js/app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
