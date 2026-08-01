@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>MJChat</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
     </script>
@@ -13,6 +13,93 @@
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
+        /* === Polyfills for old WebView compatibility === */
+        (function(){
+            if (!Object.values) {
+                Object.values = function(obj) {
+                    var vals = [];
+                    for (var k in obj) { if (obj.hasOwnProperty(k)) vals.push(obj[k]); }
+                    return vals;
+                };
+            }
+            if (!Object.entries) {
+                Object.entries = function(obj) {
+                    var entries = [];
+                    for (var k in obj) { if (obj.hasOwnProperty(k)) entries.push([k, obj[k]]); }
+                    return entries;
+                };
+            }
+            if (!Array.from) {
+                Array.from = function(arrLike, mapFn) {
+                    var arr = [];
+                    for (var i = 0; i < arrLike.length; i++) arr.push(arrLike[i]);
+                    if (typeof mapFn === 'function') {
+                        for (var j = 0; j < arr.length; j++) arr[j] = mapFn(arr[j], j);
+                    }
+                    return arr;
+                };
+            }
+            if (!Array.prototype.flat) {
+                Array.prototype.flat = function(depth) {
+                    if (depth === undefined) depth = 1;
+                    var result = [];
+                    var self = this;
+                    for (var i = 0; i < self.length; i++) {
+                        if (Array.isArray(self[i]) && depth > 0) {
+                            result = result.concat(self[i].flat(depth - 1));
+                        } else {
+                            result.push(self[i]);
+                        }
+                    }
+                    return result;
+                };
+            }
+            if (!String.prototype.padStart) {
+                String.prototype.padStart = function(targetLength, padString) {
+                    targetLength = targetLength >> 0;
+                    padString = String(padString || ' ');
+                    if (this.length >= targetLength) return String(this);
+                    var pad = '';
+                    while (pad.length + this.length < targetLength) pad += padString;
+                    return pad.slice(0, targetLength - this.length) + String(this);
+                };
+            }
+            if (!String.prototype.endsWith) {
+                String.prototype.endsWith = function(suffix) {
+                    return this.indexOf(suffix, this.length - suffix.length) !== -1;
+                };
+            }
+            if (!String.prototype.includes) {
+                String.prototype.includes = function(search, start) {
+                    if (typeof start !== 'number') start = 0;
+                    return this.indexOf(search, start) !== -1;
+                };
+            }
+            if (!Array.prototype.includes) {
+                Array.prototype.includes = function(search) {
+                    return this.indexOf(search) !== -1;
+                };
+            }
+        })();
+
+        /* Old WebView flexbox compatibility */
+        .chat-bar, .input-container, .msg-input, .fab-send, .more-btn {
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+        .chat-bar {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+        }
+        .input-container {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            flex: 1;
+            min-width: 0;
+        }
+
         :root {
             --md-primary: #4A9EFF;
             --md-primary-variant: #1565C0;
@@ -496,6 +583,37 @@
             padding: 40px 0;
             font-size: 0.875rem;
         }
+        .home-page .private-list .av-wrap {
+            position: relative;
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .home-page .private-list .av-wrap .av {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            margin-right: 0;
+        }
+        .home-page .private-list .av-status-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--md-surface, #1E1E1E);
+            background: transparent;
+            transition: background 0.3s;
+        }
+        .home-page .private-list .av-status-dot.online {
+            background: #4caf50;
+        }
+        .home-page .private-list .av-status-dot.banned {
+            background: #9e9e9e;
+        }
         .public-page .messages {
             flex: 1;
             overflow-y: auto;
@@ -638,7 +756,7 @@
             flex-direction: column;
             gap: 4px;
             background: var(--md-surface-2dp);
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 4px;
             max-width: 100%;
         }
@@ -811,7 +929,7 @@
             color: var(--md-on-surface-dim);
             background: var(--md-surface-2dp);
             padding: 4px 12px;
-            border-radius: 12px;
+            border-radius: 8px;
             font-weight: 500;
         }
         .public-page .chat-bar {
@@ -822,11 +940,15 @@
             background: var(--md-surface-4dp);
             box-shadow: var(--md-elevation-2);
             flex-shrink: 0;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
         .public-page .chat-bar .more-btn {
-            width: 40px;
-            height: 40px;
-            min-width: 40px;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
             border: none;
             border-radius: 50%;
             background: var(--md-surface-2dp);
@@ -860,6 +982,7 @@
         }
         .public-page .chat-bar .input-container {
             flex: 1;
+            min-width: 0;
             display: flex;
             align-items: flex-end;
             background: var(--md-surface-1dp);
@@ -892,9 +1015,9 @@
             color: var(--md-on-surface-dim);
         }
         .public-page .chat-bar .fab-send {
-            width: 48px;
-            height: 48px;
-            min-width: 48px;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
             border: none;
             border-radius: 50%;
             background: var(--md-primary);
@@ -1291,7 +1414,7 @@
             color: var(--md-on-surface-dim);
             background: var(--md-surface-2dp);
             padding: 4px 12px;
-            border-radius: 12px;
+            border-radius: 8px;
             font-weight: 500;
         }
         .private-page .chat-bar {
@@ -1302,11 +1425,15 @@
             background: var(--md-surface-4dp);
             box-shadow: var(--md-elevation-2);
             flex-shrink: 0;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
         .private-page .chat-bar .more-btn {
-            width: 40px;
-            height: 40px;
-            min-width: 40px;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
             border: none;
             border-radius: 50%;
             background: var(--md-surface-2dp);
@@ -1340,6 +1467,7 @@
         }
         .private-page .chat-bar .input-container {
             flex: 1;
+            min-width: 0;
             display: flex;
             align-items: flex-end;
             background: var(--md-surface-1dp);
@@ -1371,9 +1499,9 @@
             color: var(--md-on-surface-dim);
         }
         .private-page .chat-bar .fab-send {
-            width: 48px;
-            height: 48px;
-            min-width: 48px;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
             border: none;
             border-radius: 50%;
             background: var(--md-primary);
@@ -1486,7 +1614,7 @@
         }
         .md-dialog {
             background: var(--md-surface-4dp);
-            border-radius: var(--radius-lg);
+            border-radius: 8px;
             padding: 24px;
             max-width: 360px;
             width: calc(100% - 32px);
@@ -1522,6 +1650,76 @@
             justify-content: flex-end;
             gap: 8px;
             margin-top: 16px;
+        }
+        .admin-dialog-card {
+            max-width: 360px;
+            padding: 20px 0 8px;
+        }
+        .admin-dialog-card h2 {
+            padding: 0 24px;
+            margin-bottom: 8px;
+        }
+        .admin-action-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-top: 8px;
+        }
+        .admin-action-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 24px;
+            cursor: pointer;
+            transition: background 0.15s;
+            min-height: 48px;
+        }
+        .admin-action-item:hover {
+            background: var(--md-surface-2dp);
+        }
+        .admin-action-item:active {
+            background: var(--md-surface-6dp);
+        }
+        .admin-action-item svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--md-primary);
+            flex-shrink: 0;
+        }
+        .admin-action-item span {
+            font-size: 0.9375rem;
+            color: var(--md-on-surface);
+            font-weight: 400;
+        }
+        .admin-dialog-card .dialog-actions {
+            padding: 0 24px;
+        }
+        .admin-dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px 0 24px;
+            margin-bottom: 4px;
+        }
+        .admin-close-btn {
+            background: none;
+            border: none;
+            color: var(--md-on-surface);
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .admin-close-btn:hover {
+            background: var(--md-ripple);
+        }
+        .admin-close-btn:active {
+            background: var(--md-surface-6dp);
         }
         .md-dialog .profile-avatar {
             width: 72px;
@@ -2072,6 +2270,44 @@
             }
             .user-menu-overlay {
                 padding: 8px;
+            }
+        }
+        @media (max-width: 360px) {
+            .public-page .chat-bar,
+            .private-page .chat-bar {
+                padding: 6px 8px;
+                gap: 4px;
+            }
+            .public-page .chat-bar .fab-send,
+            .private-page .chat-bar .fab-send {
+                width: 40px;
+                height: 40px;
+                min-width: 40px;
+            }
+            .public-page .chat-bar .more-btn,
+            .private-page .chat-bar .more-btn {
+                width: 32px;
+                height: 32px;
+                min-width: 32px;
+            }
+            .public-page .chat-bar .more-btn svg,
+            .private-page .chat-bar .more-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+            .public-page .chat-bar .fab-send svg,
+            .private-page .chat-bar .fab-send svg {
+                width: 20px;
+                height: 20px;
+            }
+            .public-page .chat-bar .input-container,
+            .private-page .chat-bar .input-container {
+                min-height: 40px;
+                padding: 0 4px 0 12px;
+            }
+            .md-dialog {
+                padding: 20px 16px;
+                width: calc(100% - 16px);
             }
         }
         .avatar-menu {
@@ -2635,17 +2871,30 @@
         </div>
 
         <div class="dialog-overlay hidden" id="adminDialog" onclick="if(event.target===this)closeAdminDialog()">
-            <div class="md-dialog">
-                <h2>管理员功能</h2>
-                <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;">
-                    <button class="md-button contained" onclick="closeAdminDialog();showClearDialog();">清空公共消息</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();showBannedList();">已封禁用户</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();showAllUsers();">MJChat 用户</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();showStats();">数据统计</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();showLoginHistory();">历史登录</button>
-                    <button class="md-button contained" onclick="closeAdminDialog();cleanupGarbledMsgs();">清理乱码消息</button>
+            <div class="md-dialog admin-dialog-card">
+                <div class="admin-dialog-header">
+                    <h2>管理员功能</h2>
+                    <button class="admin-close-btn" onclick="closeAdminDialog()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
                 </div>
-                <div class="dialog-actions"><button class="md-button text" onclick="closeAdminDialog()">关闭</button></div>
+                <div class="admin-action-list">
+                    <div class="admin-action-item" onclick="closeAdminDialog();showClearDialog();">
+                        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        <span>清空公共消息</span>
+                    </div>
+                    <div class="admin-action-item" onclick="closeAdminDialog();showBannedList();">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg>
+                        <span>已封禁用户</span>
+                    </div>
+                    <div class="admin-action-item" onclick="closeAdminDialog();showAllUsers();">
+                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        <span>MJChat 用户</span>
+                    </div>
+                    <div class="admin-action-item" onclick="closeAdminDialog();showStats();">
+                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                        <span>数据统计</span>
+                    </div>
+                </div>
+                <div class="dialog-actions" style="margin-top:16px;"><button class="md-button text" onclick="closeAdminDialog()">关闭</button></div>
             </div>
         </div>
 
@@ -2667,17 +2916,6 @@
                     <button onclick="closeStatsModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
                 </div>
                 <div id="statsContent" style="margin-top:12px;line-height:2;">
-                </div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden" id="loginHistoryModal" onclick="if(event.target===this)closeLoginHistoryModal()">
-            <div class="md-dialog" style="max-width:420px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>历史登录</h2>
-                    <button onclick="closeLoginHistoryModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
-                <div style="max-height:60vh;overflow-y:auto;margin-top:12px;" id="loginHistoryList">
                 </div>
             </div>
         </div>
@@ -2746,7 +2984,7 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 24;
+        const APP_VERSION = 30;
         const ADMIN_USERS = ['ManJuanAll'];
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
@@ -2795,6 +3033,67 @@
         let globalPrivateChannel = null;
         let publicUnread = 0;
         let privatePollTimer = null;
+
+        // ============================================
+        // Security Helper Functions (v030)
+        // All sensitive operations must use these
+        // ============================================
+
+        function getSessionToken() {
+            try {
+                const session = JSON.parse(localStorage.getItem('mjchat_session'));
+                return (session && session.token) ? session.token : '';
+            } catch (e) { return ''; }
+        }
+
+        async function verifyAdminSession() {
+            if (!currentUser) return false;
+            try {
+                const { data, error } = await sb.rpc('verify_admin_session', {
+                    p_username: currentUser,
+                    p_session_token: getSessionToken()
+                });
+                if (error) return false;
+                return data && data.success === true;
+            } catch (e) { return false; }
+        }
+
+        async function sendPublicMessageSecure(payload) {
+            const token = getSessionToken();
+            if (!token) { return { success: false, message: '请重新登录' }; }
+            try {
+                const { data, error } = await sb.rpc('send_public_message_secure', {
+                    p_username: currentUser,
+                    p_session_token: token,
+                    p_text: payload.text || '',
+                    p_image_url: payload.image_url || null,
+                    p_audio_url: payload.audio_url || null,
+                    p_audio_dur: payload.audio_dur || null,
+                    p_reply_to_id: payload.reply_to_id || null,
+                    p_reply_content: payload.reply_content || null,
+                    p_is_system: payload.is_system || false,
+                    p_msg_version: payload.msg_version || APP_VERSION
+                });
+                if (error) return { success: false, message: error.message };
+                return data || { success: false, message: '发送失败' };
+            } catch (e) { return { success: false, message: e.message }; }
+        }
+
+        async function sendSystemMessageSecure(text) {
+            const token = getSessionToken();
+            if (!token) return { success: false };
+            try {
+                const { data, error } = await sb.rpc('send_public_message_secure', {
+                    p_username: currentUser,
+                    p_session_token: token,
+                    p_text: text,
+                    p_is_system: true,
+                    p_msg_version: APP_VERSION
+                });
+                if (error) return { success: false };
+                return data || { success: false };
+            } catch (e) { return { success: false }; }
+        }
 
         function getUnreadState() {
             try {
@@ -3088,11 +3387,101 @@
         }
 
         async function hashPassword(password) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(SALT + password + SALT);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            // SECURITY MODEL (Defense in Depth):
+            // 1. Client side: SHA-256(password + salt) as a transport hash
+            //    This is NOT the final stored hash. It prevents raw passwords
+            //    from being sent over the network even though HTTPS is used.
+            // 2. Server side: bcrypt(client_hash) is stored in the database.
+            //    The server-side verify_login_secure() function applies bcrypt
+            //    using PostgreSQL's crypt() + gen_salt('bf', 10).
+            // Legacy users with plain SHA-256 hashes are auto-upgraded to
+            // bcrypt on their next login (see verify_login_secure SQL).
+            //
+            // The SHA-256 here is intentional and secure because:
+            // - The actual password storage is bcrypt (cost factor 10)
+            // - SHA-256 is only a client-side pre-hash transport layer
+            // - Changing this would invalidate all existing user passwords
+
+            // Use crypto.subtle if available (modern browsers)
+            if (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined') {
+                var encoder = new TextEncoder();
+                var data = encoder.encode(SALT + password + SALT);
+                var hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                var hashArray = new Uint8Array(hashBuffer);
+                var result = '';
+                for (var i = 0; i < hashArray.length; i++) {
+                    var hex = hashArray[i].toString(16);
+                    result += hex.length === 1 ? '0' + hex : hex;
+                }
+                return result;
+            }
+            // Fallback: pure JS SHA-256 implementation for old WebViews
+            return sha256Pure(SALT + password + SALT);
+        }
+
+        // Pure JavaScript SHA-256 implementation for old WebView compatibility
+        function sha256Pure(message) {
+            function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+            var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+            var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+                     0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+                     0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+                     0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+                     0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+                     0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+                     0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+                     0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+            // Convert message to byte array (UTF-8)
+            var bytes = [];
+            for (var i = 0; i < message.length; i++) {
+                var c = message.charCodeAt(i);
+                if (c < 128) { bytes.push(c); }
+                else if (c < 2048) { bytes.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F)); }
+                else { bytes.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F)); }
+            }
+            // Padding
+            var bitLen = bytes.length * 8;
+            bytes.push(0x80);
+            while (bytes.length % 64 !== 56) bytes.push(0);
+            // Append length as 64-bit big-endian
+            for (var b = 56; b >= 0; b -= 8) bytes.push((bitLen >>> b) & 0xFF);
+            // Process blocks
+            for (var off = 0; off < bytes.length; off += 64) {
+                var W = [];
+                for (var t = 0; t < 16; t++) {
+                    W[t] = (bytes[off + t*4] << 24) | (bytes[off + t*4 + 1] << 16) | (bytes[off + t*4 + 2] << 8) | bytes[off + t*4 + 3];
+                }
+                for (var t2 = 16; t2 < 64; t2++) {
+                    var s0 = rotr(7, W[t2-15]) ^ rotr(18, W[t2-15]) ^ (W[t2-15] >>> 3);
+                    var s1 = rotr(17, W[t2-2]) ^ rotr(19, W[t2-2]) ^ (W[t2-2] >>> 10);
+                    W[t2] = (W[t2-16] + s0 + W[t2-7] + s1) | 0;
+                }
+                var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+                for (var t3 = 0; t3 < 64; t3++) {
+                    var S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+                    var ch = (e & f) ^ (~e & g);
+                    var temp1 = (h + S1 + ch + K[t3] + W[t3]) | 0;
+                    var S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+                    var maj = (a & b) ^ (a & c) ^ (b & c);
+                    var temp2 = (S0 + maj) | 0;
+                    h=g; g=f; f=e; e=(d + temp1)|0; d=c; c=b; b=a; a=(temp1 + temp2)|0;
+                }
+                H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0;
+                H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
+            }
+            var hex = '';
+            for (var hi = 0; hi < 8; hi++) {
+                var h = H[hi];
+                hex += ((h >>> 28) & 0xF).toString(16);
+                hex += ((h >>> 24) & 0xF).toString(16);
+                hex += ((h >>> 20) & 0xF).toString(16);
+                hex += ((h >>> 16) & 0xF).toString(16);
+                hex += ((h >>> 12) & 0xF).toString(16);
+                hex += ((h >>> 8) & 0xF).toString(16);
+                hex += ((h >>> 4) & 0xF).toString(16);
+                hex += (h & 0xF).toString(16);
+            }
+            return hex;
         }
 
         function generateLocalNonce() {
@@ -3258,7 +3647,7 @@
                 }
                 if (!userData || userData.success === false) {
                     hideGlobalLoading();
-                    return showEl('loginError', userData?.message || '用户名或密码错误');
+                    return showEl('loginError', (userData && userData.message) || '用户名或密码错误');
                 }
                 if (userData.banned) {
                     hideGlobalLoading();
@@ -3557,13 +3946,8 @@
                     .limit(1);
                 if (data && data.length > 0) return;
             } catch (e) { /* query failed, continue */ }
-            sb.from(TABLE_PUBLIC_MSG).insert({
-                sender: 'system',
-                text: text,
-                is_system: true,
-                msg_version: APP_VERSION
-            }).then(() => {
-                updatePublicEntry();
+            sendSystemMessageSecure(text).then(r => {
+                if (r && r.success !== false) updatePublicEntry();
             }).catch(e => {});
         }
 
@@ -3623,10 +4007,19 @@
                             .on('presence', { event: 'sync' }, () => {
                                 onlineUsers = publicChannel.presenceState();
                                 renderOnlineUsers();
-                                const onlineNames = [];
-                                Object.values(onlineUsers).flat().forEach(u => { if (u.name) onlineNames.push(u.name); });
-                                loadUserAvatars(onlineNames).then(() => renderOnlineUsers());
+                                var onlineNames = [];
+                                var vals = Object.values(onlineUsers);
+                                for (var vi = 0; vi < vals.length; vi++) {
+                                    var flatVals = vals[vi];
+                                    if (Array.isArray(flatVals)) {
+                                        for (var vj = 0; vj < flatVals.length; vj++) {
+                                            if (flatVals[vj] && flatVals[vj].name) onlineNames.push(flatVals[vj].name);
+                                        }
+                                    }
+                                }
+                                loadUserAvatars(onlineNames).then(function() { renderOnlineUsers(); });
                                 if (privateChatActive) updatePrivateChatStatus();
+                                updatePrivateListStatusDots();
                                 if (!presenceSynced) {
                                     presenceSynced = true;
                                     setTimeout(() => { presenceReady = true; }, 3000);
@@ -3647,9 +4040,7 @@
                                 leftPresences.forEach(p => {
                                     if (p.name && p.name !== currentUser) {
                                         const onlineNames = [currentUser];
-                                        Object.values(onlineUsers).flat().forEach(u => {
-                                            if (u.name && u.name !== p.name) onlineNames.push(u.name);
-                                        });
+                                        (function(){ var _v = Object.values(onlineUsers); for (var _i=0; _i<_v.length; _i++) { var _a = _v[_i]; if (Array.isArray(_a)) { for (var _j=0; _j<_a.length; _j++) { var u = _a[_j]; if (u.name && u.name !== p.name) onlineNames.push(u.name); } } } })();
                                         onlineNames.sort();
                                         if (onlineNames[0] === currentUser) {
                                             broadcastSystemMsg(`${p.name} 离开了MJChat`);
@@ -4026,7 +4417,7 @@
             row.dataset.imageUrl = imageUrl || '';
             row.dataset.replyToId = msg.reply_to_id || '';
             row.dataset.replyContent = msg.reply_content || '';
-            row.dataset.replySender = msg.reply_to_id ? (publicMessages.find(m => m.id === msg.reply_to_id)?.sender || '') :
+            row.dataset.replySender = msg.reply_to_id ? ((function(){ var _f = publicMessages.find(function(m){ return m.id === msg.reply_to_id; }); return _f ? _f.sender : ''; })() || '') :
             '';
 
             let bubbleClass = 'bubble';
@@ -4198,9 +4589,9 @@
                 }
                 payload.reply_to_id = replyTarget.id;
             }
-            const { error } = await sb.from(TABLE_PUBLIC_MSG).insert(payload);
-            if (error) {
-                addPublicSystemMsg('发送失败: ' + error.message);
+            const result = await sendPublicMessageSecure(payload);
+            if (!result.success) {
+                addPublicSystemMsg('发送失败: ' + (result.message || '未知错误'));
                 document.getElementById('publicSendBtn').disabled = false;
                 return;
             }
@@ -4291,7 +4682,9 @@
                         p_agent_name: agent.name,
                         p_content: response,
                         p_reply_to_id: replyToId,
-                        p_reply_content: replyContent
+                        p_reply_content: replyContent,
+                        p_caller: currentUser,
+                        p_session_token: getSessionToken()
                     });
                     if (!rpcError && rpcData && rpcData.success !== false) {
                         sent = true;
@@ -4299,30 +4692,26 @@
                 } catch (e) { /* RPC fallback */ }
                 if (!sent) {
                     await ensureAgentUserAccount(agent.name);
-                    await sb.from(TABLE_PUBLIC_MSG).insert({
-                        sender: agent.name,
-                        text: response,
-                        msg_version: APP_VERSION,
-                        is_system: false,
-                        reply_to_id: replyToId,
-                        reply_content: replyContent
-                    });
+                    try {
+                        const { data: rpcData2, error: rpcError2 } = await sb.rpc('send_agent_message', {
+                            p_agent_name: agent.name,
+                            p_content: response,
+                            p_reply_to_id: replyToId,
+                            p_reply_content: replyContent
+                        });
+                        if (!rpcError2 && rpcData2 && rpcData2.success !== false) sent = true;
+                    } catch (e2) { /* old RPC signature, give up */ }
                 }
             } catch (e) { /* ignore */ }
         }
 
         async function ensureAgentUserAccount(agentName) {
+            // Agent account creation is handled by send_agent_message RPC
+            // This function just ensures the avatar cache is populated
             try {
                 const { data } = await sb.from(TABLE_USERS)
-                    .select('username').eq('username', agentName).maybeSingle();
-                if (!data) {
-                    await sb.from(TABLE_USERS).insert({
-                        username: agentName,
-                        password_hash: 'agent_account_no_login',
-                        role: 'agent',
-                        banned: false
-                    });
-                }
+                    .select('username, avatar_url').eq('username', agentName).maybeSingle();
+                if (!data) return; // RPC will create the account
                 if (!userAvatarCache.hasOwnProperty(agentName)) {
                     userAvatarCache[agentName] = '';
                 }
@@ -4480,11 +4869,17 @@
         }
 
         async function clearPublicMessages() {
-            if (!isAdmin) return;
+            const isAdm = await verifyAdminSession();
+            if (!isAdm) { showSnackbar('无权限执行此操作'); return; }
             try {
-                const { error } = await sb.from(TABLE_PUBLIC_MSG).delete().neq('id',
-                    '00000000-0000-0000-0000-000000000000');
-                if (error) { showSnackbar('清空失败: ' + error.message); return; }
+                const { data, error } = await sb.rpc('admin_clear_messages', {
+                    p_admin: currentUser,
+                    p_session_token: getSessionToken()
+                });
+                if (error || (data && data.success === false)) {
+                    showSnackbar('清空失败: ' + (data?.message || error?.message || ''));
+                    return;
+                }
                 publicChannel.send({ type: 'broadcast', event: 'clear_messages', payload: {} });
                 handlePublicCleared();
                 showSnackbar('公共消息已清空');
@@ -4576,9 +4971,9 @@
                 msg_version: APP_VERSION,
                 is_system: false
             };
-            const { error } = await sb.from(TABLE_PUBLIC_MSG).insert(payload);
-            if (error) {
-                showSnackbar('发送图片失败: ' + error.message);
+            const result = await sendPublicMessageSecure(payload);
+            if (!result.success) {
+                showSnackbar('发送图片失败: ' + (result.message || ''));
             }
         }
 
@@ -4706,13 +5101,8 @@
                 const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
                 const fileSize = (file.size / 1024).toFixed(1);
                 const fileText = buildFileText(file.name, fileSize, urlData.publicUrl);
-                const { error: ie } = await sb.from(TABLE_PUBLIC_MSG).insert({
-                    sender: currentUser,
-                    text: fileText,
-                    msg_version: APP_VERSION,
-                    is_system: false
-                });
-                if (ie) showSnackbar('发送文件失败: ' + ie.message);
+                const ieResult = await sendPublicMessageSecure({ text: fileText, is_system: false, msg_version: APP_VERSION });
+                if (!ieResult.success) showSnackbar('发送文件失败: ' + (ieResult.message || ''));
             } catch (e) { showSnackbar('上传失败'); }
         }
 
@@ -4763,13 +5153,8 @@
                     showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
                 }
             } else {
-                const { error } = await sb.from(TABLE_PUBLIC_MSG).insert({
-                    sender: currentUser,
-                    text: linkText,
-                    msg_version: APP_VERSION,
-                    is_system: false
-                });
-                if (error) showSnackbar('发送链接失败: ' + error.message);
+                const linkResult = await sendPublicMessageSecure({ text: linkText, is_system: false, msg_version: APP_VERSION });
+                if (!linkResult.success) showSnackbar('发送链接失败: ' + (linkResult.message || ''));
             }
         }
 
@@ -4925,25 +5310,22 @@
                 const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
                 const duration = recordStartTime ? Math.floor((Date.now() - recordStartTime) / 1000) : 0;
                 const fallbackText = buildVoiceFallback(duration);
-                let result = await sb.from(TABLE_PUBLIC_MSG).insert({
-                    sender: currentUser,
+                let audioResult = await sendPublicMessageSecure({
                     text: fallbackText,
                     audio_url: urlData.publicUrl,
                     audio_dur: duration,
-                    msg_version: APP_VERSION,
-                    is_system: false
+                    is_system: false,
+                    msg_version: APP_VERSION
                 });
-                if (result.error && result.error.message && (result.error.message.includes('audio_dur') || result.error
-                        .message.includes('audio_url'))) {
+                if (!audioResult.success && audioResult.message && (audioResult.message.includes('audio_dur') || audioResult.message.includes('audio_url'))) {
                     const fallbackWithUrl = buildVoiceFallback(duration, urlData.publicUrl);
-                    result = await sb.from(TABLE_PUBLIC_MSG).insert({
-                        sender: currentUser,
+                    audioResult = await sendPublicMessageSecure({
                         text: fallbackWithUrl,
-                        msg_version: APP_VERSION,
-                        is_system: false
+                        is_system: false,
+                        msg_version: APP_VERSION
                     });
                 }
-                if (result.error) showSnackbar('发送语音失败: ' + result.error.message);
+                if (!audioResult.success) showSnackbar('发送语音失败: ' + (audioResult.message || ''));
                 else showSnackbar('语音已发送');
             } catch (e) { showSnackbar('上传失败'); }
         }
@@ -5496,19 +5878,56 @@
             if (!uuidRegex.test(msgId)) { showSnackbar('无效的消息ID'); return; }
             try {
                 if (chatType === 'public') {
-                    const { error } = await sb.from(TABLE_PUBLIC_MSG).delete().eq('id', msgId);
-                    if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                    const { data: delData, error: delError } = await sb.rpc('delete_public_message', {
+                        p_msg_id: msgId,
+                        p_username: currentUser,
+                        p_session_token: getSessionToken()
+                    });
+                    if (delError || (delData && delData.success === false)) {
+                        showSnackbar('删除失败: ' + (delData?.message || delError?.message || ''));
+                        return;
+                    }
                     publicChannel.send({ type: 'broadcast', event: 'delete_message', payload: { id: msgId } });
                     handlePublicDeleted(msgId);
                 } else {
-                    const { error } = await sb.from(TABLE_PRIVATE_MSGS).delete().eq('id', msgId);
-                    if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                    // Private messages have RLS deny_all, so use RPC to delete
+                    var deleted = false;
+                    var rpcFailMsg = null;
+                    try {
+                        var rpcResult = await sb.rpc('delete_private_message', {
+                            p_msg_id: msgId,
+                            p_username: currentUser,
+                            p_session_token: getSessionToken()
+                        });
+                        if (!rpcResult.error && rpcResult.data) {
+                            var rpcData = rpcResult.data;
+                            if (typeof rpcData === 'string') {
+                                try { rpcData = JSON.parse(rpcData); } catch (e) { rpcData = {}; }
+                            }
+                            if (rpcData.success === true) {
+                                deleted = true;
+                            } else if (rpcData.success === false) {
+                                showSnackbar(rpcData.message || '删除失败');
+                                return;
+                            }
+                        } else if (rpcResult.error) {
+                            rpcFailMsg = rpcResult.error.message || 'RPC error';
+                        }
+                    } catch (e) { rpcFailMsg = e.message || 'exception'; }
+                    if (!deleted) {
+                        if (rpcFailMsg) {
+                            showSnackbar('删除失败: ' + rpcFailMsg);
+                        } else {
+                            showSnackbar('删除失败');
+                        }
+                        return;
+                    }
                     if (privateChannel) {
                         privateChannel.send({ type: 'broadcast', event: 'delete_message', payload: { id: msgId } });
                     }
                     privateMessages = privateMessages.filter(m => m.id !== msgId);
-                    const rows = document.querySelectorAll('#privateMessages .msg-row');
-                    rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
+                    var rows = document.querySelectorAll('#privateMessages .msg-row');
+                    for (var i = 0; i < rows.length; i++) { if (rows[i].dataset.msgId === msgId) rows[i].remove(); }
                 }
                 showSnackbar('消息已删除');
             } catch (e) { showSnackbar('删除失败'); }
@@ -5522,53 +5941,23 @@
         });
 
         async function safeInsertPrivateMsg(sessionId, sender, content) {
-            let rpcBlockedMsg = null;
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
                     p_session_id: sessionId,
                     p_sender: sender,
-                    p_content: content
+                    p_content: content,
+                    p_session_token: getSessionToken()
                 });
                 if (!rpcError && rpcData && rpcData.success === false) {
-                    // RPC rejected the message (e.g. blacklist/privacy block).
-                    // Capture the message so it propagates to callers instead of
-                    // falling through to the direct DB insert (which would bypass the block).
-                    rpcBlockedMsg = rpcData.message || '发送失败';
+                    throw new Error(rpcData.message || '发送失败');
                 } else if (!rpcError && rpcData && rpcData.success !== false && rpcData.message) {
                     return rpcData.message;
                 }
-            } catch (e) { /* RPC not found, fall through to direct insert */ }
-            if (rpcBlockedMsg) {
-                throw new Error(rpcBlockedMsg);
+                if (rpcError) throw rpcError;
+            } catch (e) {
+                throw e;
             }
-            // Fallback: RPC not available, check blacklist bidirectionally
-            // (same logic as send_private_message RPC) before direct insert.
-            if (privateOtherUser) {
-                try {
-                    const [recvCheck, sendCheck] = await Promise.all([
-                        sb.rpc('check_blocked', { p_blocker: privateOtherUser, p_target: sender }),
-                        sb.rpc('check_blocked', { p_blocker: sender, p_target: privateOtherUser })
-                    ]);
-                    const receiverBlockedMe = !recvCheck.error && recvCheck.data === true;
-                    const iBlockedReceiver = !sendCheck.error && sendCheck.data === true;
-                    if (receiverBlockedMe || iBlockedReceiver) {
-                        throw new Error('对方开启了隐私设置，拒收了你的消息');
-                    }
-                } catch (blkErr) {
-                    if (blkErr.message && blkErr.message.includes('隐私')) throw blkErr;
-                    /* check_blocked RPC unavailable, proceed with insert */
-                }
-            }
-            const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert({
-                session_id: sessionId, sender: sender, content: content
-            }).select('*');
-            if (error) throw error;
-            if (data[0] && data[0].created_at) {
-                await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                    updated_at: data[0].created_at, last_message: content
-                }).eq('id', sessionId);
-            }
-            return data[0];
+            throw new Error('发送失败: 私聊RPC不可用');
         }
 
         async function loadPrivateSessions() {
@@ -5608,33 +5997,80 @@
         }
 
         function renderPrivateList() {
-            const container = document.getElementById('privateList');
-            const sessions = window.privateSessions || [];
+            var container = document.getElementById('privateList');
+            var sessions = window.privateSessions || [];
             if (sessions.length === 0) {
                 container.innerHTML = '<div class="empty">暂无私聊，点击用户头像发起</div>';
                 return;
             }
-            container.innerHTML = sessions.map(s => {
-                const other = s.user1 === currentUser ? s.user2 : s.user1;
-                const idx = hashStr(other) % 8;
-                const lastMsg = getMessagePreview(s.last_message) || '暂无消息';
-                const time = s.updated_at ? new Date(s.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit',
+            container.innerHTML = sessions.map(function(s) {
+                var other = s.user1 === currentUser ? s.user2 : s.user1;
+                var idx = hashStr(other) % 8;
+                var lastMsg = getMessagePreview(s.last_message) || '暂无消息';
+                var time = s.updated_at ? new Date(s.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit',
                     minute: '2-digit' }) : '';
-                const unread = privateUnreadCounts[s.id] || 0;
-                const unreadBadge = unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : '<div class="unread-badge hidden"></div>';
-                const avUrl = userAvatarCache[other];
-                const avStyle = avUrl ? ` style="background-image:url('${avUrl}');background-size:cover;background-position:center;"` : '';
-                const avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
-                return `<div class="list-item" onclick="openPrivateChat('${s.id}','${escapeAttr(other)}')">
-                            <div class="av av-${idx}" data-username="${other}"${avStyle}>${avText}</div>
-                            <div class="info">
-                                <div class="name">${escapeHtml(other)}</div>
-                                <div class="last-msg">${escapeHtml(lastMsg)}</div>
-                            </div>
-                            <div class="time">${time}</div>
-                            ${unreadBadge}
-                        </div>`;
+                var unread = privateUnreadCounts[s.id] || 0;
+                var unreadBadge = unread > 0 ? '<div class="unread-badge">' + (unread > 99 ? '99+' : unread) + '</div>' : '<div class="unread-badge hidden"></div>';
+                var avUrl = userAvatarCache[other];
+                var avStyle = avUrl ? ' style="background-image:url(\'' + avUrl + '\');background-size:cover;background-position:center;"' : '';
+                var avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
+                return '<div class="list-item" onclick="openPrivateChat(\'' + s.id + '\',\'' + escapeAttr(other) + '\')">' +
+                            '<div class="av-wrap">' +
+                                '<div class="av av-' + idx + '" data-username="' + other + '"' + avStyle + '>' + avText + '</div>' +
+                                '<div class="av-status-dot" data-username="' + other + '"></div>' +
+                            '</div>' +
+                            '<div class="info">' +
+                                '<div class="name">' + escapeHtml(other) + '</div>' +
+                                '<div class="last-msg">' + escapeHtml(lastMsg) + '</div>' +
+                            '</div>' +
+                            '<div class="time">' + time + '</div>' +
+                            unreadBadge +
+                        '</div>';
             }).join('');
+            // Update online status dots after render
+            updatePrivateListStatusDots();
+        }
+
+        function updatePrivateListStatusDots() {
+            var dots = document.querySelectorAll('.home-page .private-list .av-status-dot');
+            var onlineNames = [];
+            try {
+                var _vals = Object.values(onlineUsers);
+                for (var _vi = 0; _vi < _vals.length; _vi++) {
+                    var _arr = _vals[_vi];
+                    if (Array.isArray(_arr)) {
+                        for (var _vj = 0; _vj < _arr.length; _vj++) {
+                            if (_arr[_vj] && _arr[_vj].name) onlineNames.push(_arr[_vj].name);
+                        }
+                    } else if (_vals[_vi] && _vals[_vi].name) {
+                        onlineNames.push(_vals[_vi].name);
+                    }
+                }
+            } catch (e) {}
+            for (var i = 0; i < dots.length; i++) {
+                var dot = dots[i];
+                var username = dot.getAttribute('data-username');
+                if (!username) continue;
+                var avatar = dot.previousElementSibling;
+                if (onlineNames.indexOf(username) >= 0) {
+                    dot.className = 'av-status-dot online';
+                    if (avatar) avatar.style.filter = '';
+                } else {
+                    dot.className = 'av-status-dot';
+                    // Check if user is banned/deleted asynchronously
+                    (function(d, un, av) {
+                        resolveUserStatus(un).then(function(status) {
+                            if (status === 'banned' || status === 'deleted') {
+                                d.className = 'av-status-dot banned';
+                                if (av) av.style.filter = 'grayscale(1)';
+                            } else {
+                                d.className = 'av-status-dot';
+                                if (av) av.style.filter = '';
+                            }
+                        });
+                    })(dot, username, avatar);
+                }
+            }
         }
 
         async function createPrivateSession(otherUser) {
@@ -5772,20 +6208,21 @@
                     const { data: rpcData, error: rpcError } = await sb.rpc('get_private_messages', {
                         p_session_id: sessionId,
                         p_username: currentUser,
+                        p_session_token: getSessionToken(),
                         p_limit: PAGE_SIZE
                     });
                     if (!rpcError && rpcData) {
-                        messages = Array.isArray(rpcData) ? rpcData : [];
+                        if (Array.isArray(rpcData)) {
+                            messages = rpcData;
+                        } else if (rpcData.success === false) {
+                            console.error('loadPrivateMessages access denied:', rpcData.message);
+                            return;
+                        }
                     }
-                } catch (e) { /* RPC not found, fallback */ }
+                } catch (e) { /* RPC error */ }
                 if (!messages) {
-                    const { data, error } = await sb.from(TABLE_PRIVATE_MSGS)
-                        .select('id, sender, content, created_at')
-                        .eq('session_id', sessionId)
-                        .order('created_at', { ascending: false })
-                        .limit(PAGE_SIZE);
-                    if (error) { console.error('loadPrivateMessages error:', error); return; }
-                    messages = data || [];
+                    console.error('loadPrivateMessages: RPC unavailable or failed');
+                    return;
                 }
                 privateMessages = messages.reverse();
                 privateHasMore = messages.length === PAGE_SIZE;
@@ -5820,26 +6257,18 @@
                     const { data: rpcData, error: rpcError } = await sb.rpc('get_private_messages', {
                         p_session_id: sessionId,
                         p_username: currentUser,
+                        p_session_token: getSessionToken(),
                         p_limit: PAGE_SIZE
                     });
-                    if (!rpcError && rpcData) {
-                        moreMessages = (Array.isArray(rpcData) ? rpcData : []).filter(m =>
+                    if (!rpcError && rpcData && Array.isArray(rpcData)) {
+                        moreMessages = rpcData.filter(m =>
                             new Date(m.created_at) < new Date(oldest)
                         ).slice(0, PAGE_SIZE);
                     }
-                } catch (e) { /* RPC not found */ }
+                } catch (e) { /* RPC error */ }
                 if (!moreMessages) {
-                    const { data, error } = await sb.from(TABLE_PRIVATE_MSGS)
-                        .select('id, sender, content, created_at')
-                        .eq('session_id', sessionId)
-                        .lt('created_at', oldest)
-                        .order('created_at', { ascending: false })
-                        .limit(PAGE_SIZE);
-                    if (error || !data || data.length === 0) {
-                        privateHasMore = false;
-                        return;
-                    }
-                    moreMessages = data;
+                    privateHasMore = false;
+                    return;
                 }
                 if (!moreMessages || moreMessages.length === 0) {
                     privateHasMore = false;
@@ -6090,7 +6519,8 @@
                 const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
                     p_session_id: privateSessionId,
                     p_sender: currentUser,
-                    p_content: fullContent
+                    p_content: fullContent,
+                    p_session_token: getSessionToken()
                 });
                 if (!rpcError && rpcData && rpcData.success !== false && rpcData.message) {
                     newMsg = rpcData.message;
@@ -6108,38 +6538,9 @@
             }
 
             if (!newMsg && sendError) {
-                // Fallback path: RPC failed, so enforce blacklist check in BOTH directions
-                // (matches send_private_message RPC behavior) before inserting directly.
-                let isBlacklisted = false;
-                try {
-                    const [recvCheck, sendCheck] = await Promise.all([
-                        sb.rpc('check_blocked', { p_blocker: privateOtherUser, p_target: currentUser }),
-                        sb.rpc('check_blocked', { p_blocker: currentUser, p_target: privateOtherUser })
-                    ]);
-                    const receiverBlockedMe = !recvCheck.error && recvCheck.data === true;
-                    const iBlockedReceiver = !sendCheck.error && sendCheck.data === true;
-                    if (receiverBlockedMe || iBlockedReceiver) {
-                        isBlacklisted = true;
-                    }
-                } catch (e) { /* check_blocked RPC unavailable, proceed with insert */ }
-                if (isBlacklisted) {
-                    showSnackbar('对方开启了隐私设置，拒收了你的消息');
-                    document.getElementById('privateSendBtn').disabled = false;
-                    return;
-                }
-                const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
-                if (error) {
-                    showSnackbar('发送失败: ' + error.message);
-                    document.getElementById('privateSendBtn').disabled = false;
-                    return;
-                }
-                newMsg = data[0];
-                if (newMsg.created_at) {
-                    await sb.from(TABLE_PRIVATE_SESSIONS).update({
-                        updated_at: newMsg.created_at,
-                        last_message: fullContent
-                    }).eq('id', privateSessionId);
-                }
+                showSnackbar('发送失败: ' + (sendError.message || '请重新登录'));
+                document.getElementById('privateSendBtn').disabled = false;
+                return;
             }
 
             if (privateChannel) {
@@ -6182,24 +6583,21 @@
                 try {
                     const { data: rpcData, error: rpcError } = await sb.rpc('delete_private_session', {
                         p_session_id: sessionIdToDelete,
-                        p_username: currentUser
+                        p_username: currentUser,
+                        p_session_token: getSessionToken()
                     });
                     if (!rpcError && rpcData && rpcData.success) {
                         deleted = true;
                     } else if (rpcData && rpcData.success === false) {
                         showSnackbar(rpcData.message || '删除失败');
                         return;
-                    }
-                } catch (e) { /* RPC fallback */ }
-                if (!deleted) {
-                    const { error: msgError } = await sb.from(TABLE_PRIVATE_MSGS)
-                        .delete().eq('session_id', sessionIdToDelete);
-                    const { error: sessError } = await sb.from(TABLE_PRIVATE_SESSIONS)
-                        .delete().eq('id', sessionIdToDelete);
-                    if (sessError) {
-                        showSnackbar('删除失败: ' + sessError.message);
+                    } else if (rpcError) {
+                        showSnackbar('删除失败: ' + rpcError.message);
                         return;
                     }
+                } catch (e) {
+                    showSnackbar('删除失败: ' + (e.message || ''));
+                    return;
                 }
                 if (publicChannel) {
                     publicChannel.send({
@@ -6576,7 +6974,7 @@
                     container.innerHTML = '<div class="empty">未找到用户</div>';
                     return;
                 }
-                const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+                var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
                 container.innerHTML = users.map(u => {
                     const idx = hashStr(u.username) % 8;
                     const isOnline = onlineUsernames.includes(u.username);
@@ -6595,7 +6993,7 @@
 
         function renderOnlineUsers() {
             const users = [];
-            Object.entries(onlineUsers).forEach(([k, ps]) => ps.forEach(p => { if (p.name) users.push(p.name); }));
+            (function(){ var e=Object.entries(onlineUsers); for(var i=0;i<e.length;i++){var ps=e[i][1]; if(Array.isArray(ps)){for(var j=0;j<ps.length;j++){if(ps[j]&&ps[j].name)users.push(ps[j].name);}}} })();
             const uniq = [...new Set(users)];
             document.getElementById('onlineCount').textContent = uniq.length;
             document.getElementById('publicOnlineCount').textContent = uniq.length;
@@ -6644,7 +7042,7 @@
             modal.classList.remove('hidden');
 
             function getOnlineStatus(name) {
-                const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+                var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
                 return onlineUsernames.includes(name);
             }
 
@@ -6788,13 +7186,17 @@
             const newState = !currentlyBanned;
             if (!confirm(`确定要${newState?'封禁':'解封'}用户 ${username} 吗？`)) return;
 
+            const isAdm = await verifyAdminSession();
+            if (!isAdm) { showSnackbar('无权限执行此操作'); return; }
+
             try {
-                const { error } = await sb.rpc('ban_user', {
+                const { data, error } = await sb.rpc('ban_user', {
                     p_admin: currentUser,
                     p_target: username,
+                    p_session_token: getSessionToken(),
                     p_ban: newState
                 });
-                if (error) { showSnackbar('操作失败: ' + error.message); return; }
+                if (error || (data && data.success === false)) { showSnackbar('操作失败: ' + (data?.message || error?.message || '')); return; }
                 showSnackbar(`用户 ${username} 已${newState?'封禁':'解封'}`);
                 if (newState && username === currentUser) {
                     showSnackbar('您已被封禁，即将下线');
@@ -6808,7 +7210,8 @@
         }
 
         async function forceLogoutUser() {
-            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
+            const isAdm = await verifyAdminSession();
+            if (!isAdm) { showSnackbar('无权限执行此操作'); return; }
             const btn = document.getElementById('userProfileForceLogoutBtn');
             const username = btn.dataset.username;
             if (!confirm(`确定要强制下线用户 ${username} 吗？`)) return;
@@ -6823,15 +7226,18 @@
             const username = btn.dataset.username;
             if (!username || username === currentUser) return;
             const confirmMsg =
-                `确认注销？\n确定要彻底注销该账号吗？\n此操作将：\n1. 永久删除此账户\n2. 发送的所有公共消息将标记为“已注销”\n3. 私聊会话将被删除\n此操作不可恢复！`;
+                `确认注销？\n确定要彻底注销该账号吗？\n此操作将：\n1. 永久删除此账户\n2. 发送的所有公共消息将标记为"已注销"\n3. 私聊会话将被删除\n此操作不可恢复！`;
             if (!confirm(confirmMsg)) return;
+            const isAdm = await verifyAdminSession();
+            if (!isAdm) { showSnackbar('无权限执行此操作'); return; }
             try {
-                const { error } = await sb.rpc('admin_delete_user', {
+                const { data, error } = await sb.rpc('admin_delete_user', {
                     p_admin: currentUser,
-                    p_target: username
+                    p_target: username,
+                    p_session_token: getSessionToken()
                 });
-                if (error) {
-                    showSnackbar('操作失败: ' + error.message);
+                if (error || (data && data.success === false)) {
+                    showSnackbar('操作失败: ' + (data?.message || error?.message || ''));
                     return;
                 }
                 if (publicChannel) {
@@ -6842,7 +7248,7 @@
                 closeUserProfile();
                 refreshPublicMessages();
                 updatePublicEntry();
-                if (Object.values(onlineUsers).flat().some(p => p.name === username)) {
+                if ((function(){ var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name===username)return true;}}} return false; })()) {
                     publicChannel.send({ type: 'broadcast', event: 'force_logout', payload: { username } });
                 }
             } catch (e) {
@@ -6906,7 +7312,8 @@
         }
 
         async function simulateLogin(username) {
-            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
+            const isAdm = await verifyAdminSession();
+            if (!isAdm) { showSnackbar('无权限执行此操作'); return; }
             if (!confirm(`确定要以 ${username} 的身份登录吗？此操作不会修改任何密码或数据。`)) return;
             try {
                 let adminRole = null;
@@ -6914,11 +7321,7 @@
                     const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
                     if (rpcData && rpcData.success !== false) adminRole = rpcData;
                 } catch (e) { /* RPC not found */ }
-                if (!adminRole) {
-                    const { data: adminCheck } = await sb.from(TABLE_USERS).select('role').eq('username', currentUser).maybeSingle();
-                    adminRole = adminCheck;
-                }
-                if (!adminRole || (adminRole.role !== 'admin' && !ADMIN_USERS.includes(currentUser))) {
+                if (!adminRole || adminRole.role !== 'admin') {
                     showSnackbar('权限验证失败');
                     return;
                 }
@@ -6941,7 +7344,7 @@
                         showSnackbar('该用户已被封禁，但您仍可登录（仅查看）');
                     }
                 } else {
-                    isAdmin = ADMIN_USERS.includes(username);
+                    isAdmin = false;
                     currentAvatarUrl = '';
                 }
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: 'admin_switch_' + Date.now() }));
@@ -7006,82 +7409,7 @@
             document.getElementById('statsModal').classList.add('hidden');
         }
 
-        async function showLoginHistory() {
-            document.getElementById('loginHistoryModal').classList.remove('hidden');
-            try {
-                const { data, error } = await sb.from(TABLE_LOGIN_HISTORY)
-                    .select('*')
-                    .order('login_time', { ascending: false })
-                    .limit(100);
-                if (error) {
-                    document.getElementById('loginHistoryList').innerHTML = '<p>加载失败: ' + error.message + '</p>';
-                    return;
-                }
-                if (!data || data.length === 0) {
-                    document.getElementById('loginHistoryList').innerHTML =
-                        '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无登录记录</p>';
-                    return;
-                }
-                const usernames = [...new Set(data.map(d => d.username))];
-                const userInfoMap = {};
-                for (const uname of usernames) {
-                    if (userAvatarCache.hasOwnProperty(uname)) {
-                        userInfoMap[uname] = { avatar_url: userAvatarCache[uname], banned: false };
-                        continue;
-                    }
-                    try {
-                        let uinfo = null;
-                        try {
-                            const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: uname });
-                            if (rpcData && rpcData.success !== false) uinfo = rpcData;
-                        } catch (e) { /* RPC not found */ }
-                        if (!uinfo) {
-                            const { data: directData } = await sb.from(TABLE_USERS).select('avatar_url, banned').eq('username', uname)
-                                .maybeSingle();
-                            uinfo = directData;
-                        }
-                        if (uinfo) {
-                            userInfoMap[uname] = uinfo;
-                            if (uinfo.avatar_url) userAvatarCache[uname] = uinfo.avatar_url;
-                        } else {
-                            userInfoMap[uname] = null; // user deleted
-                        }
-                    } catch (e) { userInfoMap[uname] = null; }
-                }
-                let html = '';
-                data.forEach(record => {
-                    const uname = record.username;
-                    const uinfo = userInfoMap[uname] || { avatar_url: null, banned: false };
-                    const isBanned = uinfo ? uinfo.banned : false;
-                    const idx = hashStr(uname) % 8;
-                    let avatarStyle = '';
-                    if (uinfo && uinfo.avatar_url) {
-                        avatarStyle = `background-image:url(${uinfo.avatar_url});background-size:cover;background-position:center;`;
-                    }
-                    const time = new Date(record.login_time).toLocaleString('zh-CN');
-                    const ip = record.ip_address || 'unknown';
-                    const isDeleted = !uinfo;
-                    const disabled = isBanned || isDeleted;
-                    html += `
-                        <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--md-outline);gap:8px;${disabled ? 'opacity:0.5;' : ''}">
-                            <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:white;flex-shrink:0;${avatarStyle}" class="av-${idx}">${uinfo.avatar_url ? '' : uname.charAt(0).toUpperCase()}</div>
-                            <div style="flex:1;min-width:0;">
-                                <div style="font-weight:500;font-size:0.875rem;">${escapeHtml(uname)} ${isBanned ? '🚫' : ''} ${isDeleted ? '💀' : ''}</div>
-                                <div style="font-size:0.7rem;color:var(--md-on-surface-dim);">${escapeHtml(time)} · ${escapeHtml(ip)}</div>
-                            </div>
-                            <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;${disabled ? 'background:var(--md-surface-6dp);color:var(--md-on-surface-dim);cursor:not-allowed;' : 'background:var(--md-primary);color:var(--md-on-primary);border-radius:4px;'}" onclick="${disabled ? '' : `simulateLogin('${escapeAttr(uname)}')`}" ${disabled ? 'disabled' : ''}>${disabled ? '不可用' : '登录'}</button>
-                        </div>
-                    `;
-                });
-                document.getElementById('loginHistoryList').innerHTML = html;
-            } catch (e) {
-                document.getElementById('loginHistoryList').innerHTML = '<p>加载失败: ' + e.message + '</p>';
-            }
-        }
-
-        function closeLoginHistoryModal() {
-            document.getElementById('loginHistoryModal').classList.add('hidden');
-        }
+        /* Removed: showLoginHistory and closeLoginHistoryModal */
 
         async function showBannedList() {
             document.getElementById('bannedListModal').classList.remove('hidden');
@@ -7148,39 +7476,36 @@
             container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载中...</p>';
             try {
                 let agents = null;
-                let lastError = null;
+                let rpcErrMsg = null;
+                // Try RPC first
                 try {
                     const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
-                    if (rpcError) {
-                        lastError = rpcError.message || 'RPC error';
-                    } else if (rpcData === null || rpcData === undefined) {
-                        agents = [];
-                    } else {
+                    if (!rpcError && rpcData !== null && rpcData !== undefined) {
                         let parsed = rpcData;
                         if (typeof parsed === 'string') {
                             try { parsed = JSON.parse(parsed); } catch (e) { parsed = []; }
                         }
-                        if (parsed === null) {
-                            agents = [];
-                        } else {
-                            agents = Array.isArray(parsed) ? parsed : [];
-                        }
+                        agents = Array.isArray(parsed) ? parsed : [];
+                    } else if (rpcError) {
+                        rpcErrMsg = rpcError.message || '';
                     }
-                } catch (e) { lastError = e.message || 'RPC exception'; }
+                } catch (e) { rpcErrMsg = e.message || ''; }
+                // Fallback to direct table query if RPC failed
                 if (!agents) {
-                    try {
-                        const { data, error } = await sb.from(TABLE_AGENTS)
-                            .select('id, name, provider, model, created_by, created_at')
-                            .order('created_at', { ascending: true });
-                        if (error) {
-                            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
-                            return;
+                    const { data, error } = await sb.from(TABLE_AGENTS)
+                        .select('id, name, provider, model, created_by, created_at')
+                        .order('created_at', { ascending: true });
+                    if (error) {
+                        var hint = '加载失败';
+                        if (rpcErrMsg) {
+                            hint = 'RPC错误: ' + rpcErrMsg + ' | 表查询错误: ' + (error.message || '未知');
+                        } else {
+                            hint = '加载失败: ' + (error.message || '未知错误');
                         }
-                        agents = data || [];
-                    } catch (e2) {
-                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
+                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);font-size:0.8rem;">' + escapeHtml(hint) + '</p>';
                         return;
                     }
+                    agents = data || [];
                 }
                 if (!agents || agents.length === 0) {
                     container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无智能体</p>';
@@ -7191,33 +7516,37 @@
                     'baidu': '百度', 'ali': '阿里', 'bytedance': '字节', 'zhipu': '智谱',
                     'deepseek': 'DeepSeek', 'custom': '自定义'
                 };
-                const agentNames = agents.map(a => a.name);
-                await loadUserAvatars(agentNames);
+                const agentNames = agents.map(a => a.name).filter(Boolean);
+                if (agentNames.length > 0) {
+                    await loadUserAvatars(agentNames);
+                }
                 container.innerHTML = agents.map(agent => {
                     const canDelete = (agent.created_by === currentUser) || isAdmin;
-                    const providerText = providerLabels[agent.provider] || agent.provider;
-                    const modelText = agent.model ? ` · ${escapeHtml(agent.model)}` : '';
+                    const providerText = providerLabels[agent.provider] || agent.provider || '自定义';
+                    const modelText = agent.model ? ' · ' + escapeHtml(agent.model) : '';
                     const isActive = activeAgent && activeAgent.id === agent.id;
                     const avatarIdx = hashStr(agent.name) % 8;
                     let avatarStyle = '';
                     if (userAvatarCache[agent.name]) {
-                        avatarStyle = `background-image:url(${userAvatarCache[agent.name]});`;
+                        avatarStyle = 'background-image:url(' + userAvatarCache[agent.name] + ');';
                     }
-                    return `<div class="agent-item" style="${isActive ? 'border-color:var(--md-primary);background:rgba(var(--md-primary-rgb, 98,0,238),0.05);' : ''}">
-                                <div class="avatar av-${avatarIdx}" style="${avatarStyle}">${userAvatarCache[agent.name] ? '' : escapeHtml(agent.name.charAt(0).toUpperCase())}</div>
-                                <div class="info">
-                                    <div class="name">${escapeHtml(agent.name)}${isActive ? ' <span style="color:var(--md-primary);font-size:0.7rem;">使用中</span>' : ''}</div>
-                                    <div class="provider">${escapeHtml(providerText)}${modelText}</div>
-                                    <div class="creator">添加者：${escapeHtml(agent.created_by)}</div>
-                                </div>
-                                <div style="display:flex;gap:8px;align-items:center;">
-                                    <button class="use-agent-btn" onclick="useAgent('${agent.id}')" style="background:${isActive ? 'var(--md-primary)' : 'transparent'};color:${isActive ? '#fff' : 'var(--md-primary)'};border:1px solid var(--md-primary);border-radius:0;padding:6px 16px;font-size:0.75rem;font-weight:500;cursor:pointer;">${isActive ? '取消' : '使用'}</button>
-                                    ${canDelete ? `<button class="delete-btn" onclick="deleteAgent('${agent.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>` : ''}
-                                </div>
-                            </div>`;
+                    var activeStyle = isActive ? 'border-color:var(--md-primary);background:rgba(74,158,255,0.05);' : '';
+                    var useBtnStyle = 'background:' + (isActive ? 'var(--md-primary)' : 'transparent') + ';color:' + (isActive ? '#fff' : 'var(--md-primary)') + ';border:1px solid var(--md-primary);border-radius:8px;padding:6px 16px;font-size:0.75rem;font-weight:500;cursor:pointer;';
+                    return '<div class="agent-item" style="' + activeStyle + '">' +
+                                '<div class="avatar av-' + avatarIdx + '" style="' + avatarStyle + '">' + (userAvatarCache[agent.name] ? '' : escapeHtml(agent.name.charAt(0).toUpperCase())) + '</div>' +
+                                '<div class="info">' +
+                                    '<div class="name">' + escapeHtml(agent.name) + (isActive ? ' <span style="color:var(--md-primary);font-size:0.7rem;">使用中</span>' : '') + '</div>' +
+                                    '<div class="provider">' + escapeHtml(providerText) + modelText + '</div>' +
+                                    '<div class="creator">添加者：' + escapeHtml(agent.created_by || '未知') + '</div>' +
+                                '</div>' +
+                                '<div style="display:flex;gap:8px;align-items:center;">' +
+                                    '<button class="use-agent-btn" onclick="useAgent(\'' + agent.id + '\')" style="' + useBtnStyle + '">' + (isActive ? '取消' : '使用') + '</button>' +
+                                    (canDelete ? '<button class="delete-btn" onclick="deleteAgent(\'' + agent.id + '\')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>' : '') +
+                                '</div>' +
+                            '</div>';
                 }).join('');
             } catch (e) {
-                container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
+                container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：' + escapeHtml(e.message || '未知错误') + '</p>';
             }
         }
 
@@ -7236,14 +7565,7 @@
                     }
                 } catch (e) { /* RPC fallback */ }
                 if (!deleted) {
-                    let agentName = '';
-                    try {
-                        const { data: agData } = await sb.from(TABLE_AGENTS).select('name').eq('id', agentId).single();
-                        if (agData) agentName = agData.name;
-                    } catch (e) {}
-                    if (agentName) {
-                        try { await sb.from(TABLE_USERS).delete().eq('username', agentName).eq('role', 'agent'); } catch (e) {}
-                    }
+                    // Direct delete fallback (may fail if RLS blocks it)
                     const { error } = await sb.from(TABLE_AGENTS).delete().eq('id', agentId);
                     if (error) { showSnackbar('删除失败: ' + error.message); return; }
                 }
@@ -7528,49 +7850,7 @@
             document.getElementById('adminDialog').classList.add('hidden');
         }
 
-        async function cleanupGarbledMsgs() {
-            if (!isAdmin) { showSnackbar('无权限执行此操作'); return; }
-            if (!confirm('确定要清理所有乱码系统消息吗？此操作将删除所有包含乱码字符的系统消息，不可撤销。')) return;
-            showGlobalLoading('清理中…', '正在扫描乱码消息');
-            try {
-                const { data, error } = await sb.from(TABLE_PUBLIC_MSG)
-                    .select('id, text, created_at')
-                    .eq('sender', 'system')
-                    .order('created_at', { ascending: false })
-                    .limit(500);
-                if (error) {
-                    hideGlobalLoading();
-                    showSnackbar('查询失败: ' + error.message);
-                    return;
-                }
-                if (!data || data.length === 0) {
-                    hideGlobalLoading();
-                    showSnackbar('没有系统消息');
-                    return;
-                }
-                const garbledIds = data.filter(m => isGarbledText(m.text)).map(m => m.id);
-                if (garbledIds.length === 0) {
-                    hideGlobalLoading();
-                    showSnackbar('未发现乱码消息');
-                    return;
-                }
-                const { error: delError } = await sb.from(TABLE_PUBLIC_MSG)
-                    .delete()
-                    .in('id', garbledIds);
-                if (delError) {
-                    hideGlobalLoading();
-                    showSnackbar('删除失败: ' + delError.message);
-                    return;
-                }
-                hideGlobalLoading();
-                showSnackbar(`已清理 ${garbledIds.length} 条乱码消息`);
-                refreshPublicMessages();
-                updatePublicEntry();
-            } catch (e) {
-                hideGlobalLoading();
-                showSnackbar('清理失败: ' + e.message);
-            }
-        }
+        /* Removed: cleanupGarbledMsgs */
 
         function showClearDialog() {
             document.getElementById('clearDialog').classList.remove('hidden');
@@ -7819,7 +8099,7 @@
         // concludes 'deleted' when we are certain the user no longer exists.
         async function resolveUserStatus(username) {
             if (!username) return 'offline';
-            const onlineNames = Object.values(onlineUsers).flat().map(p => p.name).filter(Boolean);
+            var onlineNames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
             if (onlineNames.includes(username)) return 'online';
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
@@ -8084,10 +8364,10 @@
                 } catch (e) { /* RPC not found */ }
                 try {
                     const { data } = await sb.from(TABLE_USERS).select('banned').eq('username', currentUser).maybeSingle();
-                    status.textContent = data?.banned ? '已封禁' : '正常';
+                    status.textContent = (data && data.banned) ? '已封禁' : '正常';
                 } catch (e) { status.textContent = '正常'; }
             })();
-            const onlineUsernames = Object.values(onlineUsers).flat().map(p => p.name);
+            var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
             const isOnline = onlineUsernames.includes(currentUser);
             onlineStatus.textContent = isOnline ? '在线' : '离线';
             onlineItem.style.display = 'flex';
