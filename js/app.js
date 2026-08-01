@@ -10,13 +10,13 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const MJCHAT_VERSION = 36;
-        const APP_VERSION = '26.8.103';
+        const MJCHAT_VERSION = 40;
+        const APP_VERSION = '26.8.105';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
-        const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+        const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
         const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
-        const MAX_IMAGES_PER_MSG = 4;
+        const MAX_IMAGES_PER_MSG = 6;
 
         let sb = null;
         let currentUser = '';
@@ -60,6 +60,10 @@
         let globalPrivateChannel = null;
         let publicUnread = 0;
         let privatePollTimer = null;
+        // v040: Public chat polling timers for retry logic
+        let _publicPollTimer = null;
+        let _publicBackupPollTimer = null;
+        let _publicRetryCount = 0;
         var _rateLimits = {};
 
         function checkRateLimit(action, maxCount, windowMs) {
@@ -611,11 +615,18 @@
             if (password !== password2) return showEl('regError', '两次密码不一致');
 
             try {
+                // v040: Try check_username_exists RPC first
                 let usernameExists = false;
                 try {
-                    const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: username });
-                    if (rpcData && rpcData.success !== false) usernameExists = true;
+                    const { data: rpcData } = await sb.rpc('check_username_exists', { p_username: username });
+                    if (rpcData && rpcData.exists) usernameExists = true;
                 } catch (e) { /* RPC not found, fallback */ }
+                if (!usernameExists) {
+                    try {
+                        const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: username });
+                        if (rpcData && rpcData.success !== false) usernameExists = true;
+                    } catch (e) { /* RPC not found, fallback */ }
+                }
                 if (!usernameExists) {
                     const { data: existing } = await sb.from(TABLE_USERS).select('username').eq('username', username)
                         .maybeSingle();
@@ -678,13 +689,35 @@
             const password = document.getElementById('loginPassword').value;
             if (!username) return showEl('loginError', '请输入用户名');
             if (!password) return showEl('loginError', '请输入密码');
+            if (!checkRateLimit('login', 5, 60000)) {
+                showEl('loginError', '登录尝试过于频繁，请1分钟后再试');
+                return;
+            }
+
+            // v040: Check if Supabase client is available before attempting login
+            if (!sb) {
+                showEl('loginError', '连接服务失败，请刷新页面重试');
+                return;
+            }
+
             showGlobalLoading('登录中', '验证身份');
+
+            // v040: Login timeout - abort if login takes too long
+            var _loginTimedOut = false;
+            var _loginTimeout = setTimeout(function() {
+                _loginTimedOut = true;
+                hideGlobalLoading();
+                showEl('loginError', '登录超时，请检查网络后重试');
+            }, 20000);
+
             try {
                 const passwordHash = await hashPassword(password);
                 let userData = null;
                 let loginError = null;
+
+                // v040: First attempt with secure rate-limited RPC
                 try {
-                    const { data: secureData, error: secureError } = await sb.rpc('verify_login_secure', {
+                    const { data: secureData, error: secureError } = await sb.rpc('verify_login_secure_rate_limited', {
                         p_username: username,
                         p_password_hash: passwordHash
                     });
@@ -693,30 +726,59 @@
                     } else if (secureError) {
                         loginError = secureError;
                     }
-                } catch (e) { loginError = e; }
+                } catch (e) {
+                    // v040: Rate-limited RPC might not exist, fall through
+                }
 
+                // v040: Fallback to regular secure login
                 if (!userData && loginError) {
-                    const { data: legacyData, error: legacyError } = await sb.rpc('verify_login', {
-                        p_username: username,
-                        p_password_hash: passwordHash
-                    });
-                    if (!legacyError && legacyData) {
-                        userData = legacyData;
-                        loginError = null;
-                    } else if (legacyError) {
-                        loginError = legacyError;
+                    try {
+                        const { data: secureData, error: secureError } = await sb.rpc('verify_login_secure', {
+                            p_username: username,
+                            p_password_hash: passwordHash
+                        });
+                        if (!secureError && secureData) {
+                            userData = secureData;
+                            loginError = null;
+                        } else if (secureError) {
+                            loginError = secureError;
+                        }
+                    } catch (e) { loginError = e; }
+                }
+
+                // v040: If first attempts failed, try legacy RPC
+                if (!userData && loginError) {
+                    try {
+                        const { data: legacyData, error: legacyError } = await sb.rpc('verify_login', {
+                            p_username: username,
+                            p_password_hash: passwordHash
+                        });
+                        if (!legacyError && legacyData) {
+                            userData = legacyData;
+                            loginError = null;
+                        } else if (legacyError) {
+                            loginError = legacyError;
+                        }
+                    } catch (e) {
+                        // All RPC calls failed, keep the original loginError
                     }
                 }
 
+                // v040: Check if timeout occurred during RPC calls
+                if (_loginTimedOut) return;
+
                 if (loginError) {
+                    clearTimeout(_loginTimeout);
                     hideGlobalLoading();
                     return showEl('loginError', '登录失败: ' + (loginError.message || loginError));
                 }
                 if (!userData || userData.success === false) {
+                    clearTimeout(_loginTimeout);
                     hideGlobalLoading();
                     return showEl('loginError', (userData && userData.message) || '用户名或密码错误');
                 }
                 if (userData.banned) {
+                    clearTimeout(_loginTimeout);
                     hideGlobalLoading();
                     return showEl('loginError', '您的账户已被封禁，无法登录');
                 }
@@ -728,13 +790,36 @@
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken }));
                 document.getElementById('loginPassword').value = '';
                 updateLoadingText('登录中', '欢迎 ' + currentUser);
-                const ip = await getClientIP();
-                await recordLogin(username, ip);
+
+                // v040: getClientIP with timeout - don't block login if IP fetch fails
+                var ip = 'unknown';
+                try {
+                    ip = await Promise.race([
+                        getClientIP(),
+                        new Promise(function(resolve) { setTimeout(function() { resolve('unknown'); }, 3000); })
+                    ]);
+                } catch (e) { ip = 'unknown'; }
+
+                // v040: recordLogin with timeout - don't block login if recording fails
+                try {
+                    await Promise.race([
+                        recordLogin(username, ip),
+                        new Promise(function(resolve) { setTimeout(resolve, 5000); })
+                    ]);
+                } catch (e) { /* ignore */ }
+
+                // v040: Check if timeout occurred during post-login operations
+                if (_loginTimedOut) return;
+
+                clearTimeout(_loginTimeout);
                 authorizeEnterApp();
                 enterApp();
             } catch (e) {
+                clearTimeout(_loginTimeout);
                 hideGlobalLoading();
-                showEl('loginError', '登录失败，请重试');
+                if (!_loginTimedOut) {
+                    showEl('loginError', '登录失败，请重试');
+                }
             }
         }
 
@@ -747,13 +832,32 @@
                 showLogin();
                 return;
             }
+            // v040: Check if Supabase client is available
+            if (!sb) {
+                showLogin();
+                showEl('loginError', '连接服务失败，请刷新页面重试');
+                return;
+            }
             _enterAppAuthorized = false;
             showGlobalLoading('连接中', '正在加载数据');
             document.getElementById('authContainer').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
 
             try {
-                await connectPublic();
+                // v040: Make connectPublic non-blocking - if it fails or takes too long,
+                // still enter app and retry public chat connection in background
+                try {
+                    // v040: Race connectPublic against a 20-second timeout
+                    await Promise.race([
+                        connectPublic(),
+                        new Promise(function(_, reject) {
+                            setTimeout(function() { reject(new Error('公聊连接超时')); }, 20000);
+                        })
+                    ]);
+                } catch (pubErr) {
+                    console.error('[enterApp] connectPublic failed, will retry:', pubErr);
+                    // Don't block the entire app - continue with private chat
+                }
                 await loadPrivateSessions();
                 setupGlobalPrivateListener();
                 restoreUnreadCounts();
@@ -4940,6 +5044,10 @@
 
         function logout() {
             if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
+            // v040: Clean up public chat polling timers
+            if (_publicPollTimer) { clearInterval(_publicPollTimer); _publicPollTimer = null; }
+            if (_publicBackupPollTimer) { clearInterval(_publicBackupPollTimer); _publicBackupPollTimer = null; }
+            _publicRetryCount = 0;
             if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel); globalPrivateChannel = null; }
             if (publicChannel) { publicChannel.untrack();
                 sb.removeChannel(publicChannel);
@@ -4970,6 +5078,9 @@
             document.getElementById('loginUsername').value = '';
             document.getElementById('loginPassword').value = '';
             hideGlobalLoading();
+            // v038: Reset banner dismissal so it can show again after logout
+            try { sessionStorage.removeItem('mjchat_banner_dismissed'); } catch (e) {}
+            window._bannerManuallyDismissed = false;
             showLogin();
         }
 
@@ -5507,11 +5618,30 @@
         }
 
         function init() {
+            // v040: Safety timeout - if loading is still visible after 15s, force-show login
+            var _safetyTimeout = setTimeout(function() {
+                var loadingEl = document.getElementById('globalLoading');
+                if (loadingEl && !loadingEl.classList.contains('hidden')) {
+                    console.warn('Safety timeout: forcing login page');
+                    hideGlobalLoading();
+                    if (!isEntered) showLogin();
+                }
+            }, 15000);
+
             loadTheme();
             loadCustomColor();
-            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // v040: Initialize Supabase client with error handling
+            try {
+                if (typeof window.supabase !== 'undefined' && window.supabase && window.supabase.createClient) {
+                    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                } else {
+                    console.error('Supabase library not loaded');
+                }
+            } catch (e) {
+                console.error('Supabase init error:', e);
+            }
             clientId = generateId();
-            showGlobalLoading('登录中', '正在验证身份');
 
             try {
                 history.pushState({ page: 'home', mjchat_nav: true, initial: true }, '', '#home');
@@ -5533,72 +5663,117 @@
                     document.getElementById('privacyBanner').classList.add('hidden-banner');
                 }
             });
-            restoreSession();
-        }
 
-        function restoreSession() {
-            const saved = localStorage.getItem('mjchat_session');
-            if (saved) {
-                try {
-                    const session = JSON.parse(saved);
-                    if (!session.username || !session.token) {
-                        localStorage.removeItem('mjchat_session');
-                        hideGlobalLoading();
-                        showLogin();
-                        return;
-                    }
-                    const verifyWithSecure = async () => {
-                        const { data, error } = await sb.rpc('verify_session_secure', {
-                            p_username: session.username, p_token: session.token
-                        });
-                        if (!error && data && data.success !== false) return data;
-                        return null;
-                    };
-                    const verifyWithLegacy = async () => {
-                        const { data, error } = await sb.rpc('verify_session', {
-                            p_username: session.username, p_token: session.token
-                        });
-                        if (!error && data && data.success !== false) return data;
-                        throw error || new Error('Session verify failed');
-                    };
+            // v040: Fixed init flow - loading is hidden by default in HTML
+            // Only show it for returning users who need session verification
+            var savedSession = null;
+            try {
+                savedSession = localStorage.getItem('mjchat_session');
+            } catch (e) { /* ignore */ }
 
-                    (async () => {
-                        let userData = null;
-                        try { userData = await verifyWithSecure(); } catch (e) { /* ignore */ }
-                        if (!userData) {
-                            try { userData = await verifyWithLegacy(); } catch (e) {
-                                localStorage.removeItem('mjchat_session');
-                                hideGlobalLoading();
-                                showLogin();
-                                return;
-                            }
-                        }
-                        if (isEntered) return;
-                        if (userData.banned) {
-                            localStorage.removeItem('mjchat_session');
-                            hideGlobalLoading();
-                            showLogin();
-                            showEl('loginError', '您已被封禁');
-                            return;
-                        }
-                        currentUser = session.username;
-                        isAdmin = (userData.role === 'admin');
-                        currentAvatarUrl = userData.avatar_url || '';
-                        userAvatarCache[currentUser] = currentAvatarUrl;
-                        updateLoadingText('登录中', '欢迎回来 ' + currentUser);
-                        authorizeEnterApp();
-                        enterApp();
-                    })().catch(() => {
-                        localStorage.removeItem('mjchat_session');
-                        hideGlobalLoading();
-                        showLogin();
-                    });
-                } catch (e) {
-                    localStorage.removeItem('mjchat_session');
+            if (savedSession) {
+                // Has a saved session - show loading and verify
+                showGlobalLoading('登录中…', '正在验证身份');
+                // Add a timeout fallback - if verification takes too long, show login
+                var _sessionTimeout = setTimeout(function() {
+                    var loadingEl = document.getElementById('globalLoading');
+                    if (loadingEl && loadingEl.classList.contains('hidden')) return;
+                    console.warn('Session verification timeout, showing login');
+                    try { localStorage.removeItem('mjchat_session'); } catch (e) {}
                     hideGlobalLoading();
                     showLogin();
-                }
+                }, 10000);
+
+                restoreSession(_sessionTimeout);
             } else {
+                // No saved session - loading is already hidden, just show login
+                hideGlobalLoading();
+                showLogin();
+            }
+        }
+
+        function restoreSession(timeoutId) {
+            const saved = localStorage.getItem('mjchat_session');
+            if (!saved) {
+                if (timeoutId) clearTimeout(timeoutId);
+                hideGlobalLoading();
+                showLogin();
+                return;
+            }
+            // v040: Check if Supabase client is available before verifying
+            if (!sb) {
+                if (timeoutId) clearTimeout(timeoutId);
+                hideGlobalLoading();
+                showLogin();
+                showEl('loginError', '连接服务失败，请刷新页面重试');
+                return;
+            }
+            try {
+                const session = JSON.parse(saved);
+                if (!session.username || !session.token) {
+                    localStorage.removeItem('mjchat_session');
+                    if (timeoutId) clearTimeout(timeoutId);
+                    hideGlobalLoading();
+                    showLogin();
+                    return;
+                }
+                const verifyWithSecure = async () => {
+                    const { data, error } = await sb.rpc('verify_session_secure', {
+                        p_username: session.username, p_token: session.token
+                    });
+                    if (!error && data && data.success !== false) return data;
+                    return null;
+                };
+                const verifyWithLegacy = async () => {
+                    const { data, error } = await sb.rpc('verify_session', {
+                        p_username: session.username, p_token: session.token
+                    });
+                    if (!error && data && data.success !== false) return data;
+                    throw error || new Error('Session verify failed');
+                };
+
+                (async () => {
+                    let userData = null;
+                    try { userData = await verifyWithSecure(); } catch (e) { /* ignore */ }
+                    if (!userData) {
+                        try { userData = await verifyWithLegacy(); } catch (e) {
+                            localStorage.removeItem('mjchat_session');
+                            if (timeoutId) clearTimeout(timeoutId);
+                            hideGlobalLoading();
+                            showLogin();
+                            return;
+                        }
+                    }
+                    if (timeoutId) clearTimeout(timeoutId);
+                    if (isEntered) return;
+                    if (userData.banned) {
+                        localStorage.removeItem('mjchat_session');
+                        hideGlobalLoading();
+                        showLogin();
+                        showEl('loginError', '您已被封禁');
+                        return;
+                    }
+                    currentUser = session.username;
+                    isAdmin = (userData.role === 'admin');
+                    currentAvatarUrl = userData.avatar_url || '';
+                    userAvatarCache[currentUser] = currentAvatarUrl;
+                    updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
+                    authorizeEnterApp();
+                    enterApp();
+                    if (userData.needs_relogin) {
+                        setTimeout(() => {
+                            showSnackbar('安全提示：请退出后重新登录以更新安全凭证');
+                        }, 2000);
+                    }
+                })().catch(() => {
+                    localStorage.removeItem('mjchat_session');
+                    if (timeoutId) clearTimeout(timeoutId);
+                    hideGlobalLoading();
+                    showLogin();
+                });
+            } catch (e) {
+                localStorage.removeItem('mjchat_session');
+                if (timeoutId) clearTimeout(timeoutId);
                 hideGlobalLoading();
                 showLogin();
             }
@@ -5606,10 +5781,36 @@
 
         document.querySelectorAll('.dialog-overlay').forEach(el => {
             el.addEventListener('click', function(e) {
-                if (e.target === this) {
+                if (e.target === this && !this.dataset.lockOverlay) {
                     this.classList.add('hidden');
                 }
             });
+        });
+
+        // v040: Global error handler - only act during initial loading phase
+        // This prevents non-critical runtime errors from disrupting the app
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error || e.message);
+            try {
+                // Only hide loading and show login if we're still on the auth/loading screen
+                var loadingEl = document.getElementById('globalLoading');
+                if (loadingEl && !loadingEl.classList.contains('hidden') && !isEntered) {
+                    hideGlobalLoading();
+                    showLogin();
+                }
+            } catch (err) { /* ignore */ }
+        });
+
+        // v040: Unhandled promise rejection handler - only act during loading phase
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            try {
+                var loadingEl = document.getElementById('globalLoading');
+                if (loadingEl && !loadingEl.classList.contains('hidden') && !isEntered) {
+                    hideGlobalLoading();
+                    showLogin();
+                }
+            } catch (err) { /* ignore */ }
         });
 
         window.addEventListener('DOMContentLoaded', init);
