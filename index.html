@@ -91,10 +91,31 @@
         .global-loading .md-progress {
             width: 40px;
             height: 40px;
-            border: 3px solid var(--md-surface-6dp);
-            border-top-color: var(--md-primary);
-            border-radius: 50%;
-            animation: md-spin 0.8s linear infinite;
+            display: inline-block;
+            color: var(--md-primary);
+            animation: md-circular-rotate 1.4s linear infinite;
+        }
+        .global-loading .md-progress svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .global-loading .md-progress circle {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 125.66;
+            stroke-dashoffset: 0;
+            animation: md-circular-dash 1.4s ease-in-out infinite;
+        }
+        @keyframes md-circular-rotate {
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes md-circular-dash {
+            0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
+            50% { stroke-dasharray: 100, 200; stroke-dashoffset: -15; }
+            100% { stroke-dasharray: 100, 200; stroke-dashoffset: -125; }
         }
         .global-loading .loading-text {
             font-size: 1rem;
@@ -105,11 +126,6 @@
             font-size: 0.8125rem;
             color: var(--md-on-surface-dim);
             margin-top: -8px;
-        }
-        @keyframes md-spin {
-            to {
-                transform: rotate(360deg);
-            }
         }
         .app-bar {
             display: flex;
@@ -131,6 +147,12 @@
         .app-bar .title {
             font-size: 1.125rem;
             font-weight: 500;
+        }
+        .app-bar .private-status {
+            font-size: 0.75rem;
+            color: var(--md-on-surface-dim);
+            font-weight: 400;
+            white-space: nowrap;
         }
         .app-bar .back-btn {
             width: 40px;
@@ -294,6 +316,11 @@
             background-size: cover;
             background-position: center;
         }
+        .avatar-wrap { position: relative; display: inline-block; }
+        .avatar-status-dot { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--md-surface, #fff); background: transparent; transition: background 0.3s; }
+        .avatar-status-dot.online { background: #4caf50; }
+        .avatar-status-dot.offline { background: transparent; }
+        .avatar-status-dot.banned, .avatar-status-dot.deleted { background: #9e9e9e; }
         .user-menu-card .user-name {
             font-size: 1rem;
             font-weight: 500;
@@ -574,7 +601,7 @@
             color: var(--md-on-surface-dim);
             background: var(--md-surface-1dp);
             padding: 4px 8px;
-            border-radius: 8px;
+            border-radius: 2px;
             margin-bottom: 4px;
             display: block;
             border-left: 2px solid var(--md-primary);
@@ -622,7 +649,7 @@
             width: 100%;
             max-height: 300px;
             object-fit: contain;
-            border-radius: 8px;
+            border-radius: 2px;
             display: block;
             cursor: pointer;
             -webkit-user-drag: none;
@@ -642,7 +669,7 @@
         .public-page .messages .msg-row .bubble.image-single img {
             max-width: 220px;
             max-height: 400px;
-            border-radius: 8px;
+            border-radius: 2px;
             display: block;
             cursor: pointer;
             -webkit-user-drag: none;
@@ -680,7 +707,7 @@
             align-items: center;
             gap: 10px;
             padding: 8px 12px;
-            border-radius: 16px;
+            border-radius: 4px;
             cursor: pointer;
             min-width: 130px;
             max-width: 240px;
@@ -773,7 +800,7 @@
             color: var(--md-on-surface-dim);
             background: var(--md-surface-1dp);
             padding: 4px 12px;
-            border-radius: 12px;
+            border-radius: 4px;
         }
         .public-page .messages .date-divider {
             text-align: center;
@@ -914,6 +941,9 @@
             gap: 8px;
             cursor: pointer;
         }
+        .feature-icon:active {
+            background: var(--md-surface-6dp);
+        }
         .feature-icon {
             width: 56px;
             height: 56px;
@@ -923,9 +953,6 @@
             align-items: center;
             justify-content: center;
             transition: background 0.15s;
-        }
-        .feature-icon:active {
-            background: var(--md-surface-6dp);
         }
         .feature-icon svg {
             width: 28px;
@@ -1105,7 +1132,7 @@
         .record-stop-btn {
             padding: 8px 24px;
             border: none;
-            border-radius: 20px;
+            border-radius: 4px;
             background: var(--md-surface-4dp);
             color: var(--md-on-surface);
             cursor: pointer;
@@ -1214,12 +1241,34 @@
         .private-page .messages .msg-row .bubble img {
             max-width: 180px;
             max-height: 180px;
-            border-radius: 8px;
+            border-radius: 2px;
             display: block;
             cursor: pointer;
             -webkit-user-drag: none;
             user-drag: none;
             touch-action: auto;
+        }
+        .private-page .messages .msg-row .bubble .reply-preview-block {
+            font-size: 0.8125rem;
+            color: var(--md-on-surface-dim);
+            background: var(--md-surface-1dp);
+            padding: 4px 8px;
+            border-radius: 2px;
+            margin-bottom: 4px;
+            display: block;
+            border-left: 2px solid var(--md-primary);
+            cursor: pointer;
+        }
+        .private-page .messages .msg-row.own .bubble .reply-preview-block {
+            background: rgba(255,255,255,0.05);
+            border-left-color: var(--md-on-primary);
+            color: var(--md-on-surface-muted);
+        }
+        .private-page .messages .msg-row .bubble .reply-preview-block .reply-sender {
+            font-weight: 500;
+        }
+        .private-page .messages .msg-row .bubble .reply-preview-block .reply-content {
+            word-break: break-all;
         }
         .private-page .messages .system-msg {
             display: flex;
@@ -1231,7 +1280,7 @@
             color: var(--md-on-surface-dim);
             background: var(--md-surface-1dp);
             padding: 4px 12px;
-            border-radius: 12px;
+            border-radius: 4px;
         }
         .private-page .messages .date-divider {
             text-align: center;
@@ -1516,26 +1565,31 @@
             margin-top: 12px;
         }
         .md-dialog .action-buttons .md-button {
-            padding: 10px;
+            padding: 14px 16px;
             border: none;
-            border-radius: 20px;
-            font-weight: 500;
-            font-size: 0.875rem;
+            border-radius: 0;
+            font-weight: 400;
+            font-size: 0.9375rem;
             cursor: pointer;
-            text-align: center;
-            transition: background 0.2s;
+            text-align: left;
+            transition: background 0.15s;
+            background: transparent;
+            color: var(--md-on-surface);
+            border-bottom: 1px solid var(--md-outline);
+        }
+        .md-dialog .action-buttons .md-button:hover {
+            background: var(--md-ripple);
+        }
+        .md-dialog .action-buttons .md-button:active {
+            background: var(--md-surface-6dp);
         }
         .md-dialog .action-buttons .md-button.primary {
-            background: var(--md-primary);
-            color: var(--md-on-primary);
+            color: var(--md-primary);
         }
         .md-dialog .action-buttons .md-button.danger {
-            background: var(--md-error);
-            color: white;
+            color: var(--md-error);
         }
         .md-dialog .action-buttons .md-button.outline {
-            background: transparent;
-            border: 1px solid var(--md-outline);
             color: var(--md-on-surface);
         }
         .md-dialog .action-buttons .md-button.outline:hover {
@@ -1608,6 +1662,36 @@
         }
         .banned-list-modal .banned-item .unban-btn:hover {
             background: var(--md-primary);
+        }
+        .blocklist-modal .blocklist-container {
+            overflow-y: auto;
+            flex: 1;
+            margin-top: 12px;
+            max-height: 50vh;
+        }
+        .blocklist-modal .block-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--md-outline);
+        }
+        .blocklist-modal .block-item .name {
+            font-size: 0.875rem;
+            color: var(--md-on-surface);
+        }
+        .blocklist-modal .block-item .unblock-btn {
+            background: transparent;
+            color: var(--md-primary);
+            border: 1px solid var(--md-primary);
+            border-radius: 0;
+            padding: 6px 16px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .blocklist-modal .block-item .unblock-btn:hover {
+            background: var(--md-ripple);
         }
         .snackbar {
             position: fixed;
@@ -1947,6 +2031,7 @@
 
         .page {
             will-change: transform, opacity;
+            background: var(--md-surface);
         }
         .page-container {
             position: relative;
@@ -1956,13 +2041,13 @@
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             z-index: 2;
-            animation: pageSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+            animation: pageSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
         .page.slide-out {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             z-index: 2;
-            animation: pageSlideOut 0.30s cubic-bezier(0.16, 1, 0.3, 1) both;
+            animation: pageSlideOut 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
         @keyframes pageSlideIn {
             from { transform: translateX(100%); }
@@ -2052,8 +2137,24 @@
         .agent-list-modal .agent-item {
             display: flex;
             align-items: center;
+            gap: 12px;
             padding: 8px 0;
             border-bottom: 1px solid var(--md-outline);
+            transition: background 0.2s;
+        }
+        .agent-list-modal .agent-item .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #fff;
         }
         .agent-list-modal .agent-item .info {
             flex: 1;
@@ -2174,13 +2275,23 @@
         .loading-spinner {
             width: 20px;
             height: 20px;
-            border: 2px solid rgba(74, 158, 255, 0.2);
-            border-top-color: #4A9EFF;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            color: var(--md-primary);
+            animation: md-circular-rotate 1.4s linear infinite;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .loading-spinner svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .loading-spinner circle {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-dasharray: 125.66;
+            stroke-dashoffset: 0;
+            animation: md-circular-dash 1.4s ease-in-out infinite;
         }
     </style>
 </head>
@@ -2188,7 +2299,7 @@
     <div class="app">
 
         <div id="globalLoading" class="global-loading">
-            <div class="md-progress"></div>
+            <div class="md-progress"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div>
             <div class="loading-text">登录中…</div>
             <div class="loading-sub">正在连接 MJChat</div>
         </div>
@@ -2288,10 +2399,11 @@
                     <div class="title-block">
                         <button class="back-btn" onclick="leavePrivateChat()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
                         <div class="back-badge hidden"></div>
-                        <span class="title" id="privateChatTitle">私聊</span>
+                        <span class="title" id="privateChatTitle"></span>
+                        <span class="private-status" id="privateChatStatus"></span>
                     </div>
-                    <button class="icon-button" onclick="deletePrivateChat()" title="删除聊天" style="margin-right:4px;">
-                        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    <button class="icon-button" id="privateMenuBtn" onclick="togglePrivateMenu()" title="菜单">
+                        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                     </button>
                 </div>
                 <div class="privacy-banner" id="privacyBanner">注意：当前为临时私聊页面，请注意隐私安全</div>
@@ -2446,30 +2558,41 @@
                     <div class="item"><span class="label">用户状态</span><span class="value" id="userProfileStatus">-</span></div>
                     <div class="item" id="userProfileOnlineItem"><span class="label">在线状态</span><span class="value" id="userProfileOnline">-</span></div>
                 </div>
-                <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-primary);color:var(--md-on-primary);font-size:0.875rem;margin-top:8px;">发起私聊</button>
-                <button class="md-button danger" id="userProfileBanBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="banUserFromProfile()">封禁此用户</button>
-                <button class="md-button danger" id="userProfileForceLogoutBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="forceLogoutUser()">强制下线</button>
-                <button class="md-button danger" id="userProfileDeleteBtn" style="display:none;width:100%;padding:10px;border:none;border-radius:20px;font-weight:500;cursor:pointer;background:var(--md-error);color:white;font-size:0.875rem;margin-top:8px;" onclick="adminDeleteUser()">注销账号</button>
+                <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);">发起私聊</button>
+                <button class="md-button danger" id="userProfileBanBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="banUserFromProfile()">封禁此用户</button>
+                <button class="md-button danger" id="userProfileForceLogoutBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="forceLogoutUser()">强制下线</button>
+                <button class="md-button danger" id="userProfileDeleteBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="adminDeleteUser()">注销账号</button>
             </div>
         </div>
 
         <div class="user-menu-overlay" id="homeMenuOverlay" onclick="closeHomeMenu(event)">
             <div class="user-menu-card" onclick="event.stopPropagation()">
-                <div class="user-info"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="user-name" id="homeMenuName">用户</div></div>
+                <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="avatar-status-dot" id="homeAvatarDot"></div></div><div class="user-name" id="homeMenuName">用户</div></div>
                 <ul class="menu-list">
                     <li onclick="closeHomeMenu();showProfileDialog();"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>个人信息</li>
                     <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
-                    <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>管理员功能</li>
+                    <li onclick="closeHomeMenu();showBlocklistModal();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg>黑名单管理</li>
+                    <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
                 </ul>
             </div>
         </div>
 
         <div class="user-menu-overlay" id="publicMenuOverlay" onclick="closePublicMenu(event)">
             <div class="user-menu-card" onclick="event.stopPropagation()">
-                <div class="user-info"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="user-name" id="publicMenuName">用户</div></div>
+                <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="avatar-status-dot" id="publicAvatarDot"></div></div><div class="user-name" id="publicMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li id="publicAdminItem" class="admin-item" style="display:none;" onclick="closePublicMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.963 0-9-4.037-9-9s4.037-9 9-9 9 4.037 9 9-4.037 9-9 9zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>管理员功能</li>
-                    <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15L17 12.23l-4-2.37V7z"/></svg>智能体</li>
+                    <li id="publicAdminItem" class="admin-item" style="display:none;" onclick="closePublicMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
+                    <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-2 10H6V7h12v12zm-9-6c.83 0 1.5-.67 1.5-1.5S10.83 9 10 9s-1.5.67-1.5 1.5S9.17 13 10 13zm4 0c.83 0 1.5-.67 1.5-1.5S14.83 9 14 9s-1.5.67-1.5 1.5S13.17 13 14 13z"/></svg>智能体</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="user-menu-overlay" id="privateMenuOverlay" onclick="closePrivateMenu(event)">
+            <div class="user-menu-card" onclick="event.stopPropagation()">
+                <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="privateMenuAvatar">U</div><div class="avatar-status-dot" id="privateAvatarDot"></div></div><div class="user-name" id="privateMenuName">用户</div></div>
+                <ul class="menu-list">
+                    <li onclick="closePrivateMenu();toggleBlockUser();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg><span id="privateBlockLabel">加入黑名单</span></li>
+                    <li class="logout-item" onclick="closePrivateMenu();deletePrivateChat();"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>删除对话</li>
                 </ul>
             </div>
         </div>
@@ -2492,7 +2615,7 @@
                 <div class="agent-form">
                     <div class="md-text-field"><input type="text" id="agentName" placeholder=" "><label>智能体名称</label></div>
                     <div class="md-text-field">
-                        <select id="agentProvider">
+                        <select id="agentProvider" onchange="updateAgentModelDefault()">
                             <option value="openai">OpenAI (GPT)</option>
                             <option value="google">Google (Gemini)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
@@ -2591,6 +2714,16 @@
 
         <div class="msg-context-menu" id="msgContextMenu"></div>
 
+        <div class="dialog-overlay hidden blocklist-modal" id="blocklistModal" onclick="if(event.target===this)closeBlocklistModal()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>黑名单管理</h2>
+                    <button onclick="closeBlocklistModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                </div>
+                <div class="blocklist-container" id="blocklistContainer"></div>
+            </div>
+        </div>
+
         <div class="dialog-overlay hidden" id="confirmDialog" onclick="if(event.target===this)closeConfirmDialog()">
             <div class="md-dialog">
                 <h2 id="confirmTitle">确认</h2>
@@ -2635,6 +2768,7 @@
         let privateSessionId = null;
         let privateOtherUser = '';
         let privateChatActive = false;
+        let privateStatusInterval = null;
         let onlineUsers = {};
         let confirmCallback = null;
         let replyTarget = null;
@@ -2761,6 +2895,10 @@
 
         function getMessagePreview(text) {
             if (!text) return '';
+            if (text.startsWith('__RPL__')) {
+                const m = text.match(/^__RPL__.*?__ENDRPL__/);
+                if (m) text = text.substring(m[0].length);
+            }
             if (text.startsWith('🎤 ')) return text.replace(/ → .*$/, '');
             if (text.startsWith('🔗 ')) return '🔗 链接';
             if (text.startsWith('📎 ')) {
@@ -3325,6 +3463,18 @@
                     renderPrivateList();
                     renderOnlineUsers();
                 });
+                publicChannel.on('broadcast', { event: 'session_deleted' }, (p) => {
+                    try {
+                        const data = p.payload;
+                        if (!data || !data.session_id) return;
+                        if (data.target === currentUser && privateSessionId === data.session_id && privateChatActive) {
+                            showSnackbar(`${data.deleted_by} 删除了你们的聊天`);
+                            leavePrivateChat();
+                        }
+                        window.privateSessions = (window.privateSessions || []).filter(s => s.id !== data.session_id);
+                        renderPrivateList();
+                    } catch (e) { /* ignore */ }
+                });
             }
 
             privatePollTimer = setInterval(async () => {
@@ -3476,6 +3626,7 @@
                                 const onlineNames = [];
                                 Object.values(onlineUsers).flat().forEach(u => { if (u.name) onlineNames.push(u.name); });
                                 loadUserAvatars(onlineNames).then(() => renderOnlineUsers());
+                                if (privateChatActive) updatePrivateChatStatus();
                                 if (!presenceSynced) {
                                     presenceSynced = true;
                                     setTimeout(() => { presenceReady = true; }, 3000);
@@ -3673,7 +3824,7 @@
                     indicator = document.createElement('div');
                     indicator.id = 'publicLoadMoreIndicator';
                     indicator.className = 'load-more-indicator';
-                    indicator.innerHTML = '<div class="loading-spinner"></div><span>正在加载更多消息...</span>';
+                    indicator.innerHTML = '<div class="loading-spinner"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div><span>正在加载更多消息...</span>';
                     const container = document.getElementById('publicMessages');
                     container.insertBefore(indicator, container.firstChild);
                 }
@@ -3701,6 +3852,15 @@
                 is_system: msg.is_system || false
             };
             publicMessages.push(nm);
+            if (!userAvatarCache.hasOwnProperty(nm.sender) && !nm.is_system) {
+                loadUserAvatars([nm.sender]).then(() => {
+                    if (document.getElementById('publicPage').classList.contains('active')) {
+                        document.querySelectorAll(`[data-sender="${nm.sender}"]`).forEach(el => {
+                            applyAvatarToElement(el, nm.sender);
+                        });
+                    }
+                });
+            }
             if (document.getElementById('publicPage').classList.contains('active')) {
                 renderPublicMessage(nm);
                 if (!nm.is_system) {
@@ -4048,12 +4208,242 @@
             autoResize(input);
             cancelPublicReply();
             togglePublicSendBtn();
+            activeAgent = null;
             const container = document.getElementById('publicMessages');
             if (container) {
                 scrollToBottom(container);
                 updateScrollButton(container);
                 isUserScrolledUp = false;
             }
+            checkAgentMention(text);
+        }
+
+        async function checkAgentMention(messageText) {
+            if (!messageText) return;
+            const mentionMatch = messageText.match(/@([\w\u4e00-\u9fa5]+)/g);
+            if (!mentionMatch) return;
+            const mentionedNames = mentionMatch.map(m => m.substring(1));
+            try {
+                let agents = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    if (!rpcError && rpcData) {
+                        agents = Array.isArray(rpcData) ? rpcData : [];
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!agents) {
+                    const { data, error } = await sb.from(TABLE_AGENTS)
+                        .select('id, name, provider, model, created_by, created_at');
+                    if (error) return;
+                    agents = data || [];
+                }
+                for (const name of mentionedNames) {
+                    const agent = agents.find(a => a.name === name);
+                    if (agent) {
+                        await triggerAgentResponse(agent, messageText);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        async function triggerAgentResponse(agent, userMessage) {
+            try {
+                let agentDetail = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agent_detail', {
+                        p_agent_id: agent.id,
+                        p_username: currentUser
+                    });
+                    if (!rpcError && rpcData && rpcData.success) {
+                        agentDetail = rpcData.agent;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!agentDetail) {
+                    const { data, error } = await sb.from(TABLE_AGENTS)
+                        .select('*').eq('id', agent.id).single();
+                    if (error || !data) return;
+                    agentDetail = data;
+                }
+                if (!agentDetail || !agentDetail.api_key) return;
+
+                const cleanMsg = userMessage.replace(/@[\w\u4e00-\u9fa5]+/g, '').trim();
+                if (!cleanMsg) return;
+
+                showSnackbar(`智能体 ${agent.name} 正在思考...`);
+
+                const response = await callLLM(agentDetail, cleanMsg);
+                if (!response) {
+                    showSnackbar(`智能体 ${agent.name} 暂时无法回复`);
+                    return;
+                }
+
+                let replyToId = null;
+                let replyContent = null;
+                const lastMsg = publicMessages[publicMessages.length - 1];
+                if (lastMsg && lastMsg.sender === currentUser) {
+                    replyToId = lastMsg.id;
+                    replyContent = `回复 @${currentUser}：${cleanMsg}`;
+                }
+
+                let sent = false;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('send_agent_message', {
+                        p_agent_name: agent.name,
+                        p_content: response,
+                        p_reply_to_id: replyToId,
+                        p_reply_content: replyContent
+                    });
+                    if (!rpcError && rpcData && rpcData.success !== false) {
+                        sent = true;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!sent) {
+                    await ensureAgentUserAccount(agent.name);
+                    await sb.from(TABLE_PUBLIC_MSG).insert({
+                        sender: agent.name,
+                        text: response,
+                        msg_version: APP_VERSION,
+                        is_system: false,
+                        reply_to_id: replyToId,
+                        reply_content: replyContent
+                    });
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        async function ensureAgentUserAccount(agentName) {
+            try {
+                const { data } = await sb.from(TABLE_USERS)
+                    .select('username').eq('username', agentName).maybeSingle();
+                if (!data) {
+                    await sb.from(TABLE_USERS).insert({
+                        username: agentName,
+                        password_hash: 'agent_account_no_login',
+                        role: 'agent',
+                        banned: false
+                    });
+                }
+                if (!userAvatarCache.hasOwnProperty(agentName)) {
+                    userAvatarCache[agentName] = '';
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        async function callLLM(agent, userMessage) {
+            const providerConfigs = {
+                'openai': {
+                    url: 'https://api.openai.com/v1/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'gpt-3.5-turbo',
+                    format: 'openai'
+                },
+                'deepseek': {
+                    url: 'https://api.deepseek.com/v1/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'deepseek-chat',
+                    format: 'openai'
+                },
+                'anthropic': {
+                    url: 'https://api.anthropic.com/v1/messages',
+                    auth: agent.api_key,
+                    model: agent.model || 'claude-3-5-sonnet-20241022',
+                    format: 'anthropic'
+                },
+                'google': {
+                    url: `https://generativelanguage.googleapis.com/v1beta/models/${agent.model || 'gemini-1.5-flash'}:generateContent?key=${agent.api_key}`,
+                    auth: null,
+                    model: agent.model || 'gemini-1.5-flash',
+                    format: 'google'
+                },
+                'baidu': {
+                    url: 'https://qianfan.baidubce.com/v2/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'ernie-4.0-8k-latest',
+                    format: 'openai'
+                },
+                'ali': {
+                    url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'qwen-turbo',
+                    format: 'openai'
+                },
+                'bytedance': {
+                    url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'doubao-pro-4k',
+                    format: 'openai'
+                },
+                'zhipu': {
+                    url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'glm-4-flash',
+                    format: 'openai'
+                },
+                'custom': {
+                    url: 'https://api.openai.com/v1/chat/completions',
+                    auth: `Bearer ${agent.api_key}`,
+                    model: agent.model || 'gpt-3.5-turbo',
+                    format: 'openai'
+                }
+            };
+            const provider = providerConfigs[agent.provider] || providerConfigs['custom'];
+            const systemPrompt = 'You are a helpful AI assistant in a group chat. Respond concisely and naturally in the same language as the user message.';
+            try {
+                if (provider.format === 'anthropic') {
+                    const resp = await fetch(provider.url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': provider.auth,
+                            'anthropic-version': '2023-06-01'
+                        },
+                        body: JSON.stringify({
+                            model: provider.model,
+                            max_tokens: 500,
+                            system: systemPrompt,
+                            messages: [{ role: 'user', content: userMessage }]
+                        })
+                    });
+                    if (!resp.ok) return null;
+                    const data = await resp.json();
+                    return data.content && data.content[0] ? data.content[0].text : null;
+                } else if (provider.format === 'google') {
+                    const resp = await fetch(provider.url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            systemInstruction: { parts: [{ text: systemPrompt }] },
+                            contents: [{ parts: [{ text: userMessage }] }],
+                            generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+                        })
+                    });
+                    if (!resp.ok) return null;
+                    const data = await resp.json();
+                    return data.candidates && data.candidates[0] && data.candidates[0].content
+                        ? data.candidates[0].content.parts[0].text : null;
+                } else {
+                    const resp = await fetch(provider.url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': provider.auth
+                        },
+                        body: JSON.stringify({
+                            model: provider.model,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: userMessage }
+                            ],
+                            max_tokens: 500,
+                            temperature: 0.7
+                        })
+                    });
+                    if (!resp.ok) return null;
+                    const data = await resp.json();
+                    return data.choices && data.choices[0] && data.choices[0].message
+                        ? data.choices[0].message.content : null;
+                }
+            } catch (e) { return null; }
         }
 
         function updatePublicConn(on) {
@@ -4369,7 +4759,8 @@
                     notifyPrivateMsg(privateSessionId, currentUser);
                     loadPrivateSessions();
                 } catch (e) {
-                    showSnackbar('发送失败: ' + e.message);
+                    const msg = e.message || '';
+                    showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
                 }
             } else {
                 const { error } = await sb.from(TABLE_PUBLIC_MSG).insert({
@@ -5131,16 +5522,43 @@
         });
 
         async function safeInsertPrivateMsg(sessionId, sender, content) {
+            let rpcBlockedMsg = null;
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
                     p_session_id: sessionId,
                     p_sender: sender,
                     p_content: content
                 });
-                if (!rpcError && rpcData && rpcData.success !== false && rpcData.message) {
+                if (!rpcError && rpcData && rpcData.success === false) {
+                    // RPC rejected the message (e.g. blacklist/privacy block).
+                    // Capture the message so it propagates to callers instead of
+                    // falling through to the direct DB insert (which would bypass the block).
+                    rpcBlockedMsg = rpcData.message || '发送失败';
+                } else if (!rpcError && rpcData && rpcData.success !== false && rpcData.message) {
                     return rpcData.message;
                 }
-            } catch (e) { /* RPC not found */ }
+            } catch (e) { /* RPC not found, fall through to direct insert */ }
+            if (rpcBlockedMsg) {
+                throw new Error(rpcBlockedMsg);
+            }
+            // Fallback: RPC not available, check blacklist bidirectionally
+            // (same logic as send_private_message RPC) before direct insert.
+            if (privateOtherUser) {
+                try {
+                    const [recvCheck, sendCheck] = await Promise.all([
+                        sb.rpc('check_blocked', { p_blocker: privateOtherUser, p_target: sender }),
+                        sb.rpc('check_blocked', { p_blocker: sender, p_target: privateOtherUser })
+                    ]);
+                    const receiverBlockedMe = !recvCheck.error && recvCheck.data === true;
+                    const iBlockedReceiver = !sendCheck.error && sendCheck.data === true;
+                    if (receiverBlockedMe || iBlockedReceiver) {
+                        throw new Error('对方开启了隐私设置，拒收了你的消息');
+                    }
+                } catch (blkErr) {
+                    if (blkErr.message && blkErr.message.includes('隐私')) throw blkErr;
+                    /* check_blocked RPC unavailable, proceed with insert */
+                }
+            }
             const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert({
                 session_id: sessionId, sender: sender, content: content
             }).select('*');
@@ -5256,13 +5674,23 @@
             } catch (e) { showSnackbar('创建私聊失败'); return null; }
         }
 
+        async function updatePrivateChatStatus() {
+            if (!privateOtherUser || !privateChatActive) return;
+            const statusEl = document.getElementById('privateChatStatus');
+            if (!statusEl) return;
+            const status = await resolveUserStatus(privateOtherUser);
+            const textMap = { online: '在线', banned: '已封禁', deleted: '已注销', offline: '离线' };
+            statusEl.textContent = textMap[status] || '离线';
+            statusEl.className = 'private-status';
+        }
+
         async function openPrivateChat(sessionId, otherUser) {
             privateSessionId = sessionId;
             privateOtherUser = otherUser;
             privateChatActive = true;
             privateHasMore = true;
             privateLoadingMore = false;
-            document.getElementById('privateChatTitle').textContent = `私聊 ${otherUser}`;
+            document.getElementById('privateChatTitle').textContent = otherUser;
             document.getElementById('privacyBanner').classList.remove('hidden-banner');
             switchPage('privatePage', true);
             pushPageHistory('private');
@@ -5275,6 +5703,9 @@
             }
             subscribePrivateChannel(sessionId);
             checkPrivacyBanner();
+            updatePrivateChatStatus();
+            if (privateStatusInterval) clearInterval(privateStatusInterval);
+            privateStatusInterval = setInterval(updatePrivateChatStatus, 10000);
             const privateMessagesEl = document.getElementById('privateMessages');
             setupScrollHandlers(privateMessagesEl);
             setTimeout(() => {
@@ -5442,7 +5873,7 @@
                     indicator = document.createElement('div');
                     indicator.id = 'privateLoadMoreIndicator';
                     indicator.className = 'load-more-indicator';
-                    indicator.innerHTML = '<div class="loading-spinner"></div><span>正在加载更多消息...</span>';
+                    indicator.innerHTML = '<div class="loading-spinner"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div><span>正在加载更多消息...</span>';
                     const container = document.getElementById('privateMessages');
                     container.insertBefore(indicator, container.firstChild);
                 }
@@ -5466,12 +5897,29 @@
             }
             const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
             const ci = hashStr(msg.sender) % 8;
-            let contentHtml = cleanHtml(msg.content);
 
-            const linkMatch = msg.content.match(/🔗 (.*?) → (.*)/);
-            const fileMatch = msg.content.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
-            const imgMatch = msg.content.match(/!\[.*?\]\((.*?)\)/);
-            const voiceMatch = msg.content.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
+            let replyHtml = '';
+            let actualContent = msg.content || '';
+            let replyToId = '';
+            let replyContentStr = '';
+            const rplMatch = msg.content && msg.content.match(/^__RPL__(.*?)__ENDRPL__/);
+            if (rplMatch) {
+                try {
+                    const rpl = JSON.parse(rplMatch[1]);
+                    replyToId = rpl.i || '';
+                    replyContentStr = rpl.c || '';
+                    actualContent = msg.content.substring(rplMatch[0].length);
+                    const senderDisplay = rpl.s || '';
+                    replyHtml = `<div class="reply-preview-block" onclick="jumpToMessage('${escapeAttr(replyToId)}', 'private')">↩ <span class="reply-sender">${escapeHtml(senderDisplay)}</span><br><span class="reply-content">${escapeHtml(replyContentStr)}</span></div>`;
+                } catch (e) { actualContent = msg.content; }
+            }
+
+            let contentHtml = cleanHtml(actualContent);
+
+            const linkMatch = actualContent.match(/🔗 (.*?) → (.*)/);
+            const fileMatch = actualContent.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
+            const imgMatch = actualContent.match(/!\[.*?\]\((.*?)\)/);
+            const voiceMatch = actualContent.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
 
             if (voiceMatch) {
                 const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
@@ -5489,8 +5937,8 @@
                 }
             } else if (imgMatch) {
                 contentHtml =
-                    `<img src="${escapeAttr(imgMatch[1])}" onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片" style="max-width:180px;max-height:180px;border-radius:8px;display:block;" oncontextmenu="return false;">`;
-                const extraText = msg.content.replace(/!\[.*?\]\(.*?\)/, '').trim();
+                    `<img src="${escapeAttr(imgMatch[1])}" onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片" style="max-width:180px;max-height:180px;border-radius:2px;display:block;" oncontextmenu="return false;">`;
+                const extraText = actualContent.replace(/!\[.*?\]\(.*?\)/, '').trim();
                 if (extraText) {
                     contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
                 }
@@ -5502,7 +5950,7 @@
                 contentHtml =
                     `<a href="${escapeAttr(fileMatch[3])}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></a>`;
             } else {
-                contentHtml = cleanHtml(msg.content);
+                contentHtml = cleanHtml(actualContent);
                 contentHtml = contentHtml.replace(/@([\w\u4e00-\u9fa5]+)/g, '<b>@$1</b>');
             }
 
@@ -5510,7 +5958,11 @@
             row.className = `msg-row ${isOwn ? 'own' : ''}`;
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
-            row.dataset.msgText = msg.content || '';
+            row.dataset.msgText = actualContent || '';
+            if (replyToId) {
+                row.dataset.replyToId = replyToId;
+                row.dataset.replyContent = replyContentStr;
+            }
             if (voiceMatch) row.dataset.msgType = 'voice';
             else if (imgMatch) row.dataset.msgType = 'image';
             else if (linkMatch) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
@@ -5520,7 +5972,7 @@
                 <div class="avatar av-${ci}" data-username="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="sender">${isOwn ? '我' : escapeHtml(msg.sender)}</span><span class="time">${time}</span></div>
-                    <div class="bubble">${contentHtml}</div>
+                    <div class="bubble">${replyHtml}${contentHtml}</div>
                 </div>
             `;
             if (userAvatarCache[msg.sender]) {
@@ -5584,7 +6036,9 @@
         }
 
         function togglePrivateSendBtn() {
-            document.getElementById('privateSendBtn').disabled = !document.getElementById('privateMsgInput').value.trim();
+            const hasText = document.getElementById('privateMsgInput').value.trim();
+            const hasReply = !!privateReplyTarget;
+            document.getElementById('privateSendBtn').disabled = !hasText && !hasReply;
         }
 
         function handlePrivateKeyDown(e) {
@@ -5598,10 +6052,21 @@
             if (!privateSessionId || !privateChatActive) return;
             const input = document.getElementById('privateMsgInput');
             let text = input.value.trim();
-            if (!text) return;
-            text = cleanHtml(text);
-            if (!text) { showSnackbar('消息包含不安全内容'); return; }
+            if (!text && !privateReplyTarget) return;
+            text = cleanHtml(text || '');
+            if (!text && !privateReplyTarget) { showSnackbar('消息包含不安全内容'); return; }
             document.getElementById('privateSendBtn').disabled = true;
+
+            let replyPrefix = '';
+            if (privateReplyTarget) {
+                const replyData = JSON.stringify({
+                    i: privateReplyTarget.id,
+                    s: privateReplyTarget.sender,
+                    c: privateReplyTarget.content
+                });
+                replyPrefix = `__RPL__${replyData}__ENDRPL__`;
+            }
+            const fullContent = replyPrefix + text;
 
             const hasReply = privateMessages.some(m => m.sender !== currentUser);
             if (!hasReply) {
@@ -5616,26 +6081,52 @@
             const payload = {
                 session_id: privateSessionId,
                 sender: currentUser,
-                content: text
+                content: fullContent
             };
             let newMsg = null;
             let sendError = null;
+            let blockedMsg = null;
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
                     p_session_id: privateSessionId,
                     p_sender: currentUser,
-                    p_content: text
+                    p_content: fullContent
                 });
                 if (!rpcError && rpcData && rpcData.success !== false && rpcData.message) {
                     newMsg = rpcData.message;
+                } else if (rpcData && rpcData.success === false) {
+                    blockedMsg = rpcData.message || '发送失败';
                 } else if (rpcError) {
                     sendError = rpcError;
-                } else if (rpcData && rpcData.success === false) {
-                    sendError = new Error(rpcData.message || '发送失败');
                 }
             } catch (e) { sendError = e; }
 
+            if (blockedMsg) {
+                showSnackbar(blockedMsg);
+                document.getElementById('privateSendBtn').disabled = false;
+                return;
+            }
+
             if (!newMsg && sendError) {
+                // Fallback path: RPC failed, so enforce blacklist check in BOTH directions
+                // (matches send_private_message RPC behavior) before inserting directly.
+                let isBlacklisted = false;
+                try {
+                    const [recvCheck, sendCheck] = await Promise.all([
+                        sb.rpc('check_blocked', { p_blocker: privateOtherUser, p_target: currentUser }),
+                        sb.rpc('check_blocked', { p_blocker: currentUser, p_target: privateOtherUser })
+                    ]);
+                    const receiverBlockedMe = !recvCheck.error && recvCheck.data === true;
+                    const iBlockedReceiver = !sendCheck.error && sendCheck.data === true;
+                    if (receiverBlockedMe || iBlockedReceiver) {
+                        isBlacklisted = true;
+                    }
+                } catch (e) { /* check_blocked RPC unavailable, proceed with insert */ }
+                if (isBlacklisted) {
+                    showSnackbar('对方开启了隐私设置，拒收了你的消息');
+                    document.getElementById('privateSendBtn').disabled = false;
+                    return;
+                }
                 const { data, error } = await sb.from(TABLE_PRIVATE_MSGS).insert(payload).select('*');
                 if (error) {
                     showSnackbar('发送失败: ' + error.message);
@@ -5646,7 +6137,7 @@
                 if (newMsg.created_at) {
                     await sb.from(TABLE_PRIVATE_SESSIONS).update({
                         updated_at: newMsg.created_at,
-                        last_message: text
+                        last_message: fullContent
                     }).eq('id', privateSessionId);
                 }
             }
@@ -5670,6 +6161,7 @@
             }
             input.value = '';
             autoResize(input);
+            cancelPrivateReply();
             togglePrivateSendBtn();
             checkPrivacyBanner();
             notifyPrivateMsg(privateSessionId, currentUser);
@@ -5682,24 +6174,44 @@
 
         async function deletePrivateChat() {
             if (!privateSessionId || !privateChatActive) return;
-            if (!confirm(`确定要删除与 ${privateOtherUser} 的私聊吗？`)) return;
+            if (!confirm(`确定要删除与 ${privateOtherUser} 的聊天吗？\n删除后双方的所有聊天记录将被彻底清除。`)) return;
+            const sessionIdToDelete = privateSessionId;
+            const otherUserToDelete = privateOtherUser;
             try {
-                const session = window.privateSessions.find(s => s.id === privateSessionId);
-                if (session) {
-                    const updates = {};
-                    if (session.user1 === currentUser) updates.deleted_by_user1 = true;
-                    if (session.user2 === currentUser) updates.deleted_by_user2 = true;
-                    await sb.from(TABLE_PRIVATE_SESSIONS).update(updates).eq('id', privateSessionId);
+                let deleted = false;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('delete_private_session', {
+                        p_session_id: sessionIdToDelete,
+                        p_username: currentUser
+                    });
+                    if (!rpcError && rpcData && rpcData.success) {
+                        deleted = true;
+                    } else if (rpcData && rpcData.success === false) {
+                        showSnackbar(rpcData.message || '删除失败');
+                        return;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!deleted) {
+                    const { error: msgError } = await sb.from(TABLE_PRIVATE_MSGS)
+                        .delete().eq('session_id', sessionIdToDelete);
+                    const { error: sessError } = await sb.from(TABLE_PRIVATE_SESSIONS)
+                        .delete().eq('id', sessionIdToDelete);
+                    if (sessError) {
+                        showSnackbar('删除失败: ' + sessError.message);
+                        return;
+                    }
                 }
-                const { data: s } = await sb.from(TABLE_PRIVATE_SESSIONS).select('deleted_by_user1, deleted_by_user2')
-                    .eq('id', privateSessionId).single();
-                if (s && s.deleted_by_user1 && s.deleted_by_user2) {
-                    await sb.from(TABLE_PRIVATE_SESSIONS).delete().eq('id', privateSessionId);
-                    await sb.from(TABLE_PRIVATE_MSGS).delete().eq('session_id', privateSessionId);
+                if (publicChannel) {
+                    publicChannel.send({
+                        type: 'broadcast',
+                        event: 'session_deleted',
+                        payload: { session_id: sessionIdToDelete, deleted_by: currentUser, target: otherUserToDelete }
+                    });
                 }
+                window.privateSessions = (window.privateSessions || []).filter(s => s.id !== sessionIdToDelete);
                 showSnackbar('已删除聊天');
                 leavePrivateChat();
-            } catch (e) { showSnackbar('删除失败'); }
+            } catch (e) { showSnackbar('删除失败: ' + (e.message || '')); }
         }
 
         async function startPrivateChatFromProfile() {
@@ -5809,7 +6321,8 @@
                 notifyPrivateMsg(privateSessionId, currentUser);
                 loadPrivateSessions();
             } catch (ie) {
-                showSnackbar('发送失败: ' + ie.message);
+                const msg = ie.message || '';
+                showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
             }
         }
 
@@ -5854,7 +6367,7 @@
                     }
                     notifyPrivateMsg(privateSessionId, currentUser);
                     loadPrivateSessions();
-                } catch (ie) { showSnackbar('发送失败: ' + ie.message); }
+                } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
             } catch (e) { showSnackbar('上传失败'); }
         }
 
@@ -6019,7 +6532,7 @@
                     }
                     notifyPrivateMsg(privateSessionId, currentUser);
                     loadPrivateSessions();
-                } catch (ie) { showSnackbar('发送失败: ' + ie.message); }
+                } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
             } catch (e) { showSnackbar('上传失败'); }
         }
 
@@ -6378,7 +6891,7 @@
                                     <span>${isBanned}</span>
                                 </div>
                             </div>
-                            <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;background:var(--md-primary);color:var(--md-on-primary);border-radius:12px;" onclick="simulateLogin('${escapeAttr(u.username)}')">登录</button>
+                            <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;background:var(--md-primary);color:var(--md-on-primary);border-radius:4px;" onclick="simulateLogin('${escapeAttr(u.username)}')">登录</button>
                         </div>
                     `;
                 });
@@ -6556,7 +7069,7 @@
                                 <div style="font-weight:500;font-size:0.875rem;">${escapeHtml(uname)} ${isBanned ? '🚫' : ''} ${isDeleted ? '💀' : ''}</div>
                                 <div style="font-size:0.7rem;color:var(--md-on-surface-dim);">${escapeHtml(time)} · ${escapeHtml(ip)}</div>
                             </div>
-                            <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;${disabled ? 'background:var(--md-surface-6dp);color:var(--md-on-surface-dim);cursor:not-allowed;' : 'background:var(--md-primary);color:var(--md-on-primary);border-radius:12px;'}" onclick="${disabled ? '' : `simulateLogin('${escapeAttr(uname)}')`}" ${disabled ? 'disabled' : ''}>${disabled ? '不可用' : '登录'}</button>
+                            <button class="md-button text" style="padding:2px 12px;height:28px;font-size:0.7rem;text-transform:none;${disabled ? 'background:var(--md-surface-6dp);color:var(--md-on-surface-dim);cursor:not-allowed;' : 'background:var(--md-primary);color:var(--md-on-primary);border-radius:4px;'}" onclick="${disabled ? '' : `simulateLogin('${escapeAttr(uname)}')`}" ${disabled ? 'disabled' : ''}>${disabled ? '不可用' : '登录'}</button>
                         </div>
                     `;
                 });
@@ -6632,39 +7145,108 @@
 
         async function loadAgentList() {
             const container = document.getElementById('agentListContainer');
+            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载中...</p>';
             try {
-                const { data, error } = await sb.from(TABLE_AGENTS)
-                    .select('id, name, provider, model, created_by, created_at')
-                    .order('created_at', { ascending: true });
-                if (error) {
-                    container.innerHTML = '<p>加载失败</p>';
-                    return;
+                let agents = null;
+                let lastError = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    if (rpcError) {
+                        lastError = rpcError.message || 'RPC error';
+                    } else if (rpcData === null || rpcData === undefined) {
+                        agents = [];
+                    } else {
+                        let parsed = rpcData;
+                        if (typeof parsed === 'string') {
+                            try { parsed = JSON.parse(parsed); } catch (e) { parsed = []; }
+                        }
+                        if (parsed === null) {
+                            agents = [];
+                        } else {
+                            agents = Array.isArray(parsed) ? parsed : [];
+                        }
+                    }
+                } catch (e) { lastError = e.message || 'RPC exception'; }
+                if (!agents) {
+                    try {
+                        const { data, error } = await sb.from(TABLE_AGENTS)
+                            .select('id, name, provider, model, created_by, created_at')
+                            .order('created_at', { ascending: true });
+                        if (error) {
+                            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
+                            return;
+                        }
+                        agents = data || [];
+                    } catch (e2) {
+                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
+                        return;
+                    }
                 }
-                if (!data || data.length === 0) {
+                if (!agents || agents.length === 0) {
                     container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无智能体</p>';
                     return;
                 }
-                container.innerHTML = data.map(agent => {
+                const providerLabels = {
+                    'openai': 'OpenAI', 'google': 'Google', 'anthropic': 'Anthropic',
+                    'baidu': '百度', 'ali': '阿里', 'bytedance': '字节', 'zhipu': '智谱',
+                    'deepseek': 'DeepSeek', 'custom': '自定义'
+                };
+                const agentNames = agents.map(a => a.name);
+                await loadUserAvatars(agentNames);
+                container.innerHTML = agents.map(agent => {
                     const canDelete = (agent.created_by === currentUser) || isAdmin;
-                    return `<div class="agent-item">
+                    const providerText = providerLabels[agent.provider] || agent.provider;
+                    const modelText = agent.model ? ` · ${escapeHtml(agent.model)}` : '';
+                    const isActive = activeAgent && activeAgent.id === agent.id;
+                    const avatarIdx = hashStr(agent.name) % 8;
+                    let avatarStyle = '';
+                    if (userAvatarCache[agent.name]) {
+                        avatarStyle = `background-image:url(${userAvatarCache[agent.name]});`;
+                    }
+                    return `<div class="agent-item" style="${isActive ? 'border-color:var(--md-primary);background:rgba(var(--md-primary-rgb, 98,0,238),0.05);' : ''}">
+                                <div class="avatar av-${avatarIdx}" style="${avatarStyle}">${userAvatarCache[agent.name] ? '' : escapeHtml(agent.name.charAt(0).toUpperCase())}</div>
                                 <div class="info">
-                                    <div class="name">${escapeHtml(agent.name)}</div>
-                                    <div class="provider">${escapeHtml(agent.provider)}</div>
+                                    <div class="name">${escapeHtml(agent.name)}${isActive ? ' <span style="color:var(--md-primary);font-size:0.7rem;">使用中</span>' : ''}</div>
+                                    <div class="provider">${escapeHtml(providerText)}${modelText}</div>
                                     <div class="creator">添加者：${escapeHtml(agent.created_by)}</div>
                                 </div>
-                                ${canDelete ? `<button class="delete-btn" onclick="deleteAgent('${agent.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>` : ''}
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <button class="use-agent-btn" onclick="useAgent('${agent.id}')" style="background:${isActive ? 'var(--md-primary)' : 'transparent'};color:${isActive ? '#fff' : 'var(--md-primary)'};border:1px solid var(--md-primary);border-radius:0;padding:6px 16px;font-size:0.75rem;font-weight:500;cursor:pointer;">${isActive ? '取消' : '使用'}</button>
+                                    ${canDelete ? `<button class="delete-btn" onclick="deleteAgent('${agent.id}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>` : ''}
+                                </div>
                             </div>`;
                 }).join('');
             } catch (e) {
-                container.innerHTML = '<p>加载失败</p>';
+                container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：请先执行SQL更新脚本</p>';
             }
         }
 
         async function deleteAgent(agentId) {
-            if (!confirm('确定要删除此智能体吗？')) return;
+            if (!confirm('确定要删除此智能体吗？\n智能体的用户账号也将被删除。')) return;
             try {
-                const { error } = await sb.from(TABLE_AGENTS).delete().eq('id', agentId);
-                if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                let deleted = false;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('delete_agent_rpc', {
+                        p_agent_id: agentId,
+                        p_username: currentUser
+                    });
+                    if (!rpcError && rpcData && rpcData.success) { deleted = true; }
+                    else if (rpcData && rpcData.success === false) {
+                        showSnackbar(rpcData.message || '删除失败'); return;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!deleted) {
+                    let agentName = '';
+                    try {
+                        const { data: agData } = await sb.from(TABLE_AGENTS).select('name').eq('id', agentId).single();
+                        if (agData) agentName = agData.name;
+                    } catch (e) {}
+                    if (agentName) {
+                        try { await sb.from(TABLE_USERS).delete().eq('username', agentName).eq('role', 'agent'); } catch (e) {}
+                    }
+                    const { error } = await sb.from(TABLE_AGENTS).delete().eq('id', agentId);
+                    if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                }
                 showSnackbar('智能体已删除');
                 loadAgentList();
             } catch (e) { showSnackbar('删除失败'); }
@@ -6674,7 +7256,25 @@
             document.getElementById('addAgentDialog').classList.remove('hidden');
             document.getElementById('agentName').value = '';
             document.getElementById('agentApiKey').value = '';
+            document.getElementById('agentProvider').value = 'openai';
             document.getElementById('agentModel').value = 'gpt-3.5-turbo';
+        }
+
+        function updateAgentModelDefault() {
+            const provider = document.getElementById('agentProvider').value;
+            const modelInput = document.getElementById('agentModel');
+            const defaults = {
+                'openai': 'gpt-3.5-turbo',
+                'google': 'gemini-1.5-flash',
+                'anthropic': 'claude-3-5-sonnet-20241022',
+                'baidu': 'ernie-4.0-8k-latest',
+                'ali': 'qwen-turbo',
+                'bytedance': 'doubao-pro-4k',
+                'zhipu': 'glm-4-flash',
+                'deepseek': 'deepseek-chat',
+                'custom': 'gpt-3.5-turbo'
+            };
+            modelInput.value = defaults[provider] || 'gpt-3.5-turbo';
         }
 
         function closeAddAgentDialog() {
@@ -6689,16 +7289,33 @@
             if (!name) { showSnackbar('请输入智能体名称'); return; }
             if (!apiKey) { showSnackbar('请输入 API Key'); return; }
             try {
-                const { error } = await sb.from(TABLE_AGENTS).insert({
-                    name: name,
-                    provider: provider,
-                    api_key: apiKey,
-                    model: model,
-                    created_by: currentUser
-                });
-                if (error) {
-                    showSnackbar('保存失败: ' + error.message);
-                    return;
+                let saved = false;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('save_agent', {
+                        p_name: name,
+                        p_provider: provider,
+                        p_api_key: apiKey,
+                        p_model: model,
+                        p_created_by: currentUser
+                    });
+                    if (!rpcError && rpcData && rpcData.success) { saved = true; }
+                    else if (rpcData && rpcData.success === false) {
+                        showSnackbar(rpcData.message || '保存失败'); return;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!saved) {
+                    await ensureAgentUserAccount(name);
+                    const { error } = await sb.from(TABLE_AGENTS).insert({
+                        name: name,
+                        provider: provider,
+                        api_key: apiKey,
+                        model: model,
+                        created_by: currentUser
+                    });
+                    if (error) {
+                        showSnackbar('保存失败: ' + error.message);
+                        return;
+                    }
                 }
                 showSnackbar('智能体已添加');
                 closeAddAgentDialog();
@@ -6707,6 +7324,50 @@
             } catch (e) {
                 showSnackbar('保存失败');
             }
+        }
+
+        let activeAgent = null;
+
+        async function useAgent(agentId) {
+            closeAgentList();
+            const input = document.getElementById('publicMsgInput');
+            if (!input) return;
+            if (activeAgent && activeAgent.id === agentId) {
+                activeAgent = null;
+                input.value = input.value.replace(/@[\w\u4e00-\u9fa5]+\s?/, '').trim();
+                autoResize(input);
+                togglePublicSendBtn();
+                showSnackbar('已取消智能体');
+                return;
+            }
+            const agentName = await getAgentName(agentId);
+            activeAgent = { id: agentId, name: agentName };
+            input.value = `@${agentName} `;
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+            autoResize(input);
+            togglePublicSendBtn();
+            showSnackbar(`已选择 ${agentName}，输入消息后发送`);
+        }
+
+        async function getAgentName(agentId) {
+            try {
+                let agentName = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    if (!rpcError && rpcData) {
+                        const agents = Array.isArray(rpcData) ? rpcData : [];
+                        const agent = agents.find(a => a.id === agentId);
+                        if (agent) agentName = agent.name;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!agentName) {
+                    const { data, error } = await sb.from(TABLE_AGENTS)
+                        .select('name').eq('id', agentId).single();
+                    if (!error && data) agentName = data.name;
+                }
+                return agentName || '智能体';
+            } catch (e) { return '智能体'; }
         }
 
         function showAvatarMenu() {
@@ -6977,13 +7638,31 @@
             const password = prompt('请输入您的密码以确认注销账号：');
             if (!password) return;
             const passwordHash = await hashPassword(password);
+            // Classify RPC errors into user-friendly messages.
+            const classifyDeleteError = (rawMsg) => {
+                const msg = (rawMsg || '') + '';
+                // RPC does not exist (e.g. "Could not find the function ... in the schema cache")
+                if (msg.includes('Could not find') || msg.includes('schema cache') || msg.includes('delete_my_account')) {
+                    return '注销功能暂不可用，请联系管理员';
+                }
+                // Password / identity verification failure
+                if (msg.toLowerCase().includes('password') || msg.includes('身份') || msg.includes('验证')) {
+                    return '密码错误，请重试';
+                }
+                // Fallback: show the actual error message
+                return '注销失败: ' + msg;
+            };
             try {
-                const { error } = await sb.rpc('delete_my_account', {
+                const { data, error } = await sb.rpc('delete_my_account', {
                     p_username: currentUser,
                     p_password_hash: passwordHash
                 });
                 if (error) {
-                    showSnackbar('注销失败: ' + error.message);
+                    showSnackbar(classifyDeleteError(error.message));
+                    return;
+                }
+                if (data && data.success === false) {
+                    showSnackbar(data.message || '密码错误，请重试');
                     return;
                 }
                 if (publicChannel) {
@@ -6996,7 +7675,7 @@
                     location.reload();
                 }, 500);
             } catch (e) {
-                showSnackbar('注销失败，请重试');
+                showSnackbar(classifyDeleteError(e && e.message));
             }
         }
 
@@ -7040,14 +7719,14 @@
                         targetPage.classList.remove('slide-in');
                         currentPage.classList.remove('active');
                         isNavigating = false;
-                    }, 360);
+                    }, 510);
                 } else {
                     targetPage.classList.add('active');
                     currentPage.classList.add('slide-out');
                     setTimeout(() => {
                         currentPage.classList.remove('active', 'slide-out');
                         isNavigating = false;
-                    }, 310);
+                    }, 460);
                 }
             } else {
                 pages.forEach(p => p.classList.remove('active'));
@@ -7113,6 +7792,7 @@
 
         function leavePrivateChatAnimated() {
             privateChatActive = false;
+            if (privateStatusInterval) { clearInterval(privateStatusInterval); privateStatusInterval = null; }
             if (privateChannel) {
                 sb.removeChannel(privateChannel);
                 privateChannel = null;
@@ -7121,6 +7801,8 @@
             privateOtherUser = '';
             privateMessages = [];
             document.getElementById('privateMessages').innerHTML = '<div class="system-msg"><span>加载中...</span></div>';
+            const statusEl = document.getElementById('privateChatStatus');
+            if (statusEl) { statusEl.textContent = ''; statusEl.className = 'private-status'; }
             switchPage('homePage', false);
             if (pageHistory.length > 1) {
                 popPageHistory();
@@ -7128,6 +7810,62 @@
             loadPrivateSessions();
             updateBackBadge();
             updatePublicBadge();
+        }
+
+        // Resolve a user's status for display. Returns one of:
+        // 'online' | 'banned' | 'deleted' | 'offline'.
+        // Uses the SECURITY DEFINER `get_user_profile` RPC first (bypasses RLS) so
+        // that RLS-restricted queries are not misread as "account deleted". Only
+        // concludes 'deleted' when we are certain the user no longer exists.
+        async function resolveUserStatus(username) {
+            if (!username) return 'offline';
+            const onlineNames = Object.values(onlineUsers).flat().map(p => p.name).filter(Boolean);
+            if (onlineNames.includes(username)) return 'online';
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                if (!rpcError && rpcData) {
+                    if (rpcData.success === false) return 'deleted';
+                    return rpcData.banned ? 'banned' : 'offline';
+                }
+            } catch (e) { /* RPC unavailable -> fall back to direct query */ }
+            try {
+                const { data, error } = await sb.from(TABLE_USERS).select('banned').eq('username', username).maybeSingle();
+                if (!error && data) return data.banned ? 'banned' : 'offline';
+                if (!error && !data) return 'deleted';
+            } catch (e) { /* ignore */ }
+            return 'offline';
+        }
+
+        // Apply a status to an avatar's status dot, and grey-out the avatar when
+        // the user is banned or deleted.
+        function setAvatarStatusDot(dotEl, avatarEl, status) {
+            if (!dotEl) return;
+            dotEl.className = 'avatar-status-dot' + (status ? ' ' + status : '');
+            if (avatarEl) {
+                if (status === 'banned' || status === 'deleted') {
+                    avatarEl.style.filter = 'grayscale(1)';
+                } else {
+                    avatarEl.style.filter = '';
+                }
+            }
+        }
+
+        // The current (logged-in) user is always online. Determine whether they
+        // are banned and reflect that on the given dot/avatar. Resolves to the
+        // final status ('online' or 'banned').
+        async function applyCurrentUserStatus(dotEl, avatarEl) {
+            setAvatarStatusDot(dotEl, avatarEl, 'online');
+            try {
+                const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                if (rpcData && rpcData.success !== false && rpcData.banned) {
+                    setAvatarStatusDot(dotEl, avatarEl, 'banned');
+                    return;
+                }
+            } catch (e) { /* RPC not found */ }
+            try {
+                const { data } = await sb.from(TABLE_USERS).select('banned').eq('username', currentUser).maybeSingle();
+                if (data && data.banned) setAvatarStatusDot(dotEl, avatarEl, 'banned');
+            } catch (e) { /* ignore */ }
         }
 
         function toggleHomeMenu() {
@@ -7148,6 +7886,7 @@
         function updateHomeMenu() {
             const avatar = document.getElementById('homeMenuAvatar');
             const name = document.getElementById('homeMenuName');
+            const dot = document.getElementById('homeAvatarDot');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'user-avatar av-' + idx;
             if (currentAvatarUrl) {
@@ -7158,6 +7897,8 @@
                 avatar.textContent = currentUser.charAt(0).toUpperCase();
             }
             name.textContent = currentUser;
+            // Current user is always online (they are logged in); green dot unless banned.
+            applyCurrentUserStatus(dot, avatar);
             const adminItem = document.getElementById('homeAdminItem');
             if (isAdmin) {
                 adminItem.style.display = 'flex';
@@ -7184,6 +7925,7 @@
         function updatePublicMenu() {
             const avatar = document.getElementById('publicMenuAvatar');
             const name = document.getElementById('publicMenuName');
+            const dot = document.getElementById('publicAvatarDot');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'user-avatar av-' + idx;
             if (currentAvatarUrl) {
@@ -7194,12 +7936,124 @@
                 avatar.textContent = currentUser.charAt(0).toUpperCase();
             }
             name.textContent = currentUser;
+            // Current user is always online (they are logged in); green dot unless banned.
+            applyCurrentUserStatus(dot, avatar);
             const adminItem = document.getElementById('publicAdminItem');
             if (isAdmin) {
                 adminItem.style.display = 'flex';
             } else {
                 adminItem.style.display = 'none';
             }
+        }
+
+        let privateBlockedStatus = false;
+
+        function togglePrivateMenu() {
+            const overlay = document.getElementById('privateMenuOverlay');
+            if (overlay.classList.contains('show')) {
+                closePrivateMenu();
+            } else {
+                overlay.classList.add('show');
+                updatePrivateMenu();
+            }
+        }
+
+        function closePrivateMenu(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('privateMenuOverlay').classList.remove('show');
+        }
+
+        async function updatePrivateMenu() {
+            const avatar = document.getElementById('privateMenuAvatar');
+            const name = document.getElementById('privateMenuName');
+            const dot = document.getElementById('privateAvatarDot');
+            const idx = hashStr(privateOtherUser) % 8;
+            avatar.className = 'user-avatar av-' + idx;
+            if (userAvatarCache[privateOtherUser]) {
+                avatar.style.backgroundImage = `url(${userAvatarCache[privateOtherUser]})`;
+                avatar.textContent = '';
+            } else {
+                avatar.style.backgroundImage = '';
+                avatar.textContent = privateOtherUser.charAt(0).toUpperCase();
+            }
+            name.textContent = privateOtherUser;
+            const labelEl = document.getElementById('privateBlockLabel');
+            // Reflect the other user's status on the avatar dot (green=online,
+            // grey=banned/deleted, none=offline). Reuses the same logic as the
+            // private chat status text.
+            resolveUserStatus(privateOtherUser).then(status => setAvatarStatusDot(dot, avatar, status));
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('check_blocked', {
+                    p_blocker: currentUser,
+                    p_target: privateOtherUser
+                });
+                if (!rpcError) {
+                    privateBlockedStatus = rpcData === true;
+                } else { privateBlockedStatus = false; }
+            } catch (e) { privateBlockedStatus = false; }
+            labelEl.textContent = privateBlockedStatus ? '移出黑名单' : '加入黑名单';
+        }
+
+        async function toggleBlockUser() {
+            if (!privateOtherUser) return;
+            const newBlockState = !privateBlockedStatus;
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('toggle_block_user', {
+                    p_blocker: currentUser,
+                    p_blocked: privateOtherUser,
+                    p_block: newBlockState
+                });
+                if (rpcError) { showSnackbar('操作失败: ' + rpcError.message); return; }
+                if (rpcData && rpcData.success === false) {
+                    showSnackbar(rpcData.message || '操作失败'); return;
+                }
+                privateBlockedStatus = newBlockState;
+                showSnackbar(newBlockState ? '已加入黑名单' : '已移出黑名单');
+            } catch (e) { showSnackbar('操作失败'); }
+        }
+
+        function showBlocklistModal() {
+            document.getElementById('blocklistModal').classList.remove('hidden');
+            loadBlocklist();
+        }
+
+        function closeBlocklistModal() {
+            document.getElementById('blocklistModal').classList.add('hidden');
+        }
+
+        async function loadBlocklist() {
+            const container = document.getElementById('blocklistContainer');
+            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载中...</p>';
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('get_blocked_users', {
+                    p_username: currentUser
+                });
+                if (rpcError) { container.innerHTML = '<p>加载失败</p>'; return; }
+                const blocked = rpcData || [];
+                if (blocked.length === 0) {
+                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">黑名单为空</p>';
+                    return;
+                }
+                container.innerHTML = blocked.map(u =>
+                    `<div class="block-item">
+                        <span class="name">${escapeHtml(u.blocked)}</span>
+                        <button class="unblock-btn" onclick="unblockUser('${escapeAttr(u.blocked)}')">移除</button>
+                    </div>`
+                ).join('');
+            } catch (e) { container.innerHTML = '<p>加载失败</p>'; }
+        }
+
+        async function unblockUser(username) {
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('toggle_block_user', {
+                    p_blocker: currentUser,
+                    p_blocked: username,
+                    p_block: false
+                });
+                if (rpcError) { showSnackbar('操作失败: ' + rpcError.message); return; }
+                showSnackbar(`已移出 ${username}`);
+                loadBlocklist();
+            } catch (e) { showSnackbar('操作失败'); }
         }
 
         function showProfileDialog() {
