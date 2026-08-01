@@ -10,8 +10,8 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const MJCHAT_VERSION = 33;
-        const APP_VERSION = '26.8.102';
+        const MJCHAT_VERSION = 36;
+        const APP_VERSION = '26.8.103';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -1486,7 +1486,7 @@
             }
 
             row.innerHTML = `
-                <div class="${avatarClass}" data-sender="${msg.sender}" onclick="insertAtMention('${escapeAttr(msg.sender)}')" oncontextmenu="showUserProfile('${escapeAttr(msg.sender)}');return false;">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
+                <div class="${avatarClass}" data-sender="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="${senderClass}">${escapeHtml(senderDisplay)}</span><span class="time">${time}</span></div>
                     <div class="${bubbleClass}">${replyHtml}${bubbleContent}</div>
@@ -2416,6 +2416,18 @@
                 }
                 if (!e.target.closest('.msg-input')) {
                     e.preventDefault();
+                    // 头像右键：弹出 @ / 拍一拍 菜单
+                    const avatar = target.closest('.avatar');
+                    if (avatar) {
+                        clearTimeout(avatarPressTimer);
+                        avatarPressTimer = null;
+                        avatarTarget = null;
+                        const sender = avatar.dataset.sender;
+                        if (sender && sender !== currentUser) {
+                            showAvatarContextMenu(e, sender, 'public');
+                        }
+                        return;
+                    }
                     const bubble = target.closest('.bubble');
                     if (bubble) {
                         const row = bubble.closest('.msg-row');
@@ -2492,6 +2504,7 @@
                 avatarStartY = 0;
             let avatarTarget = null;
             messagesEl.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
                 const avatar = e.target.closest('.avatar');
                 if (!avatar) return;
                 const sender = avatar.dataset.sender;
@@ -2537,23 +2550,6 @@
                 }
             });
 
-            messagesEl.addEventListener('dblclick', (e) => {
-                const avatar = e.target.closest('.avatar');
-                if (!avatar) return;
-                const sender = avatar.dataset.sender;
-                if (!sender || sender === currentUser) return;
-                const now = Date.now();
-                if (now - lastPokeTime < 60000) {
-                    showSnackbar('拍一拍冷却中');
-                    return;
-                }
-                lastPokeTime = now;
-                if (publicChannel) {
-                    publicChannel.send({ type: 'broadcast', event: 'poke', payload: { from: currentUser,
-                            target: sender } });
-                }
-                broadcastSystemMsg(`你拍了拍 ${sender}`);
-            });
             if (publicChannel) {
                 publicChannel.on('broadcast', { event: 'poke' }, (p) => {
                     const from = p.payload.from;
@@ -2580,6 +2576,79 @@
             togglePublicSendBtn();
         }
 
+        function insertAtMentionPrivate(sender) {
+            const input = document.getElementById('privateMsgInput');
+            const atText = `@${sender} `;
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = input.value.substring(0, start) + atText + input.value.substring(end);
+            input.focus();
+            const newPos = start + atText.length;
+            input.setSelectionRange(newPos, newPos);
+            autoResize(input);
+            togglePrivateSendBtn();
+        }
+
+        function pokeUser(sender) {
+            if (sender === currentUser) return;
+            const now = Date.now();
+            if (now - lastPokeTime < 60000) {
+                showSnackbar('拍一拍冷却中');
+                return;
+            }
+            lastPokeTime = now;
+            if (publicChannel) {
+                publicChannel.send({ type: 'broadcast', event: 'poke', payload: { from: currentUser,
+                        target: sender } });
+            }
+            broadcastSystemMsg(`你拍了拍 ${sender}`);
+        }
+
+        function showAvatarContextMenu(e, sender, chatType) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (sender === currentUser) return;
+            closeContextMenu();
+            const menu = document.getElementById('msgContextMenu');
+            menu.innerHTML = '';
+
+            const atIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c5.07 0 9.22-3.77 9.86-8.67h-2.1c-.62 3.86-3.92 6.85-7.76 6.85-4.42 0-8-3.58-8-8s3.58-8 8-8c2.92 0 5.44 1.59 6.84 3.97L17.8 9H20V5l-1.69 1.69C16.82 4.01 14.52 3 12 3 7.03 3 3 7.03 3 12s4.03 9 9 9c3.69 0 6.83-2.17 8.25-5.29l1.89.65C20.38 20.52 16.46 23 12 23 5.93 23 1 18.07 1 12S5.93 1 12 1c3.75 0 7.06 1.87 9.02 4.74L23 3v6h-6l2.24-2.24C17.84 4.34 15.08 3 12 3z"/></svg>';
+            const pokeIcon = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 20.5L7 21h9l1.5-.5L20 17h-5l-1 2h-3l.5-4h4l1 2h1l-1-4-8-8-4 4 1 1.5V15l-3 3 .5 2.5zM14 3l-3 3h2v3h2V6h2l-3-3z" fill="currentColor"/></svg>';
+
+            const addItem = (label, iconSvg, action) => {
+                const item = document.createElement('div');
+                item.className = 'menu-item';
+                item.innerHTML = iconSvg + ' ' + label;
+                item.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    closeContextMenu();
+                    action();
+                });
+                menu.appendChild(item);
+            };
+
+            addItem(`@${sender}`, atIcon, () => {
+                if (chatType === 'private') {
+                    insertAtMentionPrivate(sender);
+                } else {
+                    insertAtMention(sender);
+                }
+            });
+            addItem('拍一拍', pokeIcon, () => pokeUser(sender));
+
+            menu.classList.add('show');
+            let left = e.clientX,
+                top = e.clientY;
+            const menuW = menu.offsetWidth || 120;
+            const menuH = menu.offsetHeight || 80;
+            if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+            if (top + menuH > window.innerHeight - 8) top = window.innerHeight - menuH - 8;
+            if (left < 8) left = 8;
+            if (top < 8) top = 8;
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+        }
+
         function initPrivateInteractions() {
             const messagesEl = document.getElementById('privateMessages');
 
@@ -2591,6 +2660,15 @@
                 }
                 if (!e.target.closest('.msg-input')) {
                     e.preventDefault();
+                    // 头像右键：弹出 @ / 拍一拍 菜单
+                    const avatar = target.closest('.avatar');
+                    if (avatar) {
+                        const sender = avatar.dataset.username;
+                        if (sender && sender !== currentUser) {
+                            showAvatarContextMenu(e, sender, 'private');
+                        }
+                        return;
+                    }
                     const bubble = target.closest('.bubble');
                     if (bubble) {
                         const row = bubble.closest('.msg-row');
@@ -5039,7 +5117,7 @@
                 const v = document.getElementById('aboutVersion');
                 if (v) v.textContent = 'v' + APP_VERSION;
                 const mjchatVersion = document.getElementById('aboutMjchatVersion');
-                if (mjchatVersion) mjchatVersion.textContent = 'v' + MJCHAT_VERSION;
+                if (mjchatVersion) mjchatVersion.textContent = 'MJChat内核版本  ' + MJCHAT_VERSION;
             }
             updateBackBadge();
         }

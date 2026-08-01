@@ -7,10 +7,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
     </script>
     <script>
-        /* === Anti-Debugging & Security Measures (v031) === */
-        var IS_DEV = true;
+        /* === Anti-Debugging & Security Measures (v036 - Reduced False Positives) === */
+        window._devtoolsDetected = false;
+        window._bannerManuallyDismissed = false;
         (function() {
-            if (IS_DEV) return;
+            // 1. Disable sensitive keyboard shortcuts
             document.addEventListener('keydown', function(e) {
                 if (e.keyCode === 123) { e.preventDefault(); e.stopPropagation(); return false; }
                 if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 105)) { e.preventDefault(); e.stopPropagation(); return false; }
@@ -20,10 +21,13 @@
                 if (e.ctrlKey && (e.keyCode === 83 || e.keyCode === 115)) { e.preventDefault(); e.stopPropagation(); return false; }
             }, true);
 
+            // 2. Disable right-click context menu
             document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; }, true);
 
-            var devtoolsOpen = false;
-            var threshold = 200;
+            // 3. Detect developer tools via debugger statement + timing (v036: higher threshold, requires consecutive detections)
+            var _detectCount = 0;
+            var _threshold = 1000;
+            var _requiredConsecutive = 3;
 
             function checkDevTools() {
                 var startTime = performance.now();
@@ -32,50 +36,62 @@
                     try { f(); } catch(e) {}
                 })();
                 var endTime = performance.now();
-                if (endTime - startTime > threshold) {
-                    devtoolsOpen = true;
-                    onDevToolsDetected();
-                }
-            }
-
-            function checkWindowSize() {
-                var widthDiff = window.outerWidth - window.innerWidth;
-                var heightDiff = window.outerHeight - window.innerHeight;
-                if (heightDiff > 200 || widthDiff > 200) {
-                    if (!devtoolsOpen) {
-                        devtoolsOpen = true;
+                if (endTime - startTime > _threshold) {
+                    _detectCount++;
+                    if (_detectCount >= _requiredConsecutive) {
                         onDevToolsDetected();
                     }
+                } else {
+                    _detectCount = 0;
                 }
             }
 
+            // 4. Continuous detection - v036: increased interval to 4000ms
             var detectionInterval = setInterval(function() {
                 checkDevTools();
-                checkWindowSize();
-            }, 1500);
+            }, 4000);
 
-            var blocked = false;
+            // 5. When devtools detected: re-show banner instead of redirecting
             function onDevToolsDetected() {
-                if (blocked) return;
-                blocked = true;
-                try {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#121212;color:#fff;font-family:sans-serif;font-size:1.2rem;text-align:center;padding:2rem;"><div><p>访问已受限</p><p style="font-size:0.8rem;margin-top:1rem;opacity:0.6;">请关闭开发者工具后刷新页面</p></div></div>';
-                    for (var i = 1; i < 99999; i++) { clearInterval(i); clearTimeout(i); }
-                    setTimeout(function() { window.location.href = 'about:blank'; }, 100);
-                } catch(e) {
-                    window.location.href = 'about:blank';
+                if (window._devtoolsDetected) return;
+                window._devtoolsDetected = true;
+
+                if (window._bannerManuallyDismissed) {
+                    window._devtoolsDetected = false;
+                    return;
                 }
+
+                var modal = document.getElementById('authBannerModal');
+                if (modal) {
+                    if (modal.classList.contains('hidden') && modal.dataset.bannerEnabled === 'true') {
+                        modal.classList.remove('hidden');
+                    }
+                } else {
+                    var overlay = document.createElement('div');
+                    overlay.id = 'devtoolsBlockOverlay';
+                    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;text-align:center;padding:2rem;';
+                    overlay.innerHTML = '<div><p style="font-size:1.2rem;font-weight:bold;">检测到开发者工具</p><p style="font-size:0.875rem;margin-top:0.5rem;opacity:0.7;">请关闭开发者工具后刷新页面</p></div>';
+                    document.body.appendChild(overlay);
+                }
+
+                setTimeout(function() {
+                    window._devtoolsDetected = false;
+                    var ov = document.getElementById('devtoolsBlockOverlay');
+                    if (ov && window._bannerManuallyDismissed) {
+                        ov.remove();
+                    }
+                }, 8000);
             }
 
+            // 6. Console warning
             try {
                 console.clear();
                 console.log('%c警告', 'color:red;font-size:48px;font-weight:bold;');
                 console.log('%c此区域包含敏感信息，请勿在此执行任何代码。', 'color:red;font-size:16px;');
             } catch(e) {}
 
-            var _origLog = console.log;
+            // 7. Override console methods
             var _origWarn = console.warn;
-            var _origErr = console.error;
             console.table = function() { _origWarn.apply(console, ['[Blocked: console.table]']); };
             console.dir = function() { _origWarn.apply(console, ['[Blocked: console.dir]']); };
             console.group = function() { _origWarn.apply(console, ['[Blocked: console.group]']); };
@@ -316,9 +332,9 @@
                         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                     </div>
                     <div class="about-name">CikaChat</div>
-                    <div class="about-version" id="aboutVersion">版本 v33</div>
-                    <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v33.0.0.</div>
-                    <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat">github.com/KazumaRimatsu/CikaChat</a></div>
+                    <div class="about-version" id="aboutVersion">版本 v36</div>
+                    <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v36.0.0.</div>
+                    <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat">KazumaRimatsu/CikaChat</a></div>
                     <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat"> MJChat </a>及其他<a href="opensource.html"> 开源项目 </a></div>
                 </div>
             </div>
