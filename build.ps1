@@ -67,6 +67,12 @@ if (Test-Path $sourceBundle) {
         Copy-Item "$nsisDir\*.exe" $buildDir -ErrorAction SilentlyContinue
     }
 
+    # 产物 exe（release 目录下的可执行文件）
+    $releaseDir = Join-Path $PSScriptRoot "src-tauri\target\release"
+    if (Test-Path $releaseDir) {
+        Copy-Item "$releaseDir\$productName.exe" $buildDir -ErrorAction SilentlyContinue
+    }
+
     Write-Host "构建产物已复制到: $buildDir" -ForegroundColor Green
 }
 else {
