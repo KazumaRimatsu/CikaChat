@@ -1,0 +1,1298 @@
+/* CikaChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
+
+        let mediaRecorder = null,
+            audioChunks = [],
+            recordStartTime = null,
+            recordTimerInterval = null;
+        let privateMediaRecorder = null,
+            privateAudioChunks = [],
+            privateRecordStartTime = null,
+            privateRecordTimerInterval = null;
+        let activeAudio = null;
+        let linkMode = 'public';
+
+        let _notifyAudio = null;
+        let _audioUnlocked = false;
+
+        // 在首次用户交互（点击/触摸/按键）时播放一段静音音频，
+        // 解锁浏览器/WKWebView 的自动播放限制，否则 WebSocket 事件里播放提示音会被拦截
+        function unlockNotifyAudio() {
+            if (_audioUnlocked) return;
+            _audioUnlocked = true;
+            try {
+                var silent = new Audio();
+                silent.src = 'data:audio/wav;base64,UklGRogAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWQAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+                silent.volume = 0.001;
+                silent.play().catch(function() {});
+            } catch (e) {}
+        }
+        document.addEventListener('pointerdown', unlockNotifyAudio, true);
+        document.addEventListener('touchstart', unlockNotifyAudio, true);
+        document.addEventListener('keydown', unlockNotifyAudio, true);
+
+        function playNotifySound() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const ns = _userSettingsCache.notify;
+            if (!ns.enabled) return;
+            const sound = NOTIFY_SOUNDS[ns.sound] || NOTIFY_SOUNDS['three_note'];
+            try {
+                if (!_notifyAudio) _notifyAudio = new Audio();
+                _notifyAudio.src = sound.file;
+                _notifyAudio.volume = 1;
+                var p = _notifyAudio.play();
+                if (p && p.catch) {
+                    p.catch(function(err) {
+                        console.warn('[notify] 提示音被自动播放策略拦截:', err && err.name);
+                    });
+                }
+            } catch (e) {
+                console.warn('[notify] 提示音播放异常:', e);
+            }
+        }
+
+        function getNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
+            return _userSettingsCache.notify.enabled !== false;
+        }
+
+        function getNotifySound() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return 'three_note';
+            return _userSettingsCache.notify.sound || 'three_note';
+        }
+
+        function getPublicNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return false;
+            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.publicEnabled;
+        }
+
+        function getPrivateNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
+            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.privateEnabled;
+        }
+
+        function refreshNotifySettingsUI() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const ns = _userSettingsCache.notify;
+
+            // Update settings page
+            const soundItem = document.getElementById('settingsNotifySoundItem');
+            if (soundItem) {
+                soundItem.style.display = ns.enabled ? '' : 'none';
+            }
+            const soundValue = document.getElementById('settingsNotifySoundValue');
+            if (soundValue) {
+                const snd = NOTIFY_SOUNDS[ns.sound];
+                soundValue.textContent = snd ? snd.label : '经典三全音';
+            }
+
+            // Update chat menu items
+            const publicMenuItem = document.getElementById('publicMenuNotifyItem');
+            if (publicMenuItem) {
+                publicMenuItem.style.display = ns.enabled ? '' : 'none';
+                const publicLabel = document.getElementById('publicNotifyLabel');
+                if (publicLabel) {
+                    publicLabel.textContent = ns.publicEnabled ? '关闭消息提示' : '开启消息提示';
+                }
+            }
+
+            const privateMenuItem = document.getElementById('privateMenuNotifyItem');
+            if (privateMenuItem) {
+                privateMenuItem.style.display = ns.enabled ? '' : 'none';
+                const privateLabel = document.getElementById('privateNotifyLabel');
+                if (privateLabel) {
+                    privateLabel.textContent = ns.privateEnabled ? '关闭消息提示' : '开启消息提示';
+                }
+            }
+        }
+
+        async function toggleNotifyEnabled() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.enabled = !_userSettingsCache.notify.enabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.enabled ? '已开启消息提示' : '已关闭消息提示');
+        }
+
+        function showNotifySoundDialog() {
+            if (!_userSettingsCache || !_userSettingsCache.notify || !_userSettingsCache.notify.enabled) return;
+            const dialog = document.getElementById('notifySoundDialog');
+            if (dialog) {
+                dialog.classList.remove('hidden');
+                updateNotifySoundDialog();
+            }
+        }
+
+        function closeNotifySoundDialog() {
+            const dialog = document.getElementById('notifySoundDialog');
+            if (dialog) dialog.classList.add('hidden');
+        }
+
+        function updateNotifySoundDialog() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const currentSound = _userSettingsCache.notify.sound || 'three_note';
+            const items = document.querySelectorAll('.notify-sound-item');
+            items.forEach(function(item) {
+                if (item.dataset.sound === currentSound) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        async function selectNotifySound(sound) {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.sound = sound;
+            await syncSettingsToEncryptedStore();
+            updateNotifySoundDialog();
+            refreshNotifySettingsUI();
+        }
+
+        function previewNotifySound(sound) {
+            const snd = NOTIFY_SOUNDS[sound];
+            if (snd) {
+                try {
+                    var preview = new Audio(snd.file);
+                    var p = preview.play();
+                    if (p && p.catch) {
+                        p.catch(function(err) {
+                            console.warn('[notify] 试听被自动播放策略拦截:', err && err.name);
+                        });
+                    }
+                } catch (e) {}
+            }
+        }
+
+        async function togglePublicNotify() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.publicEnabled = !_userSettingsCache.notify.publicEnabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.publicEnabled ? '公共聊天消息提示已开启' : '公共聊天消息提示已关闭');
+        }
+
+        async function togglePrivateNotify() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.privateEnabled = !_userSettingsCache.notify.privateEnabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.privateEnabled ? '私聊消息提示已开启' : '私聊消息提示已关闭');
+        }
+
+        // Pure JavaScript SHA-256 implementation for old WebView compatibility
+        function toggleFeaturePanel() {
+            const panel = document.getElementById('publicFeaturePanel');
+            const btn = document.getElementById('publicMoreBtn');
+            if (panel.classList.contains('show')) {
+                panel.classList.remove('show');
+                btn.classList.remove('active');
+            } else {
+                panel.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function closeFeaturePanel() {
+            document.getElementById('publicFeaturePanel').classList.remove('show');
+            document.getElementById('publicMoreBtn').classList.remove('active');
+            closeSubPanel();
+        }
+
+        function openImagePicker() {
+            closeFeaturePanel();
+            document.getElementById('imageInput').click();
+        }
+
+        async function handleImageSelect(event) {
+            const files = Array.from(event.target.files || []);
+            event.target.value = '';
+            if (files.length === 0) {
+                showSnackbar('未选择图片');
+                return;
+            }
+
+            if (files.length > MAX_IMAGES_PER_MSG) {
+                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
+                if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
+            }
+
+            showSnackbar(`正在上传 ${files.length} 张图片...`);
+            const imageUrls = [];
+
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let blobToUpload = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    try {
+                        blobToUpload = await compressImage(file, 1920, 0.7);
+                    } catch (e) { /* use original */ }
+                }
+                const filePath = `chat/${Date.now()}-${generateId()}-${i}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, {
+                        contentType: 'image/jpeg',
+                        cacheControl: '3600'
+                    });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                } catch (e) {
+                    showSnackbar('上传失败');
+                    return;
+                }
+            }
+
+            let text = '';
+            if (imageUrls.length === 1) {
+                text = '';
+            } else {
+                text = imageUrls.map(url => `![](${url})`).join('\n');
+                text = '🖼️ ' + text;
+            }
+
+            const payload = {
+                sender: currentUser,
+                text: text,
+                image_url: imageUrls[0],
+                msg_version: APP_VERSION,
+                is_system: false
+            };
+            const result = await sendPublicMessageSecure(payload);
+            if (!result.success) {
+                showSnackbar('发送图片失败: ' + (result.message || ''));
+            }
+        }
+
+        function compressImage(file, maxSize, quality) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width,
+                            h = img.height;
+                        if (w > maxSize || h > maxSize) {
+                            if (w > h) { h = h * maxSize / w;
+                                w = maxSize; } else { w = w * maxSize / h;
+                                h = maxSize; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        let previewScale = 1;
+        let previewTranslateX = 0,
+            previewTranslateY = 0;
+        let previewLastDist = 0;
+        let previewLastX = 0,
+            previewLastY = 0;
+
+        function previewImage(url) {
+            if (!url) return;
+            const overlay = document.getElementById('imagePreview');
+            const img = document.getElementById('previewImg');
+            img.src = url;
+            previewScale = 1;
+            previewTranslateX = 0;
+            previewTranslateY = 0;
+            updatePreviewTransform();
+            overlay.classList.remove('hidden');
+        }
+
+        // 文件型图片消息点击时复用图片预览
+        function viewImage(url) {
+            previewImage(url);
+        }
+
+        function updatePreviewTransform() {
+            const img = document.getElementById('previewImg');
+            img.style.transform = `scale(${previewScale}) translate(${previewTranslateX}px, ${previewTranslateY}px)`;
+        }
+
+        function closeImagePreview(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('previewImg').src = '';
+            previewScale = 1;
+            previewTranslateX = 0;
+            previewTranslateY = 0;
+        }
+
+        let previewTouchStart = false;
+        document.getElementById('imagePreview').addEventListener('touchstart', function(e) {
+            if (e.target.tagName !== 'IMG') return;
+            const touches = e.touches;
+            if (touches.length === 1) {
+                previewTouchStart = true;
+                previewLastX = touches[0].clientX;
+                previewLastY = touches[0].clientY;
+            } else if (touches.length === 2) {
+                previewLastDist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1]
+                    .clientY);
+            }
+        }, { passive: true });
+
+        document.getElementById('imagePreview').addEventListener('touchmove', function(e) {
+            if (e.target.tagName !== 'IMG') return;
+            const touches = e.touches;
+            if (touches.length === 1 && previewTouchStart) {
+                const dx = touches[0].clientX - previewLastX;
+                const dy = touches[0].clientY - previewLastY;
+                previewTranslateX += dx;
+                previewTranslateY += dy;
+                previewLastX = touches[0].clientX;
+                previewLastY = touches[0].clientY;
+                updatePreviewTransform();
+            } else if (touches.length === 2) {
+                const dist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+                const scaleFactor = dist / previewLastDist;
+                previewScale = Math.min(Math.max(previewScale * scaleFactor, 0.5), 5);
+                previewLastDist = dist;
+                updatePreviewTransform();
+            }
+        }, { passive: true });
+
+        document.getElementById('imagePreview').addEventListener('touchend', function(e) {
+            previewTouchStart = false;
+        }, { passive: true });
+
+        document.getElementById('imagePreview').addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+        function openFilePicker() {
+            closeFeaturePanel();
+            document.getElementById('fileInput').click();
+        }
+
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            if (file.size > 10 * 1024 * 1024) { showSnackbar('文件不能超过 10MB'); return; }
+            showSnackbar('正在上传文件...');
+            const ext = file.name.split('.').pop() || 'file';
+            const filePath = `files/${Date.now()}-${generateId()}.${ext}`;
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, file, { contentType: file.type ||
+                        'application/octet-stream', cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const fileSize = (file.size / 1024).toFixed(1);
+                const fileText = buildFileText(file.name, fileSize, urlData.publicUrl);
+                const ieResult = await sendPublicMessageSecure({ text: fileText, is_system: false, msg_version: APP_VERSION });
+                if (!ieResult.success) showSnackbar('发送文件失败: ' + (ieResult.message || ''));
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        function buildFileText(filename, fileSize, url) {
+            return '📎 ' + filename + ' (' + fileSize + ' KB) → ' + url;
+        }
+
+        function openLinkDialog(mode) {
+            closeFeaturePanel();
+            linkMode = mode || 'public';
+            document.getElementById('linkDialog').classList.remove('hidden');
+            document.getElementById('linkText').focus();
+        }
+
+        function hideLinkDialog() {
+            document.getElementById('linkDialog').classList.add('hidden');
+            document.getElementById('linkText').value = '';
+            document.getElementById('linkUrl').value = '';
+        }
+
+        function showOpensourceDialog() {
+            document.getElementById('opensourceDialog').classList.remove('hidden');
+        }
+
+        function closeOpensourceDialog() {
+            document.getElementById('opensourceDialog').classList.add('hidden');
+        }
+
+        async function sendLink() {
+            const text = document.getElementById('linkText').value.trim();
+            const url = document.getElementById('linkUrl').value.trim();
+            if (!url) { showSnackbar('请输入链接地址'); return; }
+            if (!isSafeUrl(url)) { showSnackbar('链接地址无效，仅支持 http/https/mailto/tel'); return; }
+            const displayText = text || url;
+            const linkText = '🔗 ' + displayText + ' → ' + url;
+            hideLinkDialog();
+
+            if (linkMode === 'private') {
+                if (!privateChannel) return;
+                try {
+                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, linkText);
+                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                    privateMessages.push(newMsg);
+                    if (document.getElementById('privatePage').classList.contains('active')) {
+                        renderPrivateMessage(newMsg);
+                        const container = document.getElementById('privateMessages');
+                        if (container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                            isUserScrolledUp = false;
+                        }
+                    }
+                    notifyPrivateMsg(privateSessionId, currentUser);
+                    loadPrivateSessions();
+                } catch (e) {
+                    const msg = e.message || '';
+                    showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
+                }
+            } else {
+                const linkResult = await sendPublicMessageSecure({ text: linkText, is_system: false, msg_version: APP_VERSION });
+                if (!linkResult.success) showSnackbar('发送链接失败: ' + (linkResult.message || ''));
+            }
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('publicMsgInput');
+            input.value += emoji;
+            autoResize(input);
+            togglePublicSendBtn();
+        }
+
+        function openEmojiSubPanel() {
+            document.getElementById('featurePanelMain').style.display = 'none';
+            document.getElementById('emojiSubPanel').classList.add('active');
+        }
+
+        function openTextEffectSubPanel() {
+            document.getElementById('featurePanelMain').style.display = 'none';
+            document.getElementById('textEffectSubPanel').classList.add('active');
+        }
+
+        function openVoiceSubPanel() {
+            document.getElementById('featurePanelMain').style.display = 'none';
+            document.getElementById('voiceSubPanel').classList.add('active');
+        }
+
+        function closeSubPanel() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            document.getElementById('emojiSubPanel').classList.remove('active');
+            document.getElementById('textEffectSubPanel').classList.remove('active');
+            document.getElementById('voiceSubPanel').classList.remove('active');
+            document.getElementById('featurePanelMain').style.display = 'block';
+        }
+
+        function applyTextEffect(tag) {
+            const input = document.getElementById('publicMsgInput');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            if (start === end) { showSnackbar('请先选中文字'); return; }
+            const selected = input.value.substring(start, end);
+            let wrapped;
+            switch (tag) {
+                case 'b':
+                    wrapped = `<b>${selected}</b>`;
+                    break;
+                case 'i':
+                    wrapped = `<i>${selected}</i>`;
+                    break;
+                case 'u':
+                    wrapped = `<u>${selected}</u>`;
+                    break;
+                case 's':
+                    wrapped = `<s>${selected}</s>`;
+                    break;
+                case 'none':
+                    wrapped = selected;
+                    break;
+                default:
+                    wrapped = selected;
+            }
+            input.setRangeText(wrapped, start, end, 'end');
+            autoResize(input);
+            togglePublicSendBtn();
+            const newPos = start + wrapped.length;
+            input.setSelectionRange(newPos, newPos);
+        }
+
+        function initEmojiPicker() {
+            // v043: 去重后的表情列表
+            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
+                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
+                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
+                '💚', '💙', '🩵', '💜', '🤎', '🖤', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
+                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
+                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
+                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
+                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '🔮', '🖼️'
+            ];
+            document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
+                `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
+        }
+
+        async function toggleRecording() {
+            const btn = document.getElementById('recordBtn');
+            const timer = document.getElementById('recordTimer');
+            const hint = document.getElementById('recordHint');
+            const stopBtn = document.getElementById('recordStopBtn');
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioChunks = [];
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+                    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+                    mediaRecorder.onstop = async () => {
+                        stream.getTracks().forEach(t => t.stop());
+                        const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+                        if (audioBlob.size < 1000) { showSnackbar('录音太短');
+                            resetRecordingUI(); return; }
+                        await uploadAudio(audioBlob, mimeType || 'audio/webm');
+                        resetRecordingUI();
+                    };
+                    mediaRecorder.start();
+                    recordStartTime = Date.now();
+                    btn.classList.add('recording');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+                    hint.textContent = '正在录音...';
+                    stopBtn.classList.add('show');
+                    recordTimerInterval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+                        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                        const secs = String(elapsed % 60).padStart(2, '0');
+                        timer.textContent = `${mins}:${secs}`;
+                    }, 1000);
+                } catch (e) {
+                    showSnackbar('无法访问麦克风');
+                }
+            } else if (mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        }
+
+        function resetRecordingUI() {
+            const btn = document.getElementById('recordBtn');
+            const timer = document.getElementById('recordTimer');
+            const hint = document.getElementById('recordHint');
+            const stopBtn = document.getElementById('recordStopBtn');
+            btn.classList.remove('recording');
+            btn.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
+            timer.textContent = '00:00';
+            hint.textContent = '点击开始录音';
+            stopBtn.classList.remove('show');
+            if (recordTimerInterval) { clearInterval(recordTimerInterval);
+                recordTimerInterval = null; }
+        }
+
+        async function uploadAudio(blob, mimeType) {
+            const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
+            const filePath = `audio/${Date.now()}-${generateId()}.${ext}`;
+            showSnackbar('正在上传语音...');
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: mimeType,
+                    cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const duration = recordStartTime ? Math.floor((Date.now() - recordStartTime) / 1000) : 0;
+                const fallbackText = buildVoiceFallback(duration);
+                let audioResult = await sendPublicMessageSecure({
+                    text: fallbackText,
+                    audio_url: urlData.publicUrl,
+                    audio_dur: duration,
+                    is_system: false,
+                    msg_version: APP_VERSION
+                });
+                if (!audioResult.success && audioResult.message && (audioResult.message.includes('audio_dur') || audioResult.message.includes('audio_url'))) {
+                    const fallbackWithUrl = buildVoiceFallback(duration, urlData.publicUrl);
+                    audioResult = await sendPublicMessageSecure({
+                        text: fallbackWithUrl,
+                        is_system: false,
+                        msg_version: APP_VERSION
+                    });
+                }
+                if (!audioResult.success) showSnackbar('发送语音失败: ' + (audioResult.message || ''));
+                else showSnackbar('语音已发送');
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        function buildVoiceFallback(duration, audioUrl) {
+            const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+            const secs = String(duration % 60).padStart(2, '0');
+            var tail = audioUrl || '请升级 MJChat 到最新版本查看此消息';
+            return '🎤 语音 ' + mins + ':' + secs + ' → ' + tail;
+        }
+
+        function toggleVoicePlay(wrap, event) {
+            event.stopPropagation();
+            const audioUrl = wrap.dataset.audio;
+            if (!audioUrl) return;
+
+            if (activeAudio && activeAudio.wrap === wrap && !activeAudio.audio.paused) {
+                activeAudio.audio.pause();
+                wrap.classList.remove('playing');
+                const btn = wrap.querySelector('.voice-play-btn');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                activeAudio = null;
+                return;
+            }
+
+            if (activeAudio) {
+                activeAudio.audio.pause();
+                activeAudio.wrap.classList.remove('playing');
+                const prevBtn = activeAudio.wrap.querySelector('.voice-play-btn');
+                prevBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            }
+
+            const audio = new Audio(audioUrl);
+            wrap.classList.add('playing');
+            const btn = wrap.querySelector('.voice-play-btn');
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+            audio.onended = () => {
+                wrap.classList.remove('playing');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                if (activeAudio && activeAudio.wrap === wrap) activeAudio = null;
+            };
+            audio.onerror = () => {
+                wrap.classList.remove('playing');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                if (activeAudio && activeAudio.wrap === wrap) activeAudio = null;
+                showSnackbar('播放失败');
+            };
+            audio.play().catch(() => {
+                wrap.classList.remove('playing');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                showSnackbar('播放失败');
+            });
+            activeAudio = { audio, wrap };
+        }
+
+        function parseMarkedText(text) {
+            if (!text) return null;
+            if (text.startsWith('🔗 ') && text.includes(' → ')) {
+                const rest = text.substring(4);
+                const sep = rest.indexOf(' → ');
+                if (sep > 0) {
+                    const url = rest.substring(sep + 3).trim();
+                    // 渲染时校验 URL，防止 javascript: 等危险协议被点击执行
+                    if (!isSafeUrl(url)) return null;
+                    return { type: 'link', displayText: rest.substring(0, sep), url: url };
+                }
+            }
+            if (text.startsWith('📎 ') && text.includes(' → ')) {
+                const rest = text.substring(3);
+                const sep = rest.indexOf(' → ');
+                if (sep > 0) {
+                    const url = rest.substring(sep + 3).trim();
+                    if (!isSafeUrl(url)) return null;
+                    return { type: 'file', fileInfo: rest.substring(0, sep), url: url };
+                }
+            }
+            if (text.startsWith('🎤 ') && text.includes('语音')) {
+                const match = text.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
+                if (match) {
+                    const duration = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    var url = match[3] && match[3].startsWith('http') ? match[3].trim() : null;
+                    return { type: 'voice', duration: duration, url: url };
+                }
+                const match2 = text.match(/🎤\s*语音\s*(\d+):(\d+)/);
+                if (match2) {
+                    const duration = parseInt(match2[1]) * 60 + parseInt(match2[2]);
+                    return { type: 'voice', duration: duration, url: null };
+                }
+            }
+            return null;
+        }
+
+        function getFileIconSvg(filename) {
+            const ext = (filename.split('.').pop() || '').toLowerCase();
+            const FILE_ICONS = {
+                audio: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 13h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S6 19.88 6 18.5s1.12-2.5 2.5-2.5c.42 0 .8.11 1.14.29V11h3.36v4z"/>',
+                video: '<path d="M4 6.47L5.76 10H20v8H4V6.47M22 4h-4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4z"/>',
+                archive: '<path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>',
+                image: '<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>',
+                document: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+                code: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>',
+                default: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>'
+            };
+            const FILE_EXT_MAP = {
+                audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma', 'opus'],
+                video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'mpg'],
+                archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'],
+                image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'],
+                document: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'odt', 'ods',
+                    'odp'
+                ],
+                code: ['js', 'html', 'css', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'php', 'rb', 'go', 'rs',
+                    'ts', 'jsx', 'tsx', 'vue', 'sh', 'bat', 'sql', 'yml', 'yaml', 'toml', 'ini', 'md'
+                ]
+            };
+            for (const [type, exts] of Object.entries(FILE_EXT_MAP)) {
+                if (exts.includes(ext)) return FILE_ICONS[type];
+            }
+            return FILE_ICONS.default;
+        }
+
+        function isImageFile(filename) {
+            const ext = (filename.split('.').pop() || '').toLowerCase();
+            const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
+            return IMAGE_EXTS.includes(ext);
+        }
+
+        function togglePrivateFeaturePanel() {
+            const panel = document.getElementById('privateFeaturePanel');
+            const btn = document.getElementById('privateMoreBtn');
+            if (panel.classList.contains('show')) {
+                panel.classList.remove('show');
+                btn.classList.remove('active');
+            } else {
+                panel.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function privateCloseSubPanel() {
+            if (privateMediaRecorder && privateMediaRecorder.state === 'recording') {
+                privateMediaRecorder.stop();
+            }
+            document.getElementById('privateEmojiSubPanel').classList.remove('active');
+            document.getElementById('privateTextEffectSubPanel').classList.remove('active');
+            document.getElementById('privateVoiceSubPanel').classList.remove('active');
+            document.getElementById('privateFeaturePanelMain').style.display = 'block';
+        }
+
+        function privateOpenImagePicker() {
+            privateCloseSubPanel();
+            document.getElementById('privateImageInput').click();
+        }
+
+        async function privateHandleImageSelect(event) {
+            const files = Array.from(event.target.files || []);
+            event.target.value = '';
+            if (files.length === 0) return;
+            if (files.length > MAX_IMAGES_PER_MSG) {
+                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
+                if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
+            }
+            showSnackbar(`正在上传 ${files.length} 张图片...`);
+            const imageUrls = [];
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let blobToUpload = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    try {
+                        blobToUpload = await compressImage(file, 1920, 0.7);
+                    } catch (e) { /* use original */ }
+                }
+                const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}-${i}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, { contentType: 'image/jpeg',
+                        cacheControl: '3600' });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                } catch (e) {
+                    showSnackbar('上传失败');
+                    return;
+                }
+            }
+            let content = '';
+            if (imageUrls.length === 1) {
+                content = `![](${imageUrls[0]})`;
+            } else {
+                content = imageUrls.map(url => `![](${url})`).join('\n');
+                content = '🖼️ ' + content;
+            }
+            const payload = {
+                session_id: privateSessionId,
+                sender: currentUser,
+                content: content
+            };
+            try {
+                const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
+                if (privateChannel) {
+                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                }
+                privateMessages.push(newMsg);
+                if (document.getElementById('privatePage').classList.contains('active')) {
+                    renderPrivateMessage(newMsg);
+                    checkPrivacyBanner();
+                    const container = document.getElementById('privateMessages');
+                    if (container) {
+                        scrollToBottom(container);
+                        updateScrollButton(container);
+                        isUserScrolledUp = false;
+                    }
+                }
+                notifyPrivateMsg(privateSessionId, currentUser);
+                loadPrivateSessions();
+            } catch (ie) {
+                const msg = ie.message || '';
+                showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
+            }
+        }
+
+        function privateOpenFilePicker() {
+            privateCloseSubPanel();
+            document.getElementById('privateFileInput').click();
+        }
+
+        async function privateHandleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            if (file.size > 10 * 1024 * 1024) { showSnackbar('文件不能超过 10MB'); return; }
+            showSnackbar('正在上传文件...');
+            const ext = file.name.split('.').pop() || 'file';
+            const filePath = `private/${privateSessionId}/files/${Date.now()}-${generateId()}.${ext}`;
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, file, { contentType: file.type ||
+                        'application/octet-stream', cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const fileSize = (file.size / 1024).toFixed(1);
+                const content = `📎 ${file.name} (${fileSize} KB) → ${urlData.publicUrl}`;
+                try {
+                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
+                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                    privateMessages.push(newMsg);
+                    if (document.getElementById('privatePage').classList.contains('active')) {
+                        renderPrivateMessage(newMsg);
+                        checkPrivacyBanner();
+                        const container = document.getElementById('privateMessages');
+                        if (container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                            isUserScrolledUp = false;
+                        }
+                    }
+                    notifyPrivateMsg(privateSessionId, currentUser);
+                    loadPrivateSessions();
+                } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        function privateInsertEmoji(emoji) {
+            const input = document.getElementById('privateMsgInput');
+            input.value += emoji;
+            autoResize(input);
+            togglePrivateSendBtn();
+        }
+
+        function privateOpenEmojiSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateEmojiSubPanel').classList.add('active');
+        }
+
+        function privateOpenTextEffectSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateTextEffectSubPanel').classList.add('active');
+        }
+
+        function privateOpenVoiceSubPanel() {
+            document.getElementById('privateFeaturePanelMain').style.display = 'none';
+            document.getElementById('privateVoiceSubPanel').classList.add('active');
+        }
+
+        function privateApplyTextEffect(tag) {
+            const input = document.getElementById('privateMsgInput');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            if (start === end) { showSnackbar('请先选中文字'); return; }
+            const selected = input.value.substring(start, end);
+            let wrapped;
+            switch (tag) {
+                case 'b':
+                    wrapped = `<b>${selected}</b>`;
+                    break;
+                case 'i':
+                    wrapped = `<i>${selected}</i>`;
+                    break;
+                case 'u':
+                    wrapped = `<u>${selected}</u>`;
+                    break;
+                case 's':
+                    wrapped = `<s>${selected}</s>`;
+                    break;
+                case 'none':
+                    wrapped = selected;
+                    break;
+                default:
+                    wrapped = selected;
+            }
+            input.setRangeText(wrapped, start, end, 'end');
+            autoResize(input);
+            togglePrivateSendBtn();
+            const newPos = start + wrapped.length;
+            input.setSelectionRange(newPos, newPos);
+        }
+
+        function initPrivateEmojiPicker() {
+            // v043: 去重后的表情列表
+            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
+                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
+                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
+                '💚', '💙', '🩵', '💜', '🤎', '🖤', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
+                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
+                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
+                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
+                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '🔮', '🖼️'
+            ];
+            document.getElementById('privateEmojiGrid').innerHTML = EMOJIS.map(e =>
+                `<button class="emoji-item" onclick="privateInsertEmoji('${e}')">${e}</button>`).join('');
+        }
+
+        async function privateToggleRecording() {
+            const btn = document.getElementById('privateRecordBtn');
+            const timer = document.getElementById('privateRecordTimer');
+            const hint = document.getElementById('privateRecordHint');
+            const stopBtn = document.getElementById('privateRecordStopBtn');
+            if (!privateMediaRecorder || privateMediaRecorder.state === 'inactive') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    privateAudioChunks = [];
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+                    privateMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                    privateMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) privateAudioChunks.push(e.data); };
+                    privateMediaRecorder.onstop = async () => {
+                        stream.getTracks().forEach(t => t.stop());
+                        const audioBlob = new Blob(privateAudioChunks, { type: mimeType || 'audio/webm' });
+                        if (audioBlob.size < 1000) { showSnackbar('录音时间太短');
+                            privateResetRecordingUI(); return; }
+                        await privateUploadAudio(audioBlob, mimeType || 'audio/webm');
+                        privateResetRecordingUI();
+                    };
+                    privateMediaRecorder.start();
+                    privateRecordStartTime = Date.now();
+                    btn.classList.add('recording');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+                    hint.textContent = '正在录音...';
+                    stopBtn.classList.add('show');
+                    privateRecordTimerInterval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - privateRecordStartTime) / 1000);
+                        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                        const secs = String(elapsed % 60).padStart(2, '0');
+                        timer.textContent = `${mins}:${secs}`;
+                    }, 1000);
+                } catch (e) {
+                    showSnackbar('无法访问麦克风');
+                }
+            } else if (privateMediaRecorder.state === 'recording') {
+                privateMediaRecorder.stop();
+            }
+        }
+
+        function privateResetRecordingUI() {
+            const btn = document.getElementById('privateRecordBtn');
+            const timer = document.getElementById('privateRecordTimer');
+            const hint = document.getElementById('privateRecordHint');
+            const stopBtn = document.getElementById('privateRecordStopBtn');
+            btn.classList.remove('recording');
+            btn.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
+            timer.textContent = '00:00';
+            hint.textContent = '点击开始录音';
+            stopBtn.classList.remove('show');
+            if (privateRecordTimerInterval) { clearInterval(privateRecordTimerInterval);
+                privateRecordTimerInterval = null; }
+        }
+
+        async function privateUploadAudio(blob, mimeType) {
+            const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
+            const filePath = `private/${privateSessionId}/audio/${Date.now()}-${generateId()}.${ext}`;
+            showSnackbar('正在上传语音...');
+            try {
+                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: mimeType,
+                    cacheControl: '3600' });
+                if (error) {
+                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    else showSnackbar('上传失败: ' + error.message);
+                    return;
+                }
+                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const duration = privateRecordStartTime ? Math.floor((Date.now() - privateRecordStartTime) / 1000) : 0;
+                const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+                const secs = String(duration % 60).padStart(2, '0');
+                const content = `🎤 语音 ${mins}:${secs} → ${urlData.publicUrl}`;
+                try {
+                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
+                    if (privateChannel) {
+                        privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+                    }
+                    privateMessages.push(newMsg);
+                    if (document.getElementById('privatePage').classList.contains('active')) {
+                        renderPrivateMessage(newMsg);
+                        const container = document.getElementById('privateMessages');
+                        if (container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                            isUserScrolledUp = false;
+                        }
+                    }
+                    notifyPrivateMsg(privateSessionId, currentUser);
+                    loadPrivateSessions();
+                } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
+            } catch (e) { showSnackbar('上传失败'); }
+        }
+
+        async function doSearch(query) {
+            const container = document.getElementById('searchResults');
+            if (!query.trim()) {
+                container.innerHTML = '<div class="empty">输入用户名开始搜索</div>';
+                return;
+            }
+            try {
+                let users = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('search_users', { p_query: query.trim(), p_limit: 20 });
+                    if (!rpcError && rpcData) { users = rpcData; }
+                } catch (e) { /* RPC not found, continue */ }
+                if (!users) {
+                    const { data, error } = await sb.from(TABLE_USERS)
+                        .select('username, avatar_url')
+                        .ilike('username', `%${query.trim()}%`)
+                        .neq('username', currentUser)
+                        .limit(20);
+                    if (error) { container.innerHTML = '<div class="empty">权限不足</div>'; return; }
+                    users = data;
+                }
+                if (!users || users.length === 0) {
+                    container.innerHTML = '<div class="empty">未找到用户</div>';
+                    return;
+                }
+                var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
+                container.innerHTML = users.map(u => {
+                    const idx = hashStr(u.username) % 8;
+                    const isOnline = onlineUsernames.includes(u.username);
+                    let avatarStyle = '';
+                    if (u.avatar_url) {
+                        avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(u.avatar_url)) + ');background-size:cover;background-position:center;';
+                    }
+                    return `<div class="result-item" onclick="showUserProfile('${escapeAttr(u.username)}')">
+                                <div class="av av-${idx}" style="${avatarStyle}">${u.avatar_url ? '' : escapeHtml(u.username.charAt(0).toUpperCase())}</div>
+                                <span class="name">${escapeHtml(u.username)}</span>
+                                <span class="status">${isOnline ? '在线' : '离线'}</span>
+                            </div>`;
+                }).join('');
+            } catch (e) { container.innerHTML = '<div class="empty">搜索出错</div>'; }
+        }
+
+        function showAgentList() {
+            document.getElementById('agentListModal').classList.remove('hidden');
+            loadAgentList();
+        }
+
+        function closeAgentList() {
+            document.getElementById('agentListModal').classList.add('hidden');
+        }
+
+        function showAddAgentDialog() {
+            document.getElementById('addAgentDialog').classList.remove('hidden');
+            document.getElementById('agentName').value = '';
+            document.getElementById('agentApiKey').value = '';
+            document.getElementById('agentProvider').value = 'openai';
+            document.getElementById('agentModel').value = 'gpt-3.5-turbo';
+        }
+
+        function updateAgentModelDefault() {
+            const provider = document.getElementById('agentProvider').value;
+            const modelInput = document.getElementById('agentModel');
+            const defaults = {
+                'openai': 'gpt-3.5-turbo',
+                'google': 'gemini-1.5-flash',
+                'anthropic': 'claude-3-5-sonnet-20241022',
+                'baidu': 'ernie-4.0-8k-latest',
+                'ali': 'qwen3.7-flash',
+                'bytedance': 'doubao-pro-4k',
+                'zhipu': 'glm-4-flash',
+                'deepseek': 'deepseek-v4-flash',
+                'custom': 'gpt-3.5-turbo'
+            };
+            modelInput.value = defaults[provider] || 'gpt-3.5-turbo';
+        }
+
+        function closeAddAgentDialog() {
+            document.getElementById('addAgentDialog').classList.add('hidden');
+            document.getElementById('agentApiKey').value = '';
+        }
+
+        let activeAgent = null;
+
+        async function useAgent(agentId) {
+            closeAgentList();
+            const input = document.getElementById('publicMsgInput');
+            if (!input) return;
+            if (activeAgent && activeAgent.id === agentId) {
+                activeAgent = null;
+                input.value = input.value.replace(/@[\w\u4e00-\u9fa5]+\s?/, '').trim();
+                autoResize(input);
+                togglePublicSendBtn();
+                showSnackbar('已取消智能体');
+                return;
+            }
+            const agentName = await getAgentName(agentId);
+            activeAgent = { id: agentId, name: agentName };
+            input.value = `@${agentName} `;
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+            autoResize(input);
+            togglePublicSendBtn();
+            showSnackbar(`已选择 ${agentName}，输入消息后发送`);
+        }
+
+        async function getAgentName(agentId) {
+            try {
+                let agentName = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    if (!rpcError && rpcData) {
+                        const agents = Array.isArray(rpcData) ? rpcData : [];
+                        const agent = agents.find(a => a.id === agentId);
+                        if (agent) agentName = agent.name;
+                    }
+                } catch (e) { /* RPC fallback */ }
+                if (!agentName) {
+                    const { data, error } = await sb.from(TABLE_AGENTS)
+                        .select('name').eq('id', agentId).single();
+                    if (!error && data) agentName = data.name;
+                }
+                return agentName || '智能体';
+            } catch (e) { return '智能体'; }
+        }
+
+        function showAvatarMenu() {
+            document.getElementById('avatarMenu').classList.remove('hidden');
+            const overlay = document.createElement('div');
+            overlay.id = 'avatarMenuOverlay';
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.zIndex = '140';
+            overlay.style.background = 'rgba(0,0,0,0.3)';
+            overlay.onclick = function() { closeAvatarMenu(); };
+            document.body.appendChild(overlay);
+        }
+
+        function closeAvatarMenu() {
+            document.getElementById('avatarMenu').classList.add('hidden');
+            const overlay = document.getElementById('avatarMenuOverlay');
+            if (overlay) overlay.remove();
+        }
+
+        function setDefaultAvatar() {
+            const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: null })
+                .then(() => {
+                    currentAvatarUrl = '';
+                    userAvatarCache[currentUser] = '';
+                    if (publicChannel) {
+                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: '' } });
+                    }
+                    updateAllAvatars();
+                    updateHomeMenu();
+                    updatePublicMenu();
+                    const avatarEl = document.getElementById('profileDialogAvatar');
+                    avatarEl.style.backgroundImage = '';
+                    avatarEl.textContent = currentUser.charAt(0).toUpperCase();
+                    avatarEl.style.backgroundColor = color;
+                    showSnackbar('已设置为默认头像');
+                    closeAvatarMenu();
+                })
+                .catch(e => { showSnackbar('设置失败: ' + e.message); });
+        }
+
+        function uploadAvatarFromMenu() {
+            closeAvatarMenu();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar('图片不能超过 5MB'); return; }
+                showSnackbar('上传头像中...');
+                let blob = file;
+                if (file.size > COMPRESS_THRESHOLD) {
+                    blob = await compressImage(file, 256, 0.8);
+                }
+                const filePath = `avatars/${currentUser}-${Date.now()}.jpg`;
+                try {
+                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: 'image/jpeg',
+                        cacheControl: '3600' });
+                    if (error) {
+                        showSnackbar('上传失败: ' + error.message);
+                        return;
+                    }
+                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                    const { error: upError } = await sb.rpc('update_avatar', {
+                        p_username: currentUser,
+                        p_avatar_url: urlData.publicUrl
+                    });
+                    if (upError) {
+                        showSnackbar('更新失败: ' + upError.message);
+                        return;
+                    }
+                    currentAvatarUrl = urlData.publicUrl;
+                    userAvatarCache[currentUser] = urlData.publicUrl;
+                    if (publicChannel) {
+                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: urlData.publicUrl } });
+                    }
+                    updateAllAvatars();
+                    updateHomeMenu();
+                    updatePublicMenu();
+                    const avatarEl = document.getElementById('profileDialogAvatar');
+                    avatarEl.style.backgroundImage = `url(${urlData.publicUrl})`;
+                    avatarEl.textContent = '';
+                    showSnackbar('头像已更新');
+                } catch (e) { showSnackbar('上传失败'); }
+            };
+            input.click();
+        }
