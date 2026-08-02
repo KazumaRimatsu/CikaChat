@@ -1,4 +1,4 @@
-        const _d = function(s) { var k = 'mjchat2026'; var r = ''; try { var d = atob(s); for (var i = 0; i < d.length; i++) { r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length)); } } catch(e) { r = s; } return r; };
+﻿        const _d = function(s) { var k = 'mjchat2026'; var r = ''; try { var d = atob(s); for (var i = 0; i < d.length; i++) { r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length)); } } catch(e) { r = s; } return r; };
         const SUPABASE_URL = _d('BR4XGBJOHR9VTwQeGh0CF0JGWVgcHwIJCwBXVhxFGBoCCgAHVx5RWQ==');
         const SUPABASE_ANON_KEY = _d('Hgg8GBQWXllBXgwIDw0+JVtoWWkyGyBZCEJfd1p/DC8CGSICY29wUV8nBiosLQ==');
         const TABLE_USERS = 'chat_users';
@@ -11,12 +11,12 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const MJCHAT_VERSION = 40;
-        const APP_VERSION = '26.8.201';
+        const APP_VERSION = '26.8.202';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
         const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
-        const MAX_IMAGES_PER_MSG = 6;
+        const MAX_IMAGES_PER_MSG = 5;
 
         let sb = null;
         let currentUser = '';
@@ -263,6 +263,22 @@
 
         function escapeAttr(t) { if (t == null) return ''; return String(t).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
+        function isSafeUrl(url) {
+            if (!url || typeof url !== 'string') return false;
+            const u = url.trim();
+            // 与 cleanHtml 的 href 白名单保持一致，并显式排除 javascript:
+            if (!/^(https?:|mailto:|tel:|#|\/)/i.test(u)) return false;
+            if (/^javascript:/i.test(u)) return false;
+            return true;
+        }
+
+        function sanitizeAvatarUrl(url) {
+            if (!url || typeof url !== 'string') return '';
+            const u = url.trim();
+            if (!/^https?:\/\//i.test(u)) return '';
+            return u.replace(/['"\\]/g, '');
+        }
+
         function getMessagePreview(text) {
             if (!text) return '';
             if (text.startsWith('__RPL__')) {
@@ -273,7 +289,7 @@
             if (text.startsWith('🔗 ')) return '[链接]';
             if (text.startsWith('📎 ')) {
                 const m = text.match(/📎 (.*?) \(/);
-                return m;
+                return m ? m[1] : text;
             }
             if (text.startsWith('🖼️ ')) return '[图片]';
             return text.length > 40 ? text.substring(0, 40) + '…' : text;
@@ -724,6 +740,14 @@
                     if (!secureError && secureData) {
                         userData = secureData;
                     } else if (secureError) {
+                        // 若限流 RPC 明确返回"过于频繁"，立即终止，
+                        // 避免回退到无内置限流的 verify_login_secure / verify_login 绕过限流
+                        const em = (secureError.message || '') + '';
+                        if (/过于频繁|too many|rate.?limit|429/i.test(em)) {
+                            clearTimeout(_loginTimeout);
+                            hideGlobalLoading();
+                            return showEl('loginError', secureError.message || '登录尝试过于频繁，请稍后再试');
+                        }
                         loginError = secureError;
                     }
                 } catch (e) {
@@ -1014,10 +1038,11 @@
                     const data = p.payload;
                     if (!data || !data.username) return;
                     userAvatarCache[data.username] = data.avatar_url || '';
-                    document.querySelectorAll('[data-sender="' + data.username + '"]').forEach(el => {
+                    const selName = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(data.username) : data.username.replace(/["\\]/g, '');
+                    document.querySelectorAll('[data-sender="' + selName + '"]').forEach(el => {
                         applyAvatarToElement(el, data.username);
                     });
-                    document.querySelectorAll('[data-username="' + data.username + '"]').forEach(el => {
+                    document.querySelectorAll('[data-username="' + selName + '"]').forEach(el => {
                         applyAvatarToElement(el, data.username);
                     });
                     renderPrivateList();
@@ -1151,8 +1176,13 @@
                         });
                         publicChannel.on('broadcast', { event: 'user_banned' }, (p) => {
                             if (p.payload.username === currentUser) {
-                                showSnackbar('您已被封禁，即将下线');
-                                setTimeout(() => logout(), 2000);
+                                // 广播可被伪造：先向服务端核实封禁状态，核实失败(unknown)时回退为信任，避免功能失效
+                                verifyServerAccountState(currentUser).then(state => {
+                                    if (state === 'banned' || state === 'unknown') {
+                                        showSnackbar('您已被封禁，即将下线');
+                                        setTimeout(() => logout(), 2000);
+                                    }
+                                });
                             } else if (p.payload.initiator === currentUser) {
                                 broadcastSystemMsg(`用户 ${p.payload.username} 已被封禁`);
                             }
@@ -1160,8 +1190,12 @@
                         publicChannel.on('broadcast', { event: 'user_deleted' }, (p) => {
                             const name = p.payload.username;
                             if (p.payload.forceLogout && name === currentUser) {
-                                showSnackbar('您的账号已注销，即将刷新');
-                                setTimeout(() => location.reload(), 1000);
+                                verifyServerAccountState(name).then(state => {
+                                    if (state === 'deleted' || state === 'unknown') {
+                                        showSnackbar('您的账号已注销，即将刷新');
+                                        setTimeout(() => location.reload(), 1000);
+                                    }
+                                });
                             } else if (p.payload.initiator === currentUser) {
                                 broadcastSystemMsg(`用户 ${name} 已注销`);
                             }
@@ -1479,7 +1513,7 @@
                     replyPreviewContent = escapeHtml(msg.reply_content || '');
                 }
                 if (replyPreviewContent) {
-                    replyHtml = `<div class="reply-preview-block" data-reply-id="${msg.reply_to_id}" onclick="jumpToMessage('${msg.reply_to_id}', 'public')">↩ ${replyPreviewContent}</div>`;
+                    replyHtml = `<div class="reply-preview-block" data-reply-id="${escapeAttr(msg.reply_to_id)}" onclick="jumpToMessage('${escapeAttr(msg.reply_to_id)}', 'public')">↩ ${replyPreviewContent}</div>`;
                 }
             }
 
@@ -1590,7 +1624,7 @@
             }
 
             row.innerHTML = `
-                <div class="${avatarClass}" data-sender="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
+                <div class="${avatarClass}" data-sender="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="${senderClass}">${escapeHtml(senderDisplay)}</span><span class="time">${time}</span></div>
                     <div class="${bubbleClass}">${replyHtml}${bubbleContent}</div>
@@ -2071,6 +2105,11 @@
             overlay.classList.remove('hidden');
         }
 
+        // 文件型图片消息点击时复用图片预览
+        function viewImage(url) {
+            previewImage(url);
+        }
+
         function updatePreviewTransform() {
             const img = document.getElementById('previewImg');
             img.style.transform = `scale(${previewScale}) translate(${previewTranslateX}px, ${previewTranslateY}px)`;
@@ -2172,10 +2211,19 @@
             document.getElementById('linkUrl').value = '';
         }
 
+        function showOpensourceDialog() {
+            document.getElementById('opensourceDialog').classList.remove('hidden');
+        }
+
+        function closeOpensourceDialog() {
+            document.getElementById('opensourceDialog').classList.add('hidden');
+        }
+
         async function sendLink() {
             const text = document.getElementById('linkText').value.trim();
             const url = document.getElementById('linkUrl').value.trim();
             if (!url) { showSnackbar('请输入链接地址'); return; }
+            if (!isSafeUrl(url)) { showSnackbar('链接地址无效，仅支持 http/https/mailto/tel'); return; }
             const displayText = text || url;
             const linkText = '🔗 ' + displayText + ' → ' + url;
             hideLinkDialog();
@@ -2436,12 +2484,21 @@
             if (text.startsWith('🔗 ') && text.includes(' → ')) {
                 const rest = text.substring(4);
                 const sep = rest.indexOf(' → ');
-                if (sep > 0) return { type: 'link', displayText: rest.substring(0, sep), url: rest.substring(sep + 3) };
+                if (sep > 0) {
+                    const url = rest.substring(sep + 3).trim();
+                    // 渲染时校验 URL，防止 javascript: 等危险协议被点击执行
+                    if (!isSafeUrl(url)) return null;
+                    return { type: 'link', displayText: rest.substring(0, sep), url: url };
+                }
             }
             if (text.startsWith('📎 ') && text.includes(' → ')) {
                 const rest = text.substring(3);
                 const sep = rest.indexOf(' → ');
-                if (sep > 0) return { type: 'file', fileInfo: rest.substring(0, sep), url: rest.substring(sep + 3) };
+                if (sep > 0) {
+                    const url = rest.substring(sep + 3).trim();
+                    if (!isSafeUrl(url)) return null;
+                    return { type: 'file', fileInfo: rest.substring(0, sep), url: url };
+                }
             }
             if (text.startsWith('🎤 ') && text.includes('语音')) {
                 const match = text.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
@@ -3150,12 +3207,12 @@
                 var unread = privateUnreadCounts[s.id] || 0;
                 var unreadBadge = unread > 0 ? '<div class="unread-badge">' + (unread > 99 ? '99+' : unread) + '</div>' : '<div class="unread-badge hidden"></div>';
                 var avUrl = userAvatarCache[other];
-                var avStyle = avUrl ? ' style="background-image:url(\'' + avUrl + '\');background-size:cover;background-position:center;"' : '';
+                var avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                 var avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
                 return '<div class="list-item" onclick="openPrivateChat(\'' + s.id + '\',\'' + escapeAttr(other) + '\')">' +
                             '<div class="av-wrap">' +
-                                '<div class="av av-' + idx + '" data-username="' + other + '"' + avStyle + '>' + avText + '</div>' +
-                                '<div class="av-status-dot" data-username="' + other + '"></div>' +
+                                '<div class="av av-' + idx + '" data-username="' + escapeAttr(other) + '"' + avStyle + '>' + avText + '</div>' +
+                                '<div class="av-status-dot" data-username="' + escapeAttr(other) + '"></div>' +
                             '</div>' +
                             '<div class="info">' +
                                 '<div class="name">' + escapeHtml(other) + '</div>' +
@@ -3516,10 +3573,10 @@
                 if (extraText) {
                     contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
                 }
-            } else if (linkMatch) {
+            } else if (linkMatch && isSafeUrl(linkMatch[2])) {
                 contentHtml =
                     `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:#64B5F6;text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
-            } else if (fileMatch) {
+            } else if (fileMatch && isSafeUrl(fileMatch[3])) {
                 if (isImageFile(fileMatch[1])) {
                     contentHtml = `<img src="${escapeAttr(fileMatch[3])}" alt="${escapeAttr(fileMatch[1])}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(fileMatch[3])}')">`;
                     fileIsImage = true;
@@ -3544,11 +3601,11 @@
             }
             if (voiceMatch) row.dataset.msgType = 'voice';
             else if (imgMatch) row.dataset.msgType = 'image';
-            else if (linkMatch) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
-            else if (fileMatch) { row.dataset.msgType = fileIsImage ? 'image' : 'file'; row.dataset.linkUrl = fileMatch[3] || ''; }
+            else if (linkMatch && isSafeUrl(linkMatch[2])) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
+            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : 'file'; row.dataset.linkUrl = fileMatch[3] || ''; }
             else row.dataset.msgType = 'text';
             row.innerHTML = `
-                <div class="avatar av-${ci}" data-username="${msg.sender}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
+                <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="sender">${isOwn ? '我' : escapeHtml(msg.sender)}</span><span class="time">${time}</span></div>
                     <div class="bubble">${replyHtml}${contentHtml}</div>
@@ -4130,7 +4187,7 @@
                     const isOnline = onlineUsernames.includes(u.username);
                     let avatarStyle = '';
                     if (u.avatar_url) {
-                        avatarStyle = `background-image:url(${u.avatar_url});background-size:cover;background-position:center;`;
+                        avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(u.avatar_url)) + ');background-size:cover;background-position:center;';
                     }
                     return `<div class="result-item" onclick="showUserProfile('${escapeAttr(u.username)}')">
                                 <div class="av av-${idx}" style="${avatarStyle}">${u.avatar_url ? '' : escapeHtml(u.username.charAt(0).toUpperCase())}</div>
@@ -4154,10 +4211,10 @@
                     const me = name === currentUser;
                     const idx = hashStr(name) % 8;
                     const avUrl = userAvatarCache[name];
-                    const avStyle = avUrl ? ` style="background-image:url('${avUrl}');background-size:cover;background-position:center;"` : '';
+                    const avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                     const avText = avUrl ? '' : escapeHtml(name.charAt(0).toUpperCase());
                     return `<div class="online-item" onclick="closeOnlineList();showUserProfile('${escapeAttr(name)}')">
-                                <div class="av av-${idx}" data-username="${name}"${avStyle}>${avText}</div>
+                                <div class="av av-${idx}" data-username="${escapeAttr(name)}"${avStyle}>${avText}</div>
                                 <span class="name">${escapeHtml(name)}${me ? ' <span class="me-tag">(我)</span>' : ''}</span>
                             </div>`;
                 }).join('');
@@ -4434,7 +4491,7 @@
                     const idx = hashStr(u.username) % 8;
                     let avatarStyle = '';
                     if (u.avatar_url) {
-                        avatarStyle = `background-image:url(${u.avatar_url});background-size:cover;background-position:center;`;
+                        avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(u.avatar_url)) + ');background-size:cover;background-position:center;';
                     }
                     const isBanned = u.banned ? '🚫' : '✅';
                     const roleIcon = u.role === 'admin' ? '👑' : '👤';
@@ -4605,7 +4662,8 @@
                 const { error } = await sb.rpc('ban_user', {
                     p_admin: currentUser,
                     p_target: username,
-                    p_ban: false
+                    p_ban: false,
+                    p_session_token: getSessionToken()
                 });
                 if (error) { showSnackbar('操作失败: ' + error.message); return; }
                 showSnackbar(`已解封 ${username}`);
@@ -4679,7 +4737,7 @@
                     const avatarIdx = hashStr(agent.name) % 8;
                     let avatarStyle = '';
                     if (userAvatarCache[agent.name]) {
-                        avatarStyle = 'background-image:url(' + userAvatarCache[agent.name] + ');';
+                        avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(userAvatarCache[agent.name])) + ');';
                     }
                     var activeStyle = isActive ? 'border-color:var(--md-primary);background:rgba(74,158,255,0.05);' : '';
                     var useBtnStyle = 'background:' + (isActive ? 'var(--md-primary)' : 'transparent') + ';color:' + (isActive ? '#fff' : 'var(--md-primary)') + ';border:1px solid var(--md-primary);border-radius:8px;padding:6px 16px;font-size:0.75rem;font-weight:500;cursor:pointer;';
@@ -5289,6 +5347,23 @@
             return 'offline';
         }
 
+        // 向服务端核实账号真实状态（banned/deleted/active），用于抵御伪造的广播事件
+        async function verifyServerAccountState(username) {
+            if (!username) return 'unknown';
+            try {
+                const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                if (!rpcError && rpcData) {
+                    if (rpcData.success === false) return 'deleted';
+                    return rpcData.banned ? 'banned' : 'active';
+                }
+            } catch (e) { /* RPC unavailable -> fall back to direct query */ }
+            try {
+                const { data, error } = await sb.from(TABLE_USERS).select('banned').eq('username', username).maybeSingle();
+                if (!error) return data ? (data.banned ? 'banned' : 'active') : 'deleted';
+            } catch (e) { /* ignore */ }
+            return 'unknown';
+        }
+
         // Apply a status to an avatar's status dot, and grey-out the avatar when
         // the user is banned or deleted.
         function setAvatarStatusDot(dotEl, avatarEl, status) {
@@ -5335,6 +5410,16 @@
             if (e && e.target !== e.currentTarget) return;
             document.getElementById('homeMenuOverlay').classList.remove('show');
         }
+
+        // 点击菜单以外的区域时自动关闭主页菜单
+        document.addEventListener('click', (e) => {
+            const overlay = document.getElementById('homeMenuOverlay');
+            if (overlay.classList.contains('show') &&
+                !e.target.closest('#homeMenuOverlay') &&
+                !e.target.closest('#homeMenuBtn')) {
+                closeHomeMenu();
+            }
+        });
 
         function updateHomeMenu() {
             const avatar = document.getElementById('homeMenuAvatar');
