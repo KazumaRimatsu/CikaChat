@@ -7,8 +7,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
     </script>
     <script>
+        /* === Global Control Flag === */
+        var IS_DEV = true;
+
+        if (!IS_DEV) {
         /* === Anti-Debugging & Security Measures (v036 - Reduced False Positives) === */
-        window._devtoolsDetected = false;
+        window._devtoolsDetected = true;
         window._bannerManuallyDismissed = false;
         (function() {
             // 1. Disable sensitive keyboard shortcuts
@@ -97,6 +101,7 @@
             console.group = function() { _origWarn.apply(console, ['[Blocked: console.group]']); };
             console.groupCollapsed = function() { _origWarn.apply(console, ['[Blocked: console.groupCollapsed]']); };
         })();
+        }
     </script>
     <link rel="stylesheet" href="app.css">
 </head>
@@ -118,7 +123,6 @@
                 <div class="app-bar">
                     <div class="title-block"><span class="title">CikaChat</span></div>
                     <div class="online-indicator" id="onlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="onlineCount">0</span></div>
-                    <div class="conn-indicator"><span class="dot" id="connDot"></span><span id="connText">离线</span></div>
                     <button class="icon-button" id="homeMenuBtn" onclick="toggleHomeMenu()" title="菜单">
                         <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                     </button>
@@ -137,7 +141,6 @@
                         <li onclick="closeHomeMenu();navigateTo('settings');"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</li>
                         <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
                         <li onclick="closeHomeMenu();navigateTo('about');"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>关于</li>
-                        <li id="homeAdminItem" class="admin-item" style="display:none;" onclick="closeHomeMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
                         <li class="logout-item" onclick="closeHomeMenu();logout();"><svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>退出登录</li>
                     </ul>
                 </div>
@@ -328,6 +331,19 @@
                             <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
                         </div>
                     </div>
+                    <div class="settings-section">
+                        <div class="settings-section-title">AI功能</div>
+                        <div class="settings-item" onclick="showAIModelSettings();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+                            <span class="settings-item-label">模型设置</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                        <div class="settings-item" onclick="showAITranslationSettings();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg></div>
+                            <span class="settings-item-label">消息翻译</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -446,9 +462,6 @@
                     <div class="item" id="userProfileOnlineItem"><span class="label">在线状态</span><span class="value" id="userProfileOnline">-</span></div>
                 </div>
                 <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);">发起私聊</button>
-                <button class="md-button danger" id="userProfileBanBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="banUserFromProfile()">封禁此用户</button>
-                <button class="md-button danger" id="userProfileForceLogoutBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="forceLogoutUser()">强制下线</button>
-                <button class="md-button danger" id="userProfileDeleteBtn" style="display:none;width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-error);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);" onclick="adminDeleteUser()">注销账号</button>
             </div>
         </div>
 
@@ -456,7 +469,6 @@
             <div class="user-menu-card" onclick="event.stopPropagation()">
                 <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="avatar-status-dot" id="publicAvatarDot"></div></div><div class="user-name" id="publicMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li id="publicAdminItem" class="admin-item" style="display:none;" onclick="closePublicMenu();showAdminDialog();"><svg viewBox="0 0 24 24"><path d="M17,11c0.34,0,0.67,0.04,1,0.09V6.27L10.5,3L3,6.27v4.91c0,4.54,3.2,8.79,7.5,9.82c0.55-0.13,1.08-0.32,1.6-0.55C11.41,19.47,11,18.28,11,17C11,13.69,13.69,11,17,11z"/><path d="M17,13c-2.21,0-4,1.79-4,4c0,2.21,1.79,4,4,4s4-1.79,4-4C21,14.79,19.21,13,17,13z M17,14.38c0.62,0,1.12,0.51,1.12,1.12s-0.51,1.12-1.12,1.12s-1.12-0.51-1.12-1.12S16.38,14.38,17,14.38z M17,19.75c-0.93,0-1.74-0.46-2.24-1.17c0.05-0.72,1.51-1.08,2.24-1.08s2.19,0.36,2.24,1.08C18.74,19.29,17.93,19.75,17,19.75z"/></svg>管理员功能</li>
                     <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-2 10H6V7h12v12zm-9-6c.83 0 1.5-.67 1.5-1.5S10.83 9 10 9s-1.5.67-1.5 1.5S9.17 13 10 13zm4 0c.83 0 1.5-.67 1.5-1.5S14.83 9 14 9s-1.5.67-1.5 1.5S13.17 13 14 13z"/></svg>智能体</li>
                 </ul>
             </div>
@@ -505,71 +517,6 @@
                     <div class="md-text-field"><input type="text" id="agentModel" placeholder=" " value="gpt-3.5-turbo"><label>模型</label></div>
                 </div>
                 <div class="dialog-actions"><button class="md-button text" onclick="closeAddAgentDialog()">取消</button><button class="md-button text" onclick="saveAgent()">保存</button></div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden" id="adminDialog" onclick="if(event.target===this)closeAdminDialog()">
-            <div class="md-dialog admin-dialog-card">
-                <div class="admin-dialog-header">
-                    <h2>管理员功能</h2>
-                    <button class="admin-close-btn" onclick="closeAdminDialog()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
-                </div>
-                <div class="admin-action-list">
-                    <div class="admin-action-item" onclick="closeAdminDialog();showClearDialog();">
-                        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                        <span>清空公共消息</span>
-                    </div>
-                    <div class="admin-action-item" onclick="closeAdminDialog();showBannedList();">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg>
-                        <span>已封禁用户</span>
-                    </div>
-                    <div class="admin-action-item" onclick="closeAdminDialog();showAllUsers();">
-                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                        <span>用户</span>
-                    </div>
-                    <div class="admin-action-item" onclick="closeAdminDialog();showStats();">
-                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-                        <span>数据统计</span>
-                    </div>
-                </div>
-                <div class="dialog-actions" style="margin-top:16px;"><button class="md-button text" onclick="closeAdminDialog()">关闭</button></div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden" id="allUsersModal" onclick="if(event.target===this)closeAllUsersModal()">
-            <div class="md-dialog" style="max-width:420px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>所有用户</h2>
-                    <button onclick="closeAllUsersModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
-                <div style="max-height:60vh;overflow-y:auto;margin-top:12px;" id="allUsersList">
-                </div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden" id="statsModal" onclick="if(event.target===this)closeStatsModal()">
-            <div class="md-dialog" style="max-width:400px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2>数据统计</h2>
-                    <button onclick="closeStatsModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
-                </div>
-                <div id="statsContent" style="margin-top:12px;line-height:2;">
-                </div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden" id="clearDialog" onclick="if(event.target===this)hideClearDialog()">
-            <div class="md-dialog">
-                <h2>清空公共消息</h2>
-                <p>确定要清空所有公共消息吗？此操作不可撤销。</p>
-                <div class="dialog-actions"><button class="md-button text" onclick="hideClearDialog()">取消</button><button class="md-button text" style="color:var(--md-error);" onclick="clearPublicMessages()">清空</button></div>
-            </div>
-        </div>
-
-        <div class="dialog-overlay hidden banned-list-modal" id="bannedListModal" onclick="if(event.target===this)closeBannedList()">
-            <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>已封禁用户</h2><button onclick="closeBannedList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
-                <div class="banned-list" id="bannedListContainer"></div>
             </div>
         </div>
 
@@ -631,9 +578,70 @@
             </div>
         </div>
 
+        <div class="dialog-overlay hidden" id="aiModelSettingsDialog" onclick="if(event.target===this)closeAIModelSettings()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>模型设置</h2>
+                    <button onclick="closeAIModelSettings()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                </div>
+                <div class="ai-form">
+                    <div class="md-text-field">
+                        <select id="aiModelProvider" onchange="updateAIModelPlaceholder(this.value)">
+                            <option value="openai">OpenAI (GPT)</option>
+                            <option value="google">Google (Gemini)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="baidu">百度 (文心一言)</option>
+                            <option value="ali">阿里 (通义千问)</option>
+                            <option value="bytedance">字节跳动 (豆包)</option>
+                            <option value="zhipu">智谱 AI (GLM)</option>
+                            <option value="deepseek">深度求索 (DeepSeek)</option>
+                            <option value="custom">自定义 (OpenAI 兼容)</option>
+                        </select>
+                    </div>
+                    <div class="ai-baseurl-wrapper hidden" id="aiBaseUrlWrapper">
+                        <div class="md-text-field"><input type="text" id="aiModelBaseUrl" placeholder=" "><label>Base URL (OpenAI 兼容 API)</label></div>
+                    </div>
+                    <div class="md-text-field"><input type="password" id="aiModelApiKey" placeholder=" "><label>API Key</label></div>
+                    <div class="md-text-field"><input type="text" id="aiModelId" placeholder=" "><label>模型 ID</label></div>
+                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeAIModelSettings()">取消</button><button class="md-button text" onclick="saveAIModelSettings()">保存</button></div>
+            </div>
+        </div>
+
+        <div class="dialog-overlay hidden" id="aiTranslateSettingsDialog" onclick="if(event.target===this)closeAITranslationSettings()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>消息翻译设置</h2>
+                    <button onclick="closeAITranslationSettings()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                </div>
+                <div class="ai-form">
+                    <div class="translate-hint">选择翻译的目标语言</div>
+                    <div class="md-text-field">
+                        <select id="aiTranslateTargetLang">
+                            <option value="zh-CN">简体中文</option>
+                            <option value="zh-TW">繁体中文</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="es">Español</option>
+                            <option value="pt">Português</option>
+                            <option value="ru">Русский</option>
+                            <option value="ar">العربية</option>
+                            <option value="th">ภาษาไทย</option>
+                            <option value="vi">Tiếng Việt</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeAITranslationSettings()">取消</button><button class="md-button text" onclick="saveAITranslationSettings()">保存</button></div>
+            </div>
+        </div>
+
     </div>
 
 
     <script src="app.js"></script>
+    <script src="ai.js"></script>
 </body>
 </html>

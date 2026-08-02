@@ -1,0 +1,350 @@
+/* ============================================
+   CikaChat AI 功能模块
+   ============================================ */
+var CikaAI = (function() {
+    'use strict';
+
+    // ============ 默认配置 ============
+    var DEFAULTS = {
+        provider: 'openai',
+        baseUrl: '',
+        apiKey: '',
+        model: 'gpt-3.5-turbo',
+        translateTargetLang: 'zh-CN'
+    };
+
+    var PROVIDER_CONFIGS = {
+        'openai': { baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo' },
+        'google': { baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-1.5-flash' },
+        'anthropic': { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-3-5-sonnet-20241022' },
+        'baidu': { baseUrl: '', model: 'ernie-4.0-8k-latest' },
+        'ali': { baseUrl: '', model: 'qwen3.7-flash' },
+        'bytedance': { baseUrl: '', model: 'doubao-pro-4k' },
+        'zhipu': { baseUrl: '', model: 'glm-4-flash' },
+        'deepseek': { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-v4-flash' },
+        'custom': { baseUrl: '', model: 'gpt-3.5-turbo' }
+    };
+
+    // ============ 存储操作 ============
+    function loadModelSettings() {
+        try {
+            var raw = localStorage.getItem('cika_ai_model_settings');
+            if (raw) { return JSON.parse(raw); }
+        } catch (e) { /* ignore */ }
+        return {};
+    }
+
+    function saveModelSettings(settings) {
+        localStorage.setItem('cika_ai_model_settings', JSON.stringify(settings));
+    }
+
+    function loadTranslateSettings() {
+        try {
+            var raw = localStorage.getItem('cika_ai_translate_settings');
+            if (raw) { return JSON.parse(raw); }
+        } catch (e) { /* ignore */ }
+        return { targetLang: DEFAULTS.translateTargetLang };
+    }
+
+    function saveTranslateSettings(settings) {
+        localStorage.setItem('cika_ai_translate_settings', JSON.stringify(settings));
+    }
+
+    // ============ 模型设置弹窗 ============
+    function showModelSettings() {
+        var dialog = document.getElementById('aiModelSettingsDialog');
+        if (dialog) { dialog.classList.remove('hidden'); }
+
+        var settings = loadModelSettings();
+        var provider = settings.provider || DEFAULTS.provider;
+        document.getElementById('aiModelProvider').value = provider;
+        document.getElementById('aiModelBaseUrl').value = settings.baseUrl || '';
+        document.getElementById('aiModelApiKey').value = settings.apiKey || '';
+        document.getElementById('aiModelId').value = settings.model || '';
+        updateAIModelPlaceholder(provider);
+    }
+
+    function closeModelSettings() {
+        var dialog = document.getElementById('aiModelSettingsDialog');
+        if (dialog) { dialog.classList.add('hidden'); }
+    }
+
+    function updateAIModelPlaceholder(provider) {
+        var modelInput = document.getElementById('aiModelId');
+        if (!modelInput) return;
+        var config = PROVIDER_CONFIGS[provider] || {};
+        var defaultModel = config.model || 'gpt-3.5-turbo';
+        modelInput.placeholder = defaultModel;
+
+        // Toggle base_url visibility: only show for custom provider
+        var wrapper = document.getElementById('aiBaseUrlWrapper');
+        if (wrapper) {
+            if (provider === 'custom') {
+                wrapper.classList.remove('hidden');
+            } else {
+                wrapper.classList.add('hidden');
+                // Clear base_url when switching away from custom
+                var baseUrlInput = document.getElementById('aiModelBaseUrl');
+                if (baseUrlInput) baseUrlInput.value = '';
+            }
+        }
+
+        // Update baseUrl placeholder
+        var baseUrlInput = document.getElementById('aiModelBaseUrl');
+        if (baseUrlInput) {
+            if (provider === 'custom') {
+                baseUrlInput.placeholder = '请输入 OpenAI 兼容 API 地址';
+            } else {
+                baseUrlInput.placeholder = config.baseUrl || '';
+            }
+        }
+    }
+
+    function saveModelSettingsHandler() {
+        var provider = document.getElementById('aiModelProvider').value;
+        var baseUrl = document.getElementById('aiModelBaseUrl').value.trim();
+        var apiKey = document.getElementById('aiModelApiKey').value.trim();
+        var model = document.getElementById('aiModelId').value.trim();
+
+        if (!apiKey) { showSnackbar('请输入 API Key'); return; }
+        if (!model) { showSnackbar('请输入模型 ID'); return; }
+
+        saveModelSettings({
+            provider: provider,
+            baseUrl: baseUrl,
+            apiKey: apiKey,
+            model: model
+        });
+        showSnackbar('模型设置已保存');
+        closeModelSettings();
+    }
+
+    // ============ 翻译设置弹窗 ============
+    var LANG_OPTIONS = [
+        { value: 'zh-CN', label: '简体中文' },
+        { value: 'zh-TW', label: '繁体中文' },
+        { value: 'en', label: 'English' },
+        { value: 'ja', label: '日本語' },
+        { value: 'ko', label: '한국어' },
+        { value: 'fr', label: 'Français' },
+        { value: 'de', label: 'Deutsch' },
+        { value: 'es', label: 'Español' },
+        { value: 'pt', label: 'Português' },
+        { value: 'ru', label: 'Русский' },
+        { value: 'ar', label: 'العربية' },
+        { value: 'th', label: 'ภาษาไทย' },
+        { value: 'vi', label: 'Tiếng Việt' }
+    ];
+
+    function showTranslationSettings() {
+        var dialog = document.getElementById('aiTranslateSettingsDialog');
+        if (dialog) { dialog.classList.remove('hidden'); }
+
+        var settings = loadTranslateSettings();
+        var targetLang = settings.targetLang || DEFAULTS.translateTargetLang;
+        document.getElementById('aiTranslateTargetLang').value = targetLang;
+    }
+
+    function closeTranslationSettings() {
+        var dialog = document.getElementById('aiTranslateSettingsDialog');
+        if (dialog) { dialog.classList.add('hidden'); }
+    }
+
+    function saveTranslationSettingsHandler() {
+        var targetLang = document.getElementById('aiTranslateTargetLang').value;
+        saveTranslateSettings({ targetLang: targetLang });
+        showSnackbar('翻译设置已保存');
+        closeTranslationSettings();
+    }
+
+    // ============ 翻译功能 ============
+    function getTargetLangLabel() {
+        var settings = loadTranslateSettings();
+        var targetLang = settings.targetLang || DEFAULTS.translateTargetLang;
+        for (var i = 0; i < LANG_OPTIONS.length; i++) {
+            if (LANG_OPTIONS[i].value === targetLang) return LANG_OPTIONS[i].label;
+        }
+        return targetLang;
+    }
+
+    function translateMessage(text, callback) {
+        var modelSettings = loadModelSettings();
+        var baseUrl = modelSettings.baseUrl || '';
+        var apiKey = modelSettings.apiKey || '';
+        var model = modelSettings.model || 'gpt-3.5-turbo';
+
+        if (!apiKey) {
+            showSnackbar('请先在设置中配置 AI 模型');
+            callback(null, '请先在设置中配置 AI 模型');
+            return;
+        }
+
+        var translateSettings = loadTranslateSettings();
+        var targetLang = translateSettings.targetLang || DEFAULTS.translateTargetLang;
+        var targetLangLabel = getTargetLangLabel();
+
+        // Determine API endpoint
+        var apiUrl;
+        if (baseUrl) {
+            apiUrl = baseUrl.replace(/\/+$/, '') + '/chat/completions';
+        } else {
+            var config = PROVIDER_CONFIGS[modelSettings.provider];
+            if (config && config.baseUrl) {
+                apiUrl = config.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+            } else {
+                apiUrl = 'https://api.openai.com/v1/chat/completions';
+            }
+        }
+
+        var requestBody = {
+            model: model,
+            messages: [
+                { role: 'system', content: '你是一个翻译助手。请将用户输入的内容翻译成' + targetLangLabel + '。只输出翻译结果，不要包含任何解释、引号或额外内容。如果输入已经是' + targetLangLabel + '，则直接原样输出。' },
+                { role: 'user', content: text }
+            ],
+            temperature: 0.3,
+            max_tokens: 4096
+        };
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify(requestBody)
+        }).then(function(response) {
+            if (!response.ok) {
+                return response.text().then(function(errText) {
+                    var errMsg;
+                    try {
+                        var errJson = JSON.parse(errText);
+                        errMsg = errJson.error?.message || ('HTTP ' + response.status);
+                    } catch (e) {
+                        errMsg = 'HTTP ' + response.status + ': ' + (errText || '未知错误');
+                    }
+                    throw new Error(errMsg);
+                });
+            }
+            return response.json();
+        }).then(function(data) {
+            var result = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+            if (result) {
+                callback(result, null);
+            } else {
+                callback(null, '翻译返回为空');
+            }
+        }).catch(function(err) {
+            callback(null, err.message || '翻译请求失败');
+        });
+    }
+
+    // ============ 翻译结果显示/隐藏 ============
+    function toggleTranslation(row) {
+        var bubble = row.querySelector('.bubble');
+        if (!bubble) return;
+        var translateEl = bubble.querySelector('.ai-translation');
+        if (translateEl) {
+            // Toggle visibility
+            if (translateEl.style.display === 'none') {
+                translateEl.style.display = '';
+            } else {
+                translateEl.style.display = 'none';
+            }
+        }
+    }
+
+    function showTranslationLoading(row) {
+        removeTranslation(row);
+        var bubble = row.querySelector('.bubble');
+        if (!bubble) return;
+        var loadingEl = document.createElement('div');
+        loadingEl.className = 'ai-translation ai-translation-loading';
+        loadingEl.innerHTML = '<span class="ai-translation-label">翻译中...</span>';
+        bubble.appendChild(loadingEl);
+        return loadingEl;
+    }
+
+    function renderTranslation(row, text) {
+        removeTranslation(row);
+        if (!text) return;
+        var bubble = row.querySelector('.bubble');
+        if (!bubble) return;
+        var targetLabel = getTargetLangLabel();
+        var el = document.createElement('div');
+        el.className = 'ai-translation';
+        el.innerHTML = '<span class="ai-translation-label">翻译 (' + CikaAI._escapeHtml(targetLabel) + ')</span><div class="ai-translation-text">' + CikaAI._escapeHtml(text) + '</div>';
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+            el.style.display = 'none';
+        });
+        bubble.appendChild(el);
+    }
+
+    function removeTranslation(row) {
+        if (!row) return;
+        var bubble = row.querySelector('.bubble');
+        if (!bubble) return;
+        var existing = bubble.querySelectorAll('.ai-translation');
+        existing.forEach(function(el) { el.remove(); });
+    }
+
+    // ============ 对外翻译入口（上下文菜单调用） ============
+    function doTranslate(row) {
+        var text = row.dataset.msgText || '';
+        if (!text) { showSnackbar('消息内容为空，无法翻译'); return; }
+
+        var loadingEl = showTranslationLoading(row);
+
+        translateMessage(text, function(result, error) {
+            if (error) {
+                removeTranslation(row);
+                showSnackbar('翻译失败: ' + error);
+                return;
+            }
+            renderTranslation(row, result);
+        });
+    }
+
+    // ============ 工具函数 ============
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ============ 初始化 ============
+    function init() {
+        // 暴露全局方法供 index.html onclick 和 app.js 调用
+        window.showAIModelSettings = showModelSettings;
+        window.closeAIModelSettings = closeModelSettings;
+        window.saveAIModelSettings = saveModelSettingsHandler;
+        window.updateAIModelPlaceholder = updateAIModelPlaceholder;
+        window.showAITranslationSettings = showTranslationSettings;
+        window.closeAITranslationSettings = closeTranslationSettings;
+        window.saveAITranslationSettings = saveTranslationSettingsHandler;
+        window.CikaAI_doTranslate = doTranslate;
+        window.CikaAI_toggleTranslation = toggleTranslation;
+        window.CikaAI_removeTranslation = removeTranslation;
+    }
+
+    return {
+        init: init,
+        translateMessage: translateMessage,
+        doTranslate: doTranslate,
+        renderTranslation: renderTranslation,
+        removeTranslation: removeTranslation,
+        toggleTranslation: toggleTranslation,
+        showModelSettings: showModelSettings,
+        closeModelSettings: closeModelSettings,
+        saveModelSettings: saveModelSettingsHandler,
+        showTranslationSettings: showTranslationSettings,
+        closeTranslationSettings: closeTranslationSettings,
+        saveTranslationSettings: saveTranslationSettingsHandler,
+        _escapeHtml: escapeHtml
+    };
+})();
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    CikaAI.init();
+});
