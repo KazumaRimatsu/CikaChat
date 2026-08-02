@@ -84,3 +84,11 @@ foreach ($file in $outputFiles) {
 }
 
 Write-Host "`n完成!" -ForegroundColor Cyan
+
+# 清理编译缓存
+$targetDir = Join-Path $PSScriptRoot "src-tauri\target"
+if (Test-Path $targetDir) {
+    Write-Host "`n清理编译缓存..." -ForegroundColor Yellow
+    Remove-Item -Path $targetDir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "编译缓存已清理: $targetDir" -ForegroundColor Green
+}
