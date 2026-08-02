@@ -3353,3 +3353,85 @@
         .ai-translation-loading .ai-translation-label {
             color: var(--md-on-surface-muted);
         }
+
+        /* ============================================
+           Notification Sound Dialog
+           ============================================ */
+        .notify-sound-list {
+            margin: 16px 0;
+        }
+
+        .notify-sound-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--md-outline);
+            transition: background 0.15s;
+        }
+
+        .notify-sound-item:first-of-type {
+            border-top: 1px solid var(--md-outline);
+        }
+
+        .notify-sound-item:hover {
+            background: var(--md-ripple);
+        }
+
+        .notify-sound-item:active {
+            background: var(--md-surface-6dp);
+        }
+
+        .notify-sound-item .notify-sound-name {
+            font-size: 0.9375rem;
+            color: var(--md-on-surface);
+            flex: 1;
+        }
+
+        .notify-sound-item .notify-preview-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: var(--md-surface-4dp);
+            color: var(--md-on-surface-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .notify-sound-item .notify-preview-btn:hover {
+            background: var(--md-primary);
+            color: var(--md-on-primary);
+        }
+
+        .notify-sound-item .notify-preview-btn:active {
+            transform: scale(0.92);
+        }
+
+        .notify-sound-item .notify-preview-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .notify-sound-item .notify-sound-check {
+            width: 20px;
+            height: 20px;
+            fill: var(--md-primary);
+            display: none;
+        }
+
+        .notify-sound-item.selected .notify-sound-check {
+            display: block;
+        }
+
+        .settings-item .settings-item-value {
+            font-size: 0.875rem;
+            color: var(--md-on-surface-dim);
+            margin-right: 8px;
+        }

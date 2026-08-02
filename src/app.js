@@ -649,6 +649,12 @@
                     themeColor: localStorage.getItem('mjchat_theme_color') || '',
                     unread: { publicLastRead: null, privateLastRead: {} },
                     dismissedPrivacyBanners: [],
+                    notify: {
+                        enabled: true,
+                        sound: 'three_note',
+                        publicEnabled: false,
+                        privateEnabled: true
+                    },
                     version: 1
                 };
                 // Migrate old unread state if it exists
@@ -675,6 +681,17 @@
             // Cache decrypted settings in memory
             _userSettingsCache = userConfig;
 
+            // Migrate: ensure notify settings exist for existing users
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = {
+                    enabled: true,
+                    sound: 'three_note',
+                    publicEnabled: false,
+                    privateEnabled: true
+                };
+                await syncSettingsToEncryptedStore();
+            }
+
             // Apply settings immediately
             applyUserSettings();
         }
@@ -697,6 +714,9 @@
 
             // Apply dismissed banners
             dismissedPrivacyBanners = new Set(_userSettingsCache.dismissedPrivacyBanners || []);
+
+            // Apply notification settings to settings page UI
+            refreshNotifySettingsUI();
         }
 
         // Sync in-memory settings to encrypted localStorage
@@ -717,6 +737,167 @@
         function clearEncryptionKey() {
             _encryptionKey = null;
             _userSettingsCache = null;
+        }
+
+        // ============================================
+        // Notification Sound Settings
+        // ============================================
+
+        const NOTIFY_SOUNDS = {
+            'qq': { file: 'assets/notify/qq.mp3', label: 'QQ提示音' },
+            'wechat': { file: 'assets/notify/wechat.mp3', label: '微信提示音' },
+            'whatsapp': { file: 'assets/notify/whatsapp.mp3', label: 'WhatsApp提示音' },
+            'three_note': { file: 'assets/notify/three_note.mp3', label: '经典三全音' }
+        };
+
+        let _notifyAudio = null;
+
+        function playNotifySound() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const ns = _userSettingsCache.notify;
+            if (!ns.enabled) return;
+            const sound = NOTIFY_SOUNDS[ns.sound] || NOTIFY_SOUNDS['three_note'];
+            try {
+                if (!_notifyAudio) _notifyAudio = new Audio();
+                _notifyAudio.src = sound.file;
+                _notifyAudio.play().catch(function() {});
+            } catch (e) {}
+        }
+
+        function getNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
+            return _userSettingsCache.notify.enabled !== false;
+        }
+
+        function getNotifySound() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return 'three_note';
+            return _userSettingsCache.notify.sound || 'three_note';
+        }
+
+        function getPublicNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return false;
+            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.publicEnabled;
+        }
+
+        function getPrivateNotifyEnabled() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
+            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.privateEnabled;
+        }
+
+        function refreshNotifySettingsUI() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const ns = _userSettingsCache.notify;
+
+            // Update settings page
+            const soundItem = document.getElementById('settingsNotifySoundItem');
+            if (soundItem) {
+                soundItem.style.display = ns.enabled ? '' : 'none';
+            }
+            const soundValue = document.getElementById('settingsNotifySoundValue');
+            if (soundValue) {
+                const snd = NOTIFY_SOUNDS[ns.sound];
+                soundValue.textContent = snd ? snd.label : '经典三全音';
+            }
+
+            // Update chat menu items
+            const publicMenuItem = document.getElementById('publicMenuNotifyItem');
+            if (publicMenuItem) {
+                publicMenuItem.style.display = ns.enabled ? '' : 'none';
+                const publicLabel = document.getElementById('publicNotifyLabel');
+                if (publicLabel) {
+                    publicLabel.textContent = ns.publicEnabled ? '关闭消息提示' : '开启消息提示';
+                }
+            }
+
+            const privateMenuItem = document.getElementById('privateMenuNotifyItem');
+            if (privateMenuItem) {
+                privateMenuItem.style.display = ns.enabled ? '' : 'none';
+                const privateLabel = document.getElementById('privateNotifyLabel');
+                if (privateLabel) {
+                    privateLabel.textContent = ns.privateEnabled ? '关闭消息提示' : '开启消息提示';
+                }
+            }
+        }
+
+        async function toggleNotifyEnabled() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.enabled = !_userSettingsCache.notify.enabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.enabled ? '已开启消息提示' : '已关闭消息提示');
+        }
+
+        function showNotifySoundDialog() {
+            if (!_userSettingsCache || !_userSettingsCache.notify || !_userSettingsCache.notify.enabled) return;
+            const dialog = document.getElementById('notifySoundDialog');
+            if (dialog) {
+                dialog.classList.remove('hidden');
+                updateNotifySoundDialog();
+            }
+        }
+
+        function closeNotifySoundDialog() {
+            const dialog = document.getElementById('notifySoundDialog');
+            if (dialog) dialog.classList.add('hidden');
+        }
+
+        function updateNotifySoundDialog() {
+            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            const currentSound = _userSettingsCache.notify.sound || 'three_note';
+            const items = document.querySelectorAll('.notify-sound-item');
+            items.forEach(function(item) {
+                if (item.dataset.sound === currentSound) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        async function selectNotifySound(sound) {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.sound = sound;
+            await syncSettingsToEncryptedStore();
+            updateNotifySoundDialog();
+            refreshNotifySettingsUI();
+        }
+
+        function previewNotifySound(sound) {
+            const snd = NOTIFY_SOUNDS[sound];
+            if (snd) {
+                try {
+                    var preview = new Audio(snd.file);
+                    preview.play().catch(function() {});
+                } catch (e) {}
+            }
+        }
+
+        async function togglePublicNotify() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.publicEnabled = !_userSettingsCache.notify.publicEnabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.publicEnabled ? '公共聊天消息提示已开启' : '公共聊天消息提示已关闭');
+        }
+
+        async function togglePrivateNotify() {
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+            }
+            _userSettingsCache.notify.privateEnabled = !_userSettingsCache.notify.privateEnabled;
+            await syncSettingsToEncryptedStore();
+            refreshNotifySettingsUI();
+            showSnackbar(_userSettingsCache.notify.privateEnabled ? '私聊消息提示已开启' : '私聊消息提示已关闭');
         }
 
         // Pure JavaScript SHA-256 implementation for old WebView compatibility
@@ -922,7 +1103,7 @@
                     }
                 } catch (ccErr) { /* ignore */ }
                 const sessionToken = regSessionToken || generateLocalNonce();
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key (new user, starts fresh)
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 showEl('regSuccess', '注册成功！正在进入...');
@@ -1058,7 +1239,7 @@
                 currentAvatarUrl = userData.avatar_url || '';
                 userAvatarCache[currentUser] = currentAvatarUrl;
                 const sessionToken = userData.session_token || await hashPassword(passwordHash);
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 document.getElementById('loginPassword').value = '';
@@ -1919,6 +2100,10 @@
                 publicUnread++;
                 updatePublicBadge();
                 updateBackBadge();
+                // Play notification sound for public chat
+                if (getPublicNotifyEnabled()) {
+                    playNotifySound();
+                }
             }
         }
 
@@ -4078,6 +4263,12 @@
                     } else {
                         incrementUnread(sessionId);
                     }
+                    // Play notification sound for private chat (when not in view or not own msg)
+                    if (msg.sender !== currentUser && getPrivateNotifyEnabled()) {
+                        if (!document.getElementById('privatePage').classList.contains('active')) {
+                            playNotifySound();
+                        }
+                    }
                     if (msg.created_at) {
                         sb.from(TABLE_PRIVATE_SESSIONS).update({
                             updated_at: msg.created_at,
@@ -5182,7 +5373,9 @@
                 }
             }
             if (newSessionToken) {
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, token: newSessionToken }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, token: newSessionToken, pwhash: newPasswordHash }));
+                // Re-initialize encrypted settings with new password hash
+                initUserSettings(newPasswordHash, currentUser).catch(function(e) { console.warn('initUserSettings failed:', e); });
             }
             showSnackbar('密码更改成功');
             closeChangePasswordDialog();
@@ -5448,6 +5641,7 @@
                 pushPageHistory('settings');
                 switchPage('settingsPage', true);
                 updateThemeLabel();
+                refreshNotifySettingsUI();
             } else if (page === 'about') {
                 pushPageHistory('about');
                 switchPage('aboutPage', true);
@@ -5649,6 +5843,7 @@
             name.textContent = currentUser;
             // Current user is always online (they are logged in); green dot unless banned.
             applyCurrentUserStatus(dot, avatar);
+            refreshNotifySettingsUI();
         }
 
         let privateBlockedStatus = false;
@@ -5697,6 +5892,7 @@
                 } else { privateBlockedStatus = false; }
             } catch (e) { privateBlockedStatus = false; }
             labelEl.textContent = privateBlockedStatus ? '移出黑名单' : '加入黑名单';
+            refreshNotifySettingsUI();
         }
 
         async function toggleBlockUser() {
@@ -6019,6 +6215,17 @@
                     currentUser = session.username;
                     currentAvatarUrl = userData.avatar_url || '';
                     userAvatarCache[currentUser] = currentAvatarUrl;
+                    // v049: 用会话中保存的密码哈希重新加载加密设置
+                    if (session.pwhash) {
+                        try {
+                            await initUserSettings(session.pwhash, session.username);
+                            // 重新应用主题和颜色（init 中已调用过但当时 _userSettingsCache 为空）
+                            loadTheme();
+                            loadCustomColor();
+                        } catch (e) {
+                            console.warn('Session restore: initUserSettings failed:', e);
+                        }
+                    }
                     updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
                     authorizeEnterApp();
                     enterApp();

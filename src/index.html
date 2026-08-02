@@ -17,12 +17,25 @@
         (function() {
             // 1. Disable sensitive keyboard shortcuts
             document.addEventListener('keydown', function(e) {
+                // F12 - DevTools
                 if (e.keyCode === 123) { e.preventDefault(); e.stopPropagation(); return false; }
+                // F5 / Ctrl+R / Ctrl+Shift+R - 刷新
+                if (e.keyCode === 116) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (e.ctrlKey && (e.keyCode === 82 || e.keyCode === 114)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+Shift+I - DevTools
                 if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 105)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+Shift+J - Console
                 if (e.ctrlKey && e.shiftKey && (e.keyCode === 74 || e.keyCode === 106)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+U - View Source
                 if (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 117)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+Shift+C - Element Picker
                 if (e.ctrlKey && e.shiftKey && (e.keyCode === 67 || e.keyCode === 99)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+S - Save Page
                 if (e.ctrlKey && (e.keyCode === 83 || e.keyCode === 115)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+P - Print
+                if (e.ctrlKey && (e.keyCode === 80 || e.keyCode === 112)) { e.preventDefault(); e.stopPropagation(); return false; }
+                // Ctrl+W - Close Tab
+                if (e.ctrlKey && (e.keyCode === 87 || e.keyCode === 119)) { e.preventDefault(); e.stopPropagation(); return false; }
             }, true);
 
             // 2. Disable right-click context menu
@@ -332,6 +345,20 @@
                         </div>
                     </div>
                     <div class="settings-section">
+                        <div class="settings-section-title">通知</div>
+                        <div class="settings-item" id="settingsNotifyEnabledItem" onclick="toggleNotifyEnabled();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></div>
+                            <span class="settings-item-label">开启消息提示</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                        <div class="settings-item" id="settingsNotifySoundItem" onclick="showNotifySoundDialog();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
+                            <span class="settings-item-label">提示音</span>
+                            <span class="settings-item-value" id="settingsNotifySoundValue">经典三全音</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                    </div>
+                    <div class="settings-section">
                         <div class="settings-section-title">AI功能</div>
                         <div class="settings-item" onclick="showAIModelSettings();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
@@ -469,6 +496,7 @@
             <div class="user-menu-card" onclick="event.stopPropagation()">
                 <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="avatar-status-dot" id="publicAvatarDot"></div></div><div class="user-name" id="publicMenuName">用户</div></div>
                 <ul class="menu-list">
+                    <li id="publicMenuNotifyItem" style="display:none;" onclick="togglePublicNotify();"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span id="publicNotifyLabel">开启消息提示</span></li>
                     <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-2 10H6V7h12v12zm-9-6c.83 0 1.5-.67 1.5-1.5S10.83 9 10 9s-1.5.67-1.5 1.5S9.17 13 10 13zm4 0c.83 0 1.5-.67 1.5-1.5S14.83 9 14 9s-1.5.67-1.5 1.5S13.17 13 14 13z"/></svg>智能体</li>
                 </ul>
             </div>
@@ -478,6 +506,7 @@
             <div class="user-menu-card" onclick="event.stopPropagation()">
                 <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="privateMenuAvatar">U</div><div class="avatar-status-dot" id="privateAvatarDot"></div></div><div class="user-name" id="privateMenuName">用户</div></div>
                 <ul class="menu-list">
+                    <li id="privateMenuNotifyItem" style="display:none;" onclick="togglePrivateNotify();"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span id="privateNotifyLabel">关闭消息提示</span></li>
                     <li onclick="closePrivateMenu();toggleBlockUser();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg><span id="privateBlockLabel">加入黑名单</span></li>
                     <li class="logout-item" onclick="closePrivateMenu();deletePrivateChat();"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>删除对话</li>
                 </ul>
@@ -635,6 +664,46 @@
                     </div>
                 </div>
                 <div class="dialog-actions"><button class="md-button text" onclick="closeAITranslationSettings()">取消</button><button class="md-button text" onclick="saveAITranslationSettings()">保存</button></div>
+            </div>
+        </div>
+
+        <div class="dialog-overlay hidden" id="notifySoundDialog" onclick="if(event.target===this)closeNotifySoundDialog()">
+            <div class="md-dialog">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2>提示音</h2>
+                    <button onclick="closeNotifySoundDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                </div>
+                <div class="notify-sound-list" id="notifySoundList">
+                    <div class="notify-sound-item" data-sound="qq" onclick="selectNotifySound('qq')">
+                        <span class="notify-sound-name">QQ提示音</span>
+                        <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('qq')" title="试听">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <svg class="notify-sound-check" id="notifyCheck-qq" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <div class="notify-sound-item" data-sound="wechat" onclick="selectNotifySound('wechat')">
+                        <span class="notify-sound-name">微信提示音</span>
+                        <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('wechat')" title="试听">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <svg class="notify-sound-check" id="notifyCheck-wechat" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <div class="notify-sound-item" data-sound="whatsapp" onclick="selectNotifySound('whatsapp')">
+                        <span class="notify-sound-name">WhatsApp提示音</span>
+                        <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('whatsapp')" title="试听">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <svg class="notify-sound-check" id="notifyCheck-whatsapp" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <div class="notify-sound-item" data-sound="three_note" onclick="selectNotifySound('three_note')">
+                        <span class="notify-sound-name">经典三全音</span>
+                        <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('three_note')" title="试听">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <svg class="notify-sound-check" id="notifyCheck-three_note" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeNotifySoundDialog()">完成</button></div>
             </div>
         </div>
 
