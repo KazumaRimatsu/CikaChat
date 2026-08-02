@@ -1,13 +1,136 @@
 /* CikaChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
 
-        let mediaRecorder = null,
-            audioChunks = [],
-            recordStartTime = null,
-            recordTimerInterval = null;
-        let privateMediaRecorder = null,
-            privateAudioChunks = [],
-            privateRecordStartTime = null,
-            privateRecordTimerInterval = null;
+        // 通用上传：返回公网 URL，失败时提示并返回 null（bucket 未创建给出引导）
+        async function uploadToBucket(filePath, blob, contentType) {
+            const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: contentType,
+                cacheControl: '3600' });
+            if (error) {
+                if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
+                    '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                else showSnackbar('上传失败: ' + error.message);
+                return null;
+            }
+            const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+            return urlData.publicUrl;
+        }
+
+        // 语音录制工厂：公聊/私聊共用同一套录音、计时、上传流程
+        function createVoiceRecorder(config) {
+            const RECORD_MIC_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
+            const RECORD_STOP_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+            const state = { recorder: null, chunks: [], startTime: null, timerInterval: null };
+
+            function reset() {
+                const btn = document.getElementById(config.ids.btn);
+                const timer = document.getElementById(config.ids.timer);
+                const hint = document.getElementById(config.ids.hint);
+                const stopBtn = document.getElementById(config.ids.stopBtn);
+                btn.classList.remove('recording');
+                btn.innerHTML = RECORD_MIC_ICON;
+                timer.textContent = '00:00';
+                hint.textContent = '点击开始录音';
+                stopBtn.classList.remove('show');
+                if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+            }
+
+            async function toggle() {
+                const btn = document.getElementById(config.ids.btn);
+                const timer = document.getElementById(config.ids.timer);
+                const hint = document.getElementById(config.ids.hint);
+                const stopBtn = document.getElementById(config.ids.stopBtn);
+                if (!state.recorder || state.recorder.state === 'inactive') {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        state.chunks = [];
+                        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+                        state.recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                        state.recorder.ondataavailable = (e) => { if (e.data.size > 0) state.chunks.push(e.data); };
+                        state.recorder.onstop = async () => {
+                            stream.getTracks().forEach(t => t.stop());
+                            const audioBlob = new Blob(state.chunks, { type: mimeType || 'audio/webm' });
+                            if (audioBlob.size < 1000) {
+                                showSnackbar(config.tooShortMsg);
+                                reset();
+                                return;
+                            }
+                            await upload(audioBlob, mimeType || 'audio/webm');
+                            reset();
+                        };
+                        state.recorder.start();
+                        state.startTime = Date.now();
+                        btn.classList.add('recording');
+                        btn.innerHTML = RECORD_STOP_ICON;
+                        hint.textContent = '正在录音...';
+                        stopBtn.classList.add('show');
+                        state.timerInterval = setInterval(() => {
+                            timer.textContent = formatDuration(Math.floor((Date.now() - state.startTime) / 1000));
+                        }, 1000);
+                    } catch (e) {
+                        showSnackbar('无法访问麦克风');
+                    }
+                } else if (state.recorder.state === 'recording') {
+                    state.recorder.stop();
+                }
+            }
+
+            async function upload(blob, mimeType) {
+                const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
+                const filePath = config.makePath(ext);
+                showSnackbar('正在上传语音...');
+                try {
+                    const url = await uploadToBucket(filePath, blob, mimeType);
+                    if (!url) return;
+                    const duration = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0;
+                    await config.onUploaded(duration, url);
+                } catch (e) { showSnackbar('上传失败'); }
+            }
+
+            return { toggle: toggle, reset: reset, state: state };
+        }
+
+        const publicRecorder = createVoiceRecorder({
+            ids: { btn: 'recordBtn', timer: 'recordTimer', hint: 'recordHint', stopBtn: 'recordStopBtn' },
+            tooShortMsg: '录音太短',
+            makePath: (ext) => `audio/${Date.now()}-${generateId()}.${ext}`,
+            onUploaded: async (duration, url) => {
+                const fallbackText = buildVoiceFallback(duration);
+                let audioResult = await sendPublicMessageSecure({
+                    text: fallbackText,
+                    audio_url: url,
+                    audio_dur: duration,
+                    is_system: false,
+                    msg_version: APP_VERSION
+                });
+                if (!audioResult.success && audioResult.message && (audioResult.message.includes('audio_dur') || audioResult.message.includes('audio_url'))) {
+                    audioResult = await sendPublicMessageSecure({
+                        text: buildVoiceFallback(duration, url),
+                        is_system: false,
+                        msg_version: APP_VERSION
+                    });
+                }
+                if (!audioResult.success) showSnackbar('发送语音失败: ' + (audioResult.message || ''));
+                else showSnackbar('语音已发送');
+            }
+        });
+
+        const privateRecorder = createVoiceRecorder({
+            ids: { btn: 'privateRecordBtn', timer: 'privateRecordTimer', hint: 'privateRecordHint', stopBtn: 'privateRecordStopBtn' },
+            tooShortMsg: '录音时间太短',
+            makePath: (ext) => `private/${privateSessionId}/audio/${Date.now()}-${generateId()}.${ext}`,
+            onUploaded: async (duration, url) => {
+                const content = `🎤 语音 ${formatDuration(duration)} → ${url}`;
+                try {
+                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
+                    appendPrivateMsgLocally(newMsg, false);
+                } catch (ie) {
+                    const msg = ie.message || '';
+                    showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
+                }
+            }
+        });
+
+        function toggleRecording() { return publicRecorder.toggle(); }
+        function privateToggleRecording() { return privateRecorder.toggle(); }
         let activeAudio = null;
         let linkMode = 'public';
 
@@ -48,16 +171,6 @@
             } catch (e) {
                 console.warn('[notify] 提示音播放异常:', e);
             }
-        }
-
-        function getNotifyEnabled() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
-            return _userSettingsCache.notify.enabled !== false;
-        }
-
-        function getNotifySound() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return 'three_note';
-            return _userSettingsCache.notify.sound || 'three_note';
         }
 
         function getPublicNotifyEnabled() {
@@ -108,7 +221,7 @@
         async function toggleNotifyEnabled() {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
             _userSettingsCache.notify.enabled = !_userSettingsCache.notify.enabled;
             await syncSettingsToEncryptedStore();
@@ -146,7 +259,7 @@
         async function selectNotifySound(sound) {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
             _userSettingsCache.notify.sound = sound;
             await syncSettingsToEncryptedStore();
@@ -172,7 +285,7 @@
         async function togglePublicNotify() {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
             _userSettingsCache.notify.publicEnabled = !_userSettingsCache.notify.publicEnabled;
             await syncSettingsToEncryptedStore();
@@ -183,7 +296,7 @@
         async function togglePrivateNotify() {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
             _userSettingsCache.notify.privateEnabled = !_userSettingsCache.notify.privateEnabled;
             await syncSettingsToEncryptedStore();
@@ -246,16 +359,9 @@
                 }
                 const filePath = `chat/${Date.now()}-${generateId()}-${i}.jpg`;
                 try {
-                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, {
-                        contentType: 'image/jpeg',
-                        cacheControl: '3600'
-                    });
-                    if (error) {
-                        showSnackbar('上传失败: ' + error.message);
-                        return;
-                    }
-                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                    imageUrls.push(urlData.publicUrl);
+                    const url = await uploadToBucket(filePath, blobToUpload, 'image/jpeg');
+                    if (!url) return;
+                    imageUrls.push(url);
                 } catch (e) {
                     showSnackbar('上传失败');
                     return;
@@ -401,17 +507,10 @@
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `files/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, file, { contentType: file.type ||
-                        'application/octet-stream', cacheControl: '3600' });
-                if (error) {
-                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
-                    else showSnackbar('上传失败: ' + error.message);
-                    return;
-                }
-                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
+                if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
-                const fileText = buildFileText(file.name, fileSize, urlData.publicUrl);
+                const fileText = buildFileText(file.name, fileSize, url);
                 const ieResult = await sendPublicMessageSecure({ text: fileText, is_system: false, msg_version: APP_VERSION });
                 if (!ieResult.success) showSnackbar('发送文件失败: ' + (ieResult.message || ''));
             } catch (e) { showSnackbar('上传失败'); }
@@ -455,19 +554,7 @@
                 if (!privateChannel) return;
                 try {
                     const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, linkText);
-                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
-                    privateMessages.push(newMsg);
-                    if (document.getElementById('privatePage').classList.contains('active')) {
-                        renderPrivateMessage(newMsg);
-                        const container = document.getElementById('privateMessages');
-                        if (container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                            isUserScrolledUp = false;
-                        }
-                    }
-                    notifyPrivateMsg(privateSessionId, currentUser);
-                    loadPrivateSessions();
+                    appendPrivateMsgLocally(newMsg, false);
                 } catch (e) {
                     const msg = e.message || '';
                     showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
@@ -501,8 +588,8 @@
         }
 
         function closeSubPanel() {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
+            if (publicRecorder.state.recorder && publicRecorder.state.recorder.state === 'recording') {
+                publicRecorder.state.recorder.stop();
             }
             document.getElementById('emojiSubPanel').classList.remove('active');
             document.getElementById('textEffectSubPanel').classList.remove('active');
@@ -510,8 +597,7 @@
             document.getElementById('featurePanelMain').style.display = 'block';
         }
 
-        function applyTextEffect(tag) {
-            const input = document.getElementById('publicMsgInput');
+        function applyTextEffectTo(input, toggleFn, tag) {
             const start = input.selectionStart;
             const end = input.selectionEnd;
             if (start === end) { showSnackbar('请先选中文字'); return; }
@@ -530,130 +616,28 @@
                 case 's':
                     wrapped = `<s>${selected}</s>`;
                     break;
-                case 'none':
-                    wrapped = selected;
-                    break;
                 default:
                     wrapped = selected;
             }
             input.setRangeText(wrapped, start, end, 'end');
             autoResize(input);
-            togglePublicSendBtn();
+            toggleFn();
             const newPos = start + wrapped.length;
             input.setSelectionRange(newPos, newPos);
         }
 
+        function applyTextEffect(tag) {
+            applyTextEffectTo(document.getElementById('publicMsgInput'), togglePublicSendBtn, tag);
+        }
+
         function initEmojiPicker() {
-            // v043: 去重后的表情列表
-            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
-                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
-                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
-                '💚', '💙', '🩵', '💜', '🤎', '🖤', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
-                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
-                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
-                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
-                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '🔮', '🖼️'
-            ];
             document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
                 `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
         }
 
-        async function toggleRecording() {
-            const btn = document.getElementById('recordBtn');
-            const timer = document.getElementById('recordTimer');
-            const hint = document.getElementById('recordHint');
-            const stopBtn = document.getElementById('recordStopBtn');
-            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    audioChunks = [];
-                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-                    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-                    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
-                    mediaRecorder.onstop = async () => {
-                        stream.getTracks().forEach(t => t.stop());
-                        const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
-                        if (audioBlob.size < 1000) { showSnackbar('录音太短');
-                            resetRecordingUI(); return; }
-                        await uploadAudio(audioBlob, mimeType || 'audio/webm');
-                        resetRecordingUI();
-                    };
-                    mediaRecorder.start();
-                    recordStartTime = Date.now();
-                    btn.classList.add('recording');
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-                    hint.textContent = '正在录音...';
-                    stopBtn.classList.add('show');
-                    recordTimerInterval = setInterval(() => {
-                        const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
-                        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
-                        const secs = String(elapsed % 60).padStart(2, '0');
-                        timer.textContent = `${mins}:${secs}`;
-                    }, 1000);
-                } catch (e) {
-                    showSnackbar('无法访问麦克风');
-                }
-            } else if (mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-            }
-        }
-
-        function resetRecordingUI() {
-            const btn = document.getElementById('recordBtn');
-            const timer = document.getElementById('recordTimer');
-            const hint = document.getElementById('recordHint');
-            const stopBtn = document.getElementById('recordStopBtn');
-            btn.classList.remove('recording');
-            btn.innerHTML =
-                '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
-            timer.textContent = '00:00';
-            hint.textContent = '点击开始录音';
-            stopBtn.classList.remove('show');
-            if (recordTimerInterval) { clearInterval(recordTimerInterval);
-                recordTimerInterval = null; }
-        }
-
-        async function uploadAudio(blob, mimeType) {
-            const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
-            const filePath = `audio/${Date.now()}-${generateId()}.${ext}`;
-            showSnackbar('正在上传语音...');
-            try {
-                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: mimeType,
-                    cacheControl: '3600' });
-                if (error) {
-                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
-                    else showSnackbar('上传失败: ' + error.message);
-                    return;
-                }
-                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                const duration = recordStartTime ? Math.floor((Date.now() - recordStartTime) / 1000) : 0;
-                const fallbackText = buildVoiceFallback(duration);
-                let audioResult = await sendPublicMessageSecure({
-                    text: fallbackText,
-                    audio_url: urlData.publicUrl,
-                    audio_dur: duration,
-                    is_system: false,
-                    msg_version: APP_VERSION
-                });
-                if (!audioResult.success && audioResult.message && (audioResult.message.includes('audio_dur') || audioResult.message.includes('audio_url'))) {
-                    const fallbackWithUrl = buildVoiceFallback(duration, urlData.publicUrl);
-                    audioResult = await sendPublicMessageSecure({
-                        text: fallbackWithUrl,
-                        is_system: false,
-                        msg_version: APP_VERSION
-                    });
-                }
-                if (!audioResult.success) showSnackbar('发送语音失败: ' + (audioResult.message || ''));
-                else showSnackbar('语音已发送');
-            } catch (e) { showSnackbar('上传失败'); }
-        }
-
         function buildVoiceFallback(duration, audioUrl) {
-            const mins = String(Math.floor(duration / 60)).padStart(2, '0');
-            const secs = String(duration % 60).padStart(2, '0');
             var tail = audioUrl || '请升级 MJChat 到最新版本查看此消息';
-            return '🎤 语音 ' + mins + ':' + secs + ' → ' + tail;
+            return '🎤 语音 ' + formatDuration(duration) + ' → ' + tail;
         }
 
         function toggleVoicePlay(wrap, event) {
@@ -661,11 +645,15 @@
             const audioUrl = wrap.dataset.audio;
             if (!audioUrl) return;
 
+            function resetBtn(w) {
+                const b = w.querySelector('.voice-play-btn');
+                if (b) b.innerHTML = ICON_PLAY;
+            }
+
             if (activeAudio && activeAudio.wrap === wrap && !activeAudio.audio.paused) {
                 activeAudio.audio.pause();
                 wrap.classList.remove('playing');
-                const btn = wrap.querySelector('.voice-play-btn');
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                resetBtn(wrap);
                 activeAudio = null;
                 return;
             }
@@ -673,29 +661,28 @@
             if (activeAudio) {
                 activeAudio.audio.pause();
                 activeAudio.wrap.classList.remove('playing');
-                const prevBtn = activeAudio.wrap.querySelector('.voice-play-btn');
-                prevBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                resetBtn(activeAudio.wrap);
             }
 
             const audio = new Audio(audioUrl);
             wrap.classList.add('playing');
             const btn = wrap.querySelector('.voice-play-btn');
-            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+            btn.innerHTML = ICON_PAUSE;
 
             audio.onended = () => {
                 wrap.classList.remove('playing');
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                resetBtn(wrap);
                 if (activeAudio && activeAudio.wrap === wrap) activeAudio = null;
             };
             audio.onerror = () => {
                 wrap.classList.remove('playing');
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                resetBtn(wrap);
                 if (activeAudio && activeAudio.wrap === wrap) activeAudio = null;
                 showSnackbar('播放失败');
             };
             audio.play().catch(() => {
                 wrap.classList.remove('playing');
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                resetBtn(wrap);
                 showSnackbar('播放失败');
             });
             activeAudio = { audio, wrap };
@@ -786,8 +773,8 @@
         }
 
         function privateCloseSubPanel() {
-            if (privateMediaRecorder && privateMediaRecorder.state === 'recording') {
-                privateMediaRecorder.stop();
+            if (privateRecorder.state.recorder && privateRecorder.state.recorder.state === 'recording') {
+                privateRecorder.state.recorder.stop();
             }
             document.getElementById('privateEmojiSubPanel').classList.remove('active');
             document.getElementById('privateTextEffectSubPanel').classList.remove('active');
@@ -825,14 +812,9 @@
                 }
                 const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}-${i}.jpg`;
                 try {
-                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blobToUpload, { contentType: 'image/jpeg',
-                        cacheControl: '3600' });
-                    if (error) {
-                        showSnackbar('上传失败: ' + error.message);
-                        return;
-                    }
-                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                    imageUrls.push(urlData.publicUrl);
+                    const url = await uploadToBucket(filePath, blobToUpload, 'image/jpeg');
+                    if (!url) return;
+                    imageUrls.push(url);
                 } catch (e) {
                     showSnackbar('上传失败');
                     return;
@@ -852,22 +834,7 @@
             };
             try {
                 const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
-                if (privateChannel) {
-                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
-                }
-                privateMessages.push(newMsg);
-                if (document.getElementById('privatePage').classList.contains('active')) {
-                    renderPrivateMessage(newMsg);
-                    checkPrivacyBanner();
-                    const container = document.getElementById('privateMessages');
-                    if (container) {
-                        scrollToBottom(container);
-                        updateScrollButton(container);
-                        isUserScrolledUp = false;
-                    }
-                }
-                notifyPrivateMsg(privateSessionId, currentUser);
-                loadPrivateSessions();
+                appendPrivateMsgLocally(newMsg, true);
             } catch (ie) {
                 const msg = ie.message || '';
                 showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
@@ -888,33 +855,13 @@
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `private/${privateSessionId}/files/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, file, { contentType: file.type ||
-                        'application/octet-stream', cacheControl: '3600' });
-                if (error) {
-                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
-                    else showSnackbar('上传失败: ' + error.message);
-                    return;
-                }
-                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
+                if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
-                const content = `📎 ${file.name} (${fileSize} KB) → ${urlData.publicUrl}`;
+                const content = `📎 ${file.name} (${fileSize} KB) → ${url}`;
                 try {
                     const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
-                    privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
-                    privateMessages.push(newMsg);
-                    if (document.getElementById('privatePage').classList.contains('active')) {
-                        renderPrivateMessage(newMsg);
-                        checkPrivacyBanner();
-                        const container = document.getElementById('privateMessages');
-                        if (container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                            isUserScrolledUp = false;
-                        }
-                    }
-                    notifyPrivateMsg(privateSessionId, currentUser);
-                    loadPrivateSessions();
+                    appendPrivateMsgLocally(newMsg, true);
                 } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
             } catch (e) { showSnackbar('上传失败'); }
         }
@@ -942,145 +889,12 @@
         }
 
         function privateApplyTextEffect(tag) {
-            const input = document.getElementById('privateMsgInput');
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            if (start === end) { showSnackbar('请先选中文字'); return; }
-            const selected = input.value.substring(start, end);
-            let wrapped;
-            switch (tag) {
-                case 'b':
-                    wrapped = `<b>${selected}</b>`;
-                    break;
-                case 'i':
-                    wrapped = `<i>${selected}</i>`;
-                    break;
-                case 'u':
-                    wrapped = `<u>${selected}</u>`;
-                    break;
-                case 's':
-                    wrapped = `<s>${selected}</s>`;
-                    break;
-                case 'none':
-                    wrapped = selected;
-                    break;
-                default:
-                    wrapped = selected;
-            }
-            input.setRangeText(wrapped, start, end, 'end');
-            autoResize(input);
-            togglePrivateSendBtn();
-            const newPos = start + wrapped.length;
-            input.setSelectionRange(newPos, newPos);
+            applyTextEffectTo(document.getElementById('privateMsgInput'), togglePrivateSendBtn, tag);
         }
 
         function initPrivateEmojiPicker() {
-            // v043: 去重后的表情列表
-            const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
-                '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
-                '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
-                '💚', '💙', '🩵', '💜', '🤎', '🖤', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
-                '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
-                '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
-                '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
-                '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '🔮', '🖼️'
-            ];
             document.getElementById('privateEmojiGrid').innerHTML = EMOJIS.map(e =>
                 `<button class="emoji-item" onclick="privateInsertEmoji('${e}')">${e}</button>`).join('');
-        }
-
-        async function privateToggleRecording() {
-            const btn = document.getElementById('privateRecordBtn');
-            const timer = document.getElementById('privateRecordTimer');
-            const hint = document.getElementById('privateRecordHint');
-            const stopBtn = document.getElementById('privateRecordStopBtn');
-            if (!privateMediaRecorder || privateMediaRecorder.state === 'inactive') {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    privateAudioChunks = [];
-                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-                    privateMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-                    privateMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) privateAudioChunks.push(e.data); };
-                    privateMediaRecorder.onstop = async () => {
-                        stream.getTracks().forEach(t => t.stop());
-                        const audioBlob = new Blob(privateAudioChunks, { type: mimeType || 'audio/webm' });
-                        if (audioBlob.size < 1000) { showSnackbar('录音时间太短');
-                            privateResetRecordingUI(); return; }
-                        await privateUploadAudio(audioBlob, mimeType || 'audio/webm');
-                        privateResetRecordingUI();
-                    };
-                    privateMediaRecorder.start();
-                    privateRecordStartTime = Date.now();
-                    btn.classList.add('recording');
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-                    hint.textContent = '正在录音...';
-                    stopBtn.classList.add('show');
-                    privateRecordTimerInterval = setInterval(() => {
-                        const elapsed = Math.floor((Date.now() - privateRecordStartTime) / 1000);
-                        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
-                        const secs = String(elapsed % 60).padStart(2, '0');
-                        timer.textContent = `${mins}:${secs}`;
-                    }, 1000);
-                } catch (e) {
-                    showSnackbar('无法访问麦克风');
-                }
-            } else if (privateMediaRecorder.state === 'recording') {
-                privateMediaRecorder.stop();
-            }
-        }
-
-        function privateResetRecordingUI() {
-            const btn = document.getElementById('privateRecordBtn');
-            const timer = document.getElementById('privateRecordTimer');
-            const hint = document.getElementById('privateRecordHint');
-            const stopBtn = document.getElementById('privateRecordStopBtn');
-            btn.classList.remove('recording');
-            btn.innerHTML =
-                '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
-            timer.textContent = '00:00';
-            hint.textContent = '点击开始录音';
-            stopBtn.classList.remove('show');
-            if (privateRecordTimerInterval) { clearInterval(privateRecordTimerInterval);
-                privateRecordTimerInterval = null; }
-        }
-
-        async function privateUploadAudio(blob, mimeType) {
-            const ext = mimeType.includes('webm') ? 'webm' : 'm4a';
-            const filePath = `private/${privateSessionId}/audio/${Date.now()}-${generateId()}.${ext}`;
-            showSnackbar('正在上传语音...');
-            try {
-                const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: mimeType,
-                    cacheControl: '3600' });
-                if (error) {
-                    if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                        '上传失败: 请先在 Storage 创建 chat-images Bucket');
-                    else showSnackbar('上传失败: ' + error.message);
-                    return;
-                }
-                const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                const duration = privateRecordStartTime ? Math.floor((Date.now() - privateRecordStartTime) / 1000) : 0;
-                const mins = String(Math.floor(duration / 60)).padStart(2, '0');
-                const secs = String(duration % 60).padStart(2, '0');
-                const content = `🎤 语音 ${mins}:${secs} → ${urlData.publicUrl}`;
-                try {
-                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
-                    if (privateChannel) {
-                        privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
-                    }
-                    privateMessages.push(newMsg);
-                    if (document.getElementById('privatePage').classList.contains('active')) {
-                        renderPrivateMessage(newMsg);
-                        const container = document.getElementById('privateMessages');
-                        if (container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                            isUserScrolledUp = false;
-                        }
-                    }
-                    notifyPrivateMsg(privateSessionId, currentUser);
-                    loadPrivateSessions();
-                } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
-            } catch (e) { showSnackbar('上传失败'); }
         }
 
         async function doSearch(query) {
@@ -1108,7 +922,7 @@
                     container.innerHTML = '<div class="empty">未找到用户</div>';
                     return;
                 }
-                var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
+                var onlineUsernames = getOnlineUsernames();
                 container.innerHTML = users.map(u => {
                     const idx = hashStr(u.username) % 8;
                     const isOnline = onlineUsernames.includes(u.username);
@@ -1145,18 +959,7 @@
         function updateAgentModelDefault() {
             const provider = document.getElementById('agentProvider').value;
             const modelInput = document.getElementById('agentModel');
-            const defaults = {
-                'openai': 'gpt-3.5-turbo',
-                'google': 'gemini-1.5-flash',
-                'anthropic': 'claude-3-5-sonnet-20241022',
-                'baidu': 'ernie-4.0-8k-latest',
-                'ali': 'qwen3.7-flash',
-                'bytedance': 'doubao-pro-4k',
-                'zhipu': 'glm-4-flash',
-                'deepseek': 'deepseek-v4-flash',
-                'custom': 'gpt-3.5-turbo'
-            };
-            modelInput.value = defaults[provider] || 'gpt-3.5-turbo';
+            modelInput.value = AGENT_DEFAULT_MODELS[provider] || AGENT_DEFAULT_MODELS['custom'];
         }
 
         function closeAddAgentDialog() {

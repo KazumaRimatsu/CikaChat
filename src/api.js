@@ -955,17 +955,7 @@
                             .on('presence', { event: 'sync' }, () => {
                                 onlineUsers = publicChannel.presenceState();
                                 renderOnlineUsers();
-                                var onlineNames = [];
-                                var vals = Object.values(onlineUsers);
-                                for (var vi = 0; vi < vals.length; vi++) {
-                                    var flatVals = vals[vi];
-                                    if (Array.isArray(flatVals)) {
-                                        for (var vj = 0; vj < flatVals.length; vj++) {
-                                            if (flatVals[vj] && flatVals[vj].name) onlineNames.push(flatVals[vj].name);
-                                        }
-                                    }
-                                }
-                                loadUserAvatars(onlineNames).then(function() { renderOnlineUsers(); });
+                                loadUserAvatars(getOnlineUsernames()).then(function() { renderOnlineUsers(); });
                                 if (privateChatActive) updatePrivateChatStatus();
                                 updatePrivateListStatusDots();
                                 if (!presenceSynced) {
@@ -1838,8 +1828,7 @@
 
         async function resolveUserStatus(username) {
             if (!username) return 'offline';
-            var onlineNames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
-            if (onlineNames.includes(username)) return 'online';
+            if (getOnlineUsernames().includes(username)) return 'online';
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
                 if (!rpcError && rpcData) {

@@ -24,10 +24,8 @@
         let privatePollTimer = null;
         // v040: Public chat polling timers for retry logic
         let userAvatarCache = {};
-        let publicMsgPage = 0;
         let publicHasMore = true;
         let publicLoadingMore = false;
-        let privateMsgPage = 0;
         let privateHasMore = true;
         let privateLoadingMore = false;
         function updateAllAvatars() {
@@ -54,15 +52,7 @@
         }
 
         function applyAvatarToElement(el, username) {
-            if (!el || !username) return;
-            const url = userAvatarCache[username];
-            if (url) {
-                el.style.backgroundImage = `url(${url})`;
-                el.textContent = '';
-            } else {
-                el.style.backgroundImage = '';
-                el.textContent = username.charAt(0).toUpperCase();
-            }
+            fillUserAvatar(el, username, userAvatarCache[username]);
         }
 
         let recentPrivateNotifications = {};
@@ -155,21 +145,25 @@
             return false;
         }
 
-        function showPublicLoadMore(show) {
-            let indicator = document.getElementById('publicLoadMoreIndicator');
+        function showLoadMoreIndicator(containerId, indicatorId, show) {
+            let indicator = document.getElementById(indicatorId);
             if (show) {
                 if (!indicator) {
                     indicator = document.createElement('div');
-                    indicator.id = 'publicLoadMoreIndicator';
+                    indicator.id = indicatorId;
                     indicator.className = 'load-more-indicator';
                     indicator.innerHTML = '<div class="loading-spinner"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div><span>正在加载更多消息...</span>';
-                    const container = document.getElementById('publicMessages');
+                    const container = document.getElementById(containerId);
                     container.insertBefore(indicator, container.firstChild);
                 }
                 indicator.style.display = 'flex';
             } else {
                 if (indicator) indicator.style.display = 'none';
             }
+        }
+
+        function showPublicLoadMore(show) {
+            showLoadMoreIndicator('publicMessages', 'publicLoadMoreIndicator', show);
         }
 
         function handlePublicMessage(msg, isHistory = false) {
@@ -261,10 +255,7 @@
                     if (repliedMsg.image_url) {
                         contentPreview = `<img src="${escapeAttr(repliedMsg.image_url)}" style="max-width:100px;max-height:100px;border-radius:4px;">`;
                     } else if (repliedMsg.audio_url) {
-                        const dur = repliedMsg.audio_dur || 0;
-                        const mins = String(Math.floor(dur / 60)).padStart(2, '0');
-                        const secs = String(dur % 60).padStart(2, '0');
-                        contentPreview = `[语音] ${mins}:${secs}`;
+                        contentPreview = `[语音] ${formatDuration(repliedMsg.audio_dur || 0)}`;
                     } else if (repliedMsg.text && repliedMsg.text.startsWith('🔗 ')) {
                         const linkMatch = repliedMsg.text.match(/🔗 (.*?) → (.*)/);
                         if (linkMatch) contentPreview = `[链接] ${escapeHtml(linkMatch[1])}`;
@@ -310,30 +301,12 @@
                     bubbleContent += `<div style="margin-top:4px;">${cleanHtml(msg.text)}</div>`;
                 }
             } else if (msg.audio_url) {
-                const dur = msg.audio_dur || 0;
-                const mins = String(Math.floor(dur / 60)).padStart(2, '0');
-                const secs = String(dur % 60).padStart(2, '0');
-                const durStr = `${mins}:${secs}`;
-                const waveBars = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16 + 4)).map(h =>
-                    `<div class="voice-wave" style="height:${h}px"></div>`).join('');
-                bubbleContent =
-                    `<div class="voice-msg-wrap" data-audio="${escapeAttr(msg.audio_url)}" data-dur="${dur}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="voice-waves">${waveBars}</div><span class="voice-dur">${durStr}</span></div>`;
+                bubbleContent = buildVoiceBubbleHtml(msg.audio_url, msg.audio_dur || 0);
                 msgType = 'voice';
             } else {
                 const marked = parseMarkedText(msg.text);
                 if (marked && marked.type === 'voice') {
-                    const dur = marked.duration || 0;
-                    const mins = String(Math.floor(dur / 60)).padStart(2, '0');
-                    const secs = String(dur % 60).padStart(2, '0');
-                    const durStr = `${mins}:${secs}`;
-                    const waveBars = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16 + 4)).map(h =>
-                        `<div class="voice-wave" style="height:${h}px"></div>`).join('');
-                    if (marked.url) {
-                        bubbleContent =
-                            `<div class="voice-msg-wrap" data-audio="${escapeAttr(marked.url)}" data-dur="${dur}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="voice-waves">${waveBars}</div><span class="voice-dur">${durStr}</span></div>`;
-                    } else {
-                        bubbleContent = `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">请升级到最新版本播放</span></div>`;
-                    }
+                    bubbleContent = buildVoiceBubbleHtml(marked.url, marked.duration || 0, '请升级到最新版本播放');
                     msgType = 'voice';
                 } else if (marked && marked.type === 'link') {
                     linkUrl = marked.url;
@@ -409,48 +382,25 @@
         }
 
         function jumpToMessage(msgId, type) {
-            if (type === 'public') {
-                const container = document.getElementById('publicMessages');
-                const targetRow = container.querySelector(`.msg-row[data-msg-id="${msgId}"]`);
-                if (targetRow) {
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    targetRow.style.transition = 'background 1s';
-                    targetRow.style.background = 'rgba(74, 158, 255, 0.25)';
-                    targetRow.style.marginLeft = '-16px';
-                    targetRow.style.marginRight = '-16px';
-                    targetRow.style.paddingLeft = '16px';
-                    targetRow.style.paddingRight = '16px';
-                    setTimeout(() => {
-                        targetRow.style.background = 'transparent';
-                        targetRow.style.marginLeft = '';
-                        targetRow.style.marginRight = '';
-                        targetRow.style.paddingLeft = '';
-                        targetRow.style.paddingRight = '';
-                    }, 2000);
-                } else {
-                    showSnackbar('无法定位到此消息');
-                }
-            } else if (type === 'private') {
-                const container = document.getElementById('privateMessages');
-                const targetRow = container.querySelector(`.msg-row[data-msg-id="${msgId}"]`);
-                if (targetRow) {
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    targetRow.style.transition = 'background 1s';
-                    targetRow.style.background = 'rgba(74, 158, 255, 0.25)';
-                    targetRow.style.marginLeft = '-16px';
-                    targetRow.style.marginRight = '-16px';
-                    targetRow.style.paddingLeft = '16px';
-                    targetRow.style.paddingRight = '16px';
-                    setTimeout(() => {
-                        targetRow.style.background = 'transparent';
-                        targetRow.style.marginLeft = '';
-                        targetRow.style.marginRight = '';
-                        targetRow.style.paddingLeft = '';
-                        targetRow.style.paddingRight = '';
-                    }, 2000);
-                } else {
-                    showSnackbar('无法定位到此消息');
-                }
+            const container = document.getElementById(type === 'private' ? 'privateMessages' : 'publicMessages');
+            const targetRow = container.querySelector(`.msg-row[data-msg-id="${msgId}"]`);
+            if (targetRow) {
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetRow.style.transition = 'background 1s';
+                targetRow.style.background = 'rgba(74, 158, 255, 0.25)';
+                targetRow.style.marginLeft = '-16px';
+                targetRow.style.marginRight = '-16px';
+                targetRow.style.paddingLeft = '16px';
+                targetRow.style.paddingRight = '16px';
+                setTimeout(() => {
+                    targetRow.style.background = 'transparent';
+                    targetRow.style.marginLeft = '';
+                    targetRow.style.marginRight = '';
+                    targetRow.style.paddingLeft = '';
+                    targetRow.style.paddingRight = '';
+                }, 2000);
+            } else {
+                showSnackbar('无法定位到此消息');
             }
         }
 
@@ -488,13 +438,16 @@
             sub.textContent = `${sender}：${content}`;
         }
 
-        function addPublicSystemMsg(text) {
-            if (isGarbledText(text)) return;
-            const c = document.getElementById('publicMessages');
+        function addSystemMsg(container, text) {
             const d = document.createElement('div');
             d.className = 'system-msg';
             d.innerHTML = `<span>${escapeHtml(text)}</span>`;
-            c.appendChild(d);
+            container.appendChild(d);
+        }
+
+        function addPublicSystemMsg(text) {
+            if (isGarbledText(text)) return;
+            addSystemMsg(document.getElementById('publicMessages'), text);
         }
 
         function togglePublicSendBtn() {
@@ -532,10 +485,7 @@
                     if (replied.image_url) {
                         previewText = '[图片]';
                     } else if (replied.audio_url) {
-                        const dur = replied.audio_dur || 0;
-                        const mins = String(Math.floor(dur / 60)).padStart(2, '0');
-                        const secs = String(dur % 60).padStart(2, '0');
-                        previewText = `[语音] ${mins}:${secs}`;
+                        previewText = `[语音] ${formatDuration(replied.audio_dur || 0)}`;
                     } else if (replied.text && replied.text.startsWith('🔗 ')) {
                         const match = replied.text.match(/🔗 (.*?) → /);
                         previewText = match ? `[链接] ${match[1]}` : '[链接]';
@@ -720,8 +670,8 @@
             togglePublicSendBtn();
         }
 
-        function initInteractions() {
-            const messagesEl = document.getElementById('publicMessages');
+        function initMessageInteractions(messagesEl, chatType) {
+            const isPublic = chatType === 'public';
 
             messagesEl.addEventListener('contextmenu', (e) => {
                 const target = e.target;
@@ -736,7 +686,7 @@
                     if (avatar) {
                         const sender = avatar.dataset.sender || avatar.dataset.username;
                         if (sender && sender !== currentUser) {
-                            showAvatarContextMenu(e, sender, 'public');
+                            showAvatarContextMenu(e, sender, chatType);
                         }
                         return;
                     }
@@ -744,7 +694,7 @@
                     if (bubble) {
                         const row = bubble.closest('.msg-row');
                         if (row) {
-                            showContextMenuForRow(row, e.clientX, e.clientY, 'public');
+                            showContextMenuForRow(row, e.clientX, e.clientY, chatType);
                         }
                     }
                 }
@@ -779,7 +729,7 @@
                 pressTargetRow = row;
                 pressTimer = setTimeout(() => {
                     if (!pressMoved && pressTargetRow) {
-                        showContextMenuForRow(pressTargetRow, pressStartX, pressStartY, 'public');
+                        showContextMenuForRow(pressTargetRow, pressStartX, pressStartY, chatType);
                         pressTargetRow = null;
                     }
                 }, 500);
@@ -810,7 +760,7 @@
             document.addEventListener('mousemove', (e) => { if (pressTimer && e.button === 0) movePress(e); });
             document.addEventListener('mouseup', (e) => { if (e.button === 0) endPress(); });
 
-            if (publicChannel) {
+            if (isPublic && publicChannel) {
                 publicChannel.on('broadcast', { event: 'poke' }, (p) => {
                     const from = p.payload.from;
                     const target = p.payload.target;
@@ -821,6 +771,10 @@
                     }
                 });
             }
+        }
+
+        function initInteractions() {
+            initMessageInteractions(document.getElementById('publicMessages'), 'public');
         }
 
         function insertAtMention(sender) {
@@ -869,6 +823,46 @@
             broadcastSystemMsg(`你拍了拍 ${sender}`);
         }
 
+        function addContextMenuItem(menu, label, iconSvg, action) {
+            const item = document.createElement('div');
+            item.className = 'menu-item';
+            item.innerHTML = iconSvg + ' ' + label;
+            item.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                closeContextMenu();
+                action();
+            });
+            menu.appendChild(item);
+        }
+
+        function positionContextMenu(menu, x, y, fallbackW, fallbackH) {
+            menu.classList.add('show');
+            let left = x, top = y;
+            const menuW = menu.offsetWidth || (fallbackW || 120);
+            const menuH = menu.offsetHeight || (fallbackH || 80);
+            if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+            if (top + menuH > window.innerHeight - 8) top = window.innerHeight - menuH - 8;
+            if (left < 8) left = 8;
+            if (top < 8) top = 8;
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+        }
+
+        function copyToClipboardWithToast(text) {
+            navigator.clipboard.writeText(text).then(() => showSnackbar('已复制'))
+                .catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showSnackbar('已复制');
+                });
+        }
+
         function showAvatarContextMenu(e, sender, chatType) {
             e.preventDefault();
             e.stopPropagation();
@@ -880,129 +874,20 @@
             const atIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c5.07 0 9.22-3.77 9.86-8.67h-2.1c-.62 3.86-3.92 6.85-7.76 6.85-4.42 0-8-3.58-8-8s3.58-8 8-8c2.92 0 5.44 1.59 6.84 3.97L17.8 9H20V5l-1.69 1.69C16.82 4.01 14.52 3 12 3 7.03 3 3 7.03 3 12s4.03 9 9 9c3.69 0 6.83-2.17 8.25-5.29l1.89.65C20.38 20.52 16.46 23 12 23 5.93 23 1 18.07 1 12S5.93 1 12 1c3.75 0 7.06 1.87 9.02 4.74L23 3v6h-6l2.24-2.24C17.84 4.34 15.08 3 12 3z"/></svg>';
             const pokeIcon = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 20.5L7 21h9l1.5-.5L20 17h-5l-1 2h-3l.5-4h4l1 2h1l-1-4-8-8-4 4 1 1.5V15l-3 3 .5 2.5zM14 3l-3 3h2v3h2V6h2l-3-3z" fill="currentColor"/></svg>';
 
-            const addItem = (label, iconSvg, action) => {
-                const item = document.createElement('div');
-                item.className = 'menu-item';
-                item.innerHTML = iconSvg + ' ' + label;
-                item.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    closeContextMenu();
-                    action();
-                });
-                menu.appendChild(item);
-            };
-
-            addItem(`@${sender}`, atIcon, () => {
+            addContextMenuItem(menu, `@${sender}`, atIcon, () => {
                 if (chatType === 'private') {
                     insertAtMentionPrivate(sender);
                 } else {
                     insertAtMention(sender);
                 }
             });
-            addItem('拍一拍', pokeIcon, () => pokeUser(sender));
+            addContextMenuItem(menu, '拍一拍', pokeIcon, () => pokeUser(sender));
 
-            menu.classList.add('show');
-            let left = e.clientX,
-                top = e.clientY;
-            const menuW = menu.offsetWidth || 120;
-            const menuH = menu.offsetHeight || 80;
-            if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
-            if (top + menuH > window.innerHeight - 8) top = window.innerHeight - menuH - 8;
-            if (left < 8) left = 8;
-            if (top < 8) top = 8;
-            menu.style.left = left + 'px';
-            menu.style.top = top + 'px';
+            positionContextMenu(menu, e.clientX, e.clientY, 120, 80);
         }
 
         function initPrivateInteractions() {
-            const messagesEl = document.getElementById('privateMessages');
-
-            messagesEl.addEventListener('contextmenu', (e) => {
-                const target = e.target;
-                if (target.tagName === 'IMG') {
-                    e.preventDefault();
-                    return;
-                }
-                if (!e.target.closest('.msg-input')) {
-                    e.preventDefault();
-                    // 头像右键：弹出 @ / 拍一拍 菜单
-                    const avatar = target.closest('.avatar');
-                    if (avatar) {
-                        const sender = avatar.dataset.username;
-                        if (sender && sender !== currentUser) {
-                            showAvatarContextMenu(e, sender, 'private');
-                        }
-                        return;
-                    }
-                    const bubble = target.closest('.bubble');
-                    if (bubble) {
-                        const row = bubble.closest('.msg-row');
-                        if (row) {
-                            showContextMenuForRow(row, e.clientX, e.clientY, 'private');
-                        }
-                    }
-                }
-            });
-
-            messagesEl.addEventListener('touchstart', (e) => {
-                const target = e.target;
-                if (target.tagName === 'IMG') {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            let pressTimer = null;
-            let pressStartX = 0,
-                pressStartY = 0;
-            let pressMoved = false;
-            let pressTargetRow = null;
-
-            const startPress = (e) => {
-                const target = e.target;
-                if (target.closest('.msg-input')) return;
-                if (target.tagName === 'IMG') return;
-                const bubble = target.closest('.bubble');
-                if (!bubble) return;
-                const row = bubble.closest('.msg-row');
-                if (!row) return;
-                const cx = e.touches ? e.touches[0].clientX : e.clientX;
-                const cy = e.touches ? e.touches[0].clientY : e.clientY;
-                pressStartX = cx;
-                pressStartY = cy;
-                pressMoved = false;
-                pressTargetRow = row;
-                pressTimer = setTimeout(() => {
-                    if (!pressMoved && pressTargetRow) {
-                        showContextMenuForRow(pressTargetRow, pressStartX, pressStartY, 'private');
-                        pressTargetRow = null;
-                    }
-                }, 500);
-            };
-            const movePress = (e) => {
-                if (!pressTimer) return;
-                const cx = e.touches ? e.touches[0].clientX : e.clientX;
-                const cy = e.touches ? e.touches[0].clientY : e.clientY;
-                if (Math.abs(cx - pressStartX) > 10 || Math.abs(cy - pressStartY) > 10) {
-                    pressMoved = true;
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                    pressTargetRow = null;
-                }
-            };
-            const endPress = () => {
-                if (pressTimer) {
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                    pressTargetRow = null;
-                }
-            };
-            messagesEl.addEventListener('touchstart', startPress, { passive: true });
-            messagesEl.addEventListener('touchmove', movePress, { passive: true });
-            messagesEl.addEventListener('touchend', endPress);
-            messagesEl.addEventListener('touchcancel', endPress);
-            messagesEl.addEventListener('mousedown', (e) => { if (e.button === 0) startPress(e); });
-            document.addEventListener('mousemove', (e) => { if (pressTimer && e.button === 0) movePress(e); });
-            document.addEventListener('mouseup', (e) => { if (e.button === 0) endPress(); });
+            initMessageInteractions(document.getElementById('privateMessages'), 'private');
         }
 
         function showContextMenuForRow(row, x, y, type) {
@@ -1034,20 +919,16 @@
                 translate: '<svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>'
             };
 
-            const addItem = (label, iconSvg, action) => {
-                const item = document.createElement('div');
-                item.className = 'menu-item';
-                item.innerHTML = iconSvg + ' ' + label;
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    closeContextMenu();
-                    action();
+            const addDeleteItem = () => {
+                addContextMenuItem(menu, '删除', icons.delete, () => {
+                    showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
+                        contextDeleteMsg();
+                    });
                 });
-                menu.appendChild(item);
             };
 
             const replyContentText = (msgType === 'voice' || msgType === 'link' || msgType === 'file') ? getMessagePreview(text) : (text || '消息');
-            addItem('回复', icons.reply, () => {
+            addContextMenuItem(menu, '回复', icons.reply, () => {
                 if (type === 'public') {
                     setPublicReplyTarget(msgId, sender, replyContentText);
                 } else {
@@ -1056,7 +937,7 @@
             });
 
             if (msgType === 'image') {
-                addItem('保存图片', icons.save, () => {
+                addContextMenuItem(menu, '保存图片', icons.save, () => {
                     const url = imageUrl;
                     if (url) {
                         fetch(url).then(res => res.blob()).then(blob => {
@@ -1072,57 +953,19 @@
                         showSnackbar('图片地址无效');
                     }
                 });
-                if (canDelete) {
-                    addItem('删除', icons.delete, () => {
-                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
-                            contextDeleteMsg();
-                        });
-                    });
-                }
+                if (canDelete) addDeleteItem();
             } else if (msgType === 'link' || msgType === 'file') {
                 if (linkUrl) {
-                    addItem('打开链接', icons.open, () => window.open(linkUrl, '_blank'));
+                    addContextMenuItem(menu, '打开链接', icons.open, () => window.open(linkUrl, '_blank'));
                 }
                 const copyText = text || linkUrl;
                 if (copyText) {
-                    addItem('复制文字', icons.copy, () => {
-                        navigator.clipboard.writeText(copyText).then(() => showSnackbar('已复制'))
-                            .catch(() => {
-                                const ta = document.createElement('textarea');
-                                ta.value = copyText;
-                                ta.style.position = 'fixed';
-                                ta.style.opacity = '0';
-                                document.body.appendChild(ta);
-                                ta.select();
-                                document.execCommand('copy');
-                                document.body.removeChild(ta);
-                                showSnackbar('已复制');
-                            });
-                    });
+                    addContextMenuItem(menu, '复制文字', icons.copy, () => copyToClipboardWithToast(copyText));
                 }
-                if (canDelete) {
-                    addItem('删除', icons.delete, () => {
-                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
-                            contextDeleteMsg();
-                        });
-                    });
-                }
+                if (canDelete) addDeleteItem();
             } else if (msgType === 'text') {
                 if (text) {
-                    addItem('复制文字', icons.copy, () => {
-                        navigator.clipboard.writeText(text).then(() => showSnackbar('已复制'))
-                            .catch(() => {
-                                const ta = document.createElement('textarea');
-                                ta.value = text;
-                                ta.style.position = 'fixed';
-                                ta.style.opacity = '0';
-                                document.body.appendChild(ta);
-                                ta.select();
-                                document.execCommand('copy');
-                                document.body.removeChild(ta);
-                                showSnackbar('已复制');
-                            });
-                    });
+                    addContextMenuItem(menu, '复制文字', icons.copy, () => copyToClipboardWithToast(text));
                     // 翻译：仅当已配置 AI 模型时才显示
                     var _hasAiConfig = false;
                     try {
@@ -1130,7 +973,7 @@
                         _hasAiConfig = !!(_aiSettings && _aiSettings.apiKey);
                     } catch (_) {}
                     if (_hasAiConfig) {
-                        addItem('翻译', icons.translate, () => {
+                        addContextMenuItem(menu, '翻译', icons.translate, () => {
                             if (typeof CikaAI_doTranslate === 'function') {
                                 CikaAI_doTranslate(row);
                             } else {
@@ -1139,36 +982,14 @@
                         });
                     }
                 }
-                if (canDelete) {
-                    addItem('删除', icons.delete, () => {
-                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
-                            contextDeleteMsg();
-                        });
-                    });
-                }
+                if (canDelete) addDeleteItem();
             } else {
-                if (canDelete) {
-                    addItem('删除', icons.delete, () => {
-                        showConfirm('确认删除', '确定要删除此消息吗？将会对所有人删除此消息。', () => {
-                            contextDeleteMsg();
-                        });
-                    });
-                }
+                if (canDelete) addDeleteItem();
             }
 
             if (menu.children.length === 0) return;
 
-            menu.classList.add('show');
-            let left = x,
-                top = y;
-            const menuW = menu.offsetWidth || 160;
-            const menuH = menu.offsetHeight || 80;
-            if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
-            if (top + menuH > window.innerHeight - 8) top = window.innerHeight - menuH - 8;
-            if (left < 8) left = 8;
-            if (top < 8) top = 8;
-            menu.style.left = left + 'px';
-            menu.style.top = top + 'px';
+            positionContextMenu(menu, x, y, 160, 80);
         }
 
         function closeContextMenu() {
@@ -1301,17 +1122,7 @@
             var dots = document.querySelectorAll('.home-page .private-list .av-status-dot');
             var onlineNames = [];
             try {
-                var _vals = Object.values(onlineUsers);
-                for (var _vi = 0; _vi < _vals.length; _vi++) {
-                    var _arr = _vals[_vi];
-                    if (Array.isArray(_arr)) {
-                        for (var _vj = 0; _vj < _arr.length; _vj++) {
-                            if (_arr[_vj] && _arr[_vj].name) onlineNames.push(_arr[_vj].name);
-                        }
-                    } else if (_vals[_vi] && _vals[_vi].name) {
-                        onlineNames.push(_vals[_vi].name);
-                    }
-                }
+                onlineNames = getOnlineUsernames();
             } catch (e) {}
             for (var i = 0; i < dots.length; i++) {
                 var dot = dots[i];
@@ -1429,20 +1240,7 @@
         }
 
         function showPrivateLoadMore(show) {
-            let indicator = document.getElementById('privateLoadMoreIndicator');
-            if (show) {
-                if (!indicator) {
-                    indicator = document.createElement('div');
-                    indicator.id = 'privateLoadMoreIndicator';
-                    indicator.className = 'load-more-indicator';
-                    indicator.innerHTML = '<div class="loading-spinner"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div><span>正在加载更多消息...</span>';
-                    const container = document.getElementById('privateMessages');
-                    container.insertBefore(indicator, container.firstChild);
-                }
-                indicator.style.display = 'flex';
-            } else {
-                if (indicator) indicator.style.display = 'none';
-            }
+            showLoadMoreIndicator('privateMessages', 'privateLoadMoreIndicator', show);
         }
 
         function renderPrivateMessage(msg) {
@@ -1487,17 +1285,7 @@
             if (voiceMatch) {
                 const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
                 const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
-                const mins = String(Math.floor(duration / 60)).padStart(2, '0');
-                const secs = String(duration % 60).padStart(2, '0');
-                const durStr = `${mins}:${secs}`;
-                const waveBars = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16 + 4)).map(h =>
-                    `<div class="voice-wave" style="height:${h}px"></div>`).join('');
-                if (audioUrl) {
-                    contentHtml =
-                        `<div class="voice-msg-wrap" data-audio="${escapeAttr(audioUrl)}" data-dur="${duration}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><div class="voice-waves">${waveBars}</div><span class="voice-dur">${durStr}</span></div>`;
-                } else {
-                    contentHtml = `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">语音消息</span></div>`;
-                }
+                contentHtml = buildVoiceBubbleHtml(audioUrl, duration, '语音消息');
             } else if (imgMatch) {
                 contentHtml =
                     `<img src="${escapeAttr(imgMatch[1])}" onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片" style="max-width:180px;max-height:180px;border-radius:2px;display:block;" oncontextmenu="return false;">`;
@@ -1552,11 +1340,7 @@
         }
 
         function addPrivateSystemMsg(text) {
-            const c = document.getElementById('privateMessages');
-            const d = document.createElement('div');
-            d.className = 'system-msg';
-            d.innerHTML = `<span>${escapeHtml(text)}</span>`;
-            c.appendChild(d);
+            addSystemMsg(document.getElementById('privateMessages'), text);
         }
 
         function togglePrivateSendBtn() {
@@ -1570,6 +1354,26 @@
                 e.preventDefault();
                 sendPrivateMsg();
             }
+        }
+
+        // 私聊消息本地广播/追加/渲染/通知的统一流程（发送与附件、语音、链接共用）
+        function appendPrivateMsgLocally(newMsg, withBannerCheck) {
+            if (privateChannel) {
+                privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
+            }
+            privateMessages.push(newMsg);
+            if (document.getElementById('privatePage').classList.contains('active')) {
+                renderPrivateMessage(newMsg);
+                if (withBannerCheck) checkPrivacyBanner();
+                const container = document.getElementById('privateMessages');
+                if (container) {
+                    scrollToBottom(container);
+                    updateScrollButton(container);
+                    isUserScrolledUp = false;
+                }
+            }
+            notifyPrivateMsg(privateSessionId, currentUser);
+            loadPrivateSessions();
         }
 
         async function sendPrivateMsg() {
@@ -1638,30 +1442,11 @@
                 return;
             }
 
-            if (privateChannel) {
-                privateChannel.send({
-                    type: 'broadcast',
-                    event: 'new_message',
-                    payload: newMsg
-                });
-            }
-            privateMessages.push(newMsg);
-            if (document.getElementById('privatePage').classList.contains('active')) {
-                renderPrivateMessage(newMsg);
-                const container = document.getElementById('privateMessages');
-                if (container) {
-                    scrollToBottom(container);
-                    updateScrollButton(container);
-                    isUserScrolledUp = false;
-                }
-            }
+            appendPrivateMsgLocally(newMsg, true);
             input.value = '';
             autoResize(input);
             cancelPrivateReply();
             togglePrivateSendBtn();
-            checkPrivacyBanner();
-            notifyPrivateMsg(privateSessionId, currentUser);
-            loadPrivateSessions();
         }
 
         function leavePrivateChat() {
@@ -1695,9 +1480,7 @@
         }
 
         function renderOnlineUsers() {
-            const users = [];
-            (function(){ var e=Object.entries(onlineUsers); for(var i=0;i<e.length;i++){var ps=e[i][1]; if(Array.isArray(ps)){for(var j=0;j<ps.length;j++){if(ps[j]&&ps[j].name)users.push(ps[j].name);}}} })();
-            const uniq = [...new Set(users)];
+            const uniq = [...new Set(getOnlineUsernames())];
             const n = uniq.length;
             // v048: 同时更新两个胶囊的数字
             var h = document.getElementById('homeCapsule'), p = document.getElementById('publicCapsule');
@@ -1755,21 +1538,14 @@
             modal.classList.remove('hidden');
 
             function getOnlineStatus(name) {
-                var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
-                return onlineUsernames.includes(name);
+                return getOnlineUsernames().includes(name);
             }
 
             function renderUserProfile(data, isOnline) {
                 const idx = hashStr(data.username) % 8;
                 avatarEl.className = 'profile-avatar av-' + idx;
-                if (data.avatar_url) {
-                    avatarEl.style.backgroundImage = `url(${data.avatar_url})`;
-                    avatarEl.textContent = '';
-                    userAvatarCache[data.username] = data.avatar_url;
-                } else {
-                    avatarEl.style.backgroundImage = '';
-                    avatarEl.textContent = data.username.charAt(0).toUpperCase();
-                }
+                fillUserAvatar(avatarEl, data.username, data.avatar_url);
+                if (data.avatar_url) userAvatarCache[data.username] = data.avatar_url;
                 document.getElementById('userProfileUsername').textContent = data.username;
                 document.getElementById('userProfileRole').textContent = '普通用户';
                 let statusText = '正常';
@@ -1785,8 +1561,7 @@
             function renderDeletedUser(name) {
                 const idx = hashStr(name) % 8;
                 avatarEl.className = 'profile-avatar av-' + idx;
-                avatarEl.style.backgroundImage = '';
-                avatarEl.textContent = name.charAt(0).toUpperCase();
+                fillUserAvatar(avatarEl, name, '');
                 document.getElementById('userProfileUsername').textContent = name;
                 document.getElementById('userProfileRole').textContent = '未知';
                 document.getElementById('userProfileStatus').textContent = '已注销';
@@ -1847,8 +1622,7 @@
                 } else {
                     const idx = hashStr(username) % 8;
                     avatarEl.className = 'profile-avatar av-' + idx;
-                    avatarEl.style.backgroundImage = '';
-                    avatarEl.textContent = username.charAt(0).toUpperCase();
+                    fillUserAvatar(avatarEl, username, '');
                     document.getElementById('userProfileUsername').textContent = username;
                     document.getElementById('userProfileRole').textContent = '未知';
                     document.getElementById('userProfileStatus').textContent = '未知';

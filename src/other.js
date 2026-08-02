@@ -6,6 +6,60 @@
 
         function escapeAttr(t) { if (t == null) return ''; return String(t).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
+        // 秒数 → mm:ss（语音消息时长多处共用）
+        function formatDuration(seconds) {
+            seconds = Math.max(0, Math.floor(Number(seconds) || 0));
+            return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+        }
+
+        // 生成语音气泡波形条（高度随机，渲染时调用）
+        function buildVoiceWaves(count) {
+            const n = count || 12;
+            let bars = '';
+            for (let i = 0; i < n; i++) {
+                bars += `<div class="voice-wave" style="height:${Math.floor(Math.random() * 16 + 4)}px"></div>`;
+            }
+            return bars;
+        }
+
+        // 语音消息气泡 HTML（公聊/私聊共用；无 audio_url 时显示升级提示）
+        function buildVoiceBubbleHtml(audioUrl, duration, noUrlText) {
+            const durStr = formatDuration(duration);
+            if (audioUrl) {
+                return `<div class="voice-msg-wrap" data-audio="${escapeAttr(audioUrl)}" data-dur="${Number(duration) || 0}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn">${ICON_PLAY}</button><div class="voice-waves">${buildVoiceWaves()}</div><span class="voice-dur">${durStr}</span></div>`;
+            }
+            return `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">${escapeHtml(noUrlText || '请升级到最新版本播放')}</span></div>`;
+        }
+
+        // 提取所有在线用户的用户名（onlineUsers 兼容数组/对象两种取值形态）
+        function getOnlineUsernames() {
+            const names = [];
+            const vals = Object.values(onlineUsers);
+            for (let i = 0; i < vals.length; i++) {
+                const v = vals[i];
+                if (Array.isArray(v)) {
+                    for (let j = 0; j < v.length; j++) {
+                        if (v[j] && v[j].name) names.push(v[j].name);
+                    }
+                } else if (v && v.name) {
+                    names.push(v.name);
+                }
+            }
+            return names;
+        }
+
+        // 填充用户头像元素：有 URL 用背景图，否则显示首字母
+        function fillUserAvatar(avatarEl, user, avatarUrl) {
+            if (!avatarEl || !user) return;
+            if (avatarUrl) {
+                avatarEl.style.backgroundImage = `url(${avatarUrl})`;
+                avatarEl.textContent = '';
+            } else {
+                avatarEl.style.backgroundImage = '';
+                avatarEl.textContent = user.charAt(0).toUpperCase();
+            }
+        }
+
         function isSafeUrl(url) {
             if (!url || typeof url !== 'string') return false;
             const u = url.trim();
@@ -390,13 +444,7 @@
             const dot = document.getElementById('homeAvatarDot');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'user-avatar av-' + idx;
-            if (currentAvatarUrl) {
-                avatar.style.backgroundImage = `url(${currentAvatarUrl})`;
-                avatar.textContent = '';
-            } else {
-                avatar.style.backgroundImage = '';
-                avatar.textContent = currentUser.charAt(0).toUpperCase();
-            }
+            fillUserAvatar(avatar, currentUser, currentAvatarUrl);
             name.textContent = currentUser;
             // Current user is always online (they are logged in); green dot unless banned.
             applyCurrentUserStatus(dot, avatar);
@@ -423,13 +471,7 @@
             const dot = document.getElementById('publicAvatarDot');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'user-avatar av-' + idx;
-            if (currentAvatarUrl) {
-                avatar.style.backgroundImage = `url(${currentAvatarUrl})`;
-                avatar.textContent = '';
-            } else {
-                avatar.style.backgroundImage = '';
-                avatar.textContent = currentUser.charAt(0).toUpperCase();
-            }
+            fillUserAvatar(avatar, currentUser, currentAvatarUrl);
             name.textContent = currentUser;
             // Current user is always online (they are logged in); green dot unless banned.
             applyCurrentUserStatus(dot, avatar);
@@ -459,13 +501,7 @@
             const dot = document.getElementById('privateAvatarDot');
             const idx = hashStr(privateOtherUser) % 8;
             avatar.className = 'user-avatar av-' + idx;
-            if (userAvatarCache[privateOtherUser]) {
-                avatar.style.backgroundImage = `url(${userAvatarCache[privateOtherUser]})`;
-                avatar.textContent = '';
-            } else {
-                avatar.style.backgroundImage = '';
-                avatar.textContent = privateOtherUser.charAt(0).toUpperCase();
-            }
+            fillUserAvatar(avatar, privateOtherUser, userAvatarCache[privateOtherUser]);
             name.textContent = privateOtherUser;
             const labelEl = document.getElementById('privateBlockLabel');
             // Reflect the other user's status on the avatar dot (green=online,
@@ -503,13 +539,7 @@
             const onlineItem = document.getElementById('profileDialogOnlineItem');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'profile-avatar av-' + idx;
-            if (currentAvatarUrl) {
-                avatar.style.backgroundImage = `url(${currentAvatarUrl})`;
-                avatar.textContent = '';
-            } else {
-                avatar.style.backgroundImage = '';
-                avatar.textContent = currentUser.charAt(0).toUpperCase();
-            }
+            fillUserAvatar(avatar, currentUser, currentAvatarUrl);
             name.textContent = currentUser;
             role.textContent = '普通用户';
             (async () => {
@@ -525,7 +555,7 @@
                     status.textContent = (data && data.banned) ? '已封禁' : '正常';
                 } catch (e) { status.textContent = '正常'; }
             })();
-            var onlineUsernames = (function(){ var r=[]; var v=Object.values(onlineUsers); for(var i=0;i<v.length;i++){var a=v[i]; if(Array.isArray(a)){for(var j=0;j<a.length;j++){if(a[j]&&a[j].name)r.push(a[j].name);}}} return r; })();
+            const onlineUsernames = getOnlineUsernames();
             const isOnline = onlineUsernames.includes(currentUser);
             onlineStatus.textContent = isOnline ? '在线' : '离线';
             onlineItem.style.display = 'flex';

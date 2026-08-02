@@ -9,21 +9,21 @@ var CikaAI = (function() {
         provider: 'openai',
         baseUrl: '',
         apiKey: '',
-        model: 'gpt-3.5-turbo',
+        model: AGENT_DEFAULT_MODELS['openai'],
         translateTargetLang: 'zh-CN'
     };
 
-    var PROVIDER_CONFIGS = {
-        'openai': { baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo' },
-        'google': { baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-1.5-flash' },
-        'anthropic': { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-3-5-sonnet-20241022' },
-        'baidu': { baseUrl: '', model: 'ernie-4.0-8k-latest' },
-        'ali': { baseUrl: '', model: 'qwen3.7-flash' },
-        'bytedance': { baseUrl: '', model: 'doubao-pro-4k' },
-        'zhipu': { baseUrl: '', model: 'glm-4-flash' },
-        'deepseek': { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-v4-flash' },
-        'custom': { baseUrl: '', model: 'gpt-3.5-turbo' }
+    // 各服务商 baseUrl；默认模型统一复用 constants.js 的 AGENT_DEFAULT_MODELS
+    var PROVIDER_BASE_URLS = {
+        'openai': 'https://api.openai.com/v1',
+        'google': 'https://generativelanguage.googleapis.com/v1beta',
+        'anthropic': 'https://api.anthropic.com/v1',
+        'deepseek': 'https://api.deepseek.com/v1'
     };
+    var PROVIDER_CONFIGS = {};
+    Object.keys(AGENT_DEFAULT_MODELS).forEach(function(p) {
+        PROVIDER_CONFIGS[p] = { baseUrl: PROVIDER_BASE_URLS[p] || '', model: AGENT_DEFAULT_MODELS[p] };
+    });
 
     // ============ 存储操作 ============
     function loadModelSettings() {
@@ -73,7 +73,7 @@ var CikaAI = (function() {
         var modelInput = document.getElementById('aiModelId');
         if (!modelInput) return;
         var config = PROVIDER_CONFIGS[provider] || {};
-        var defaultModel = config.model || 'gpt-3.5-turbo';
+        var defaultModel = config.model || AGENT_DEFAULT_MODELS['openai'];
         modelInput.placeholder = defaultModel;
 
         // Toggle base_url visibility: only show for custom provider
@@ -171,7 +171,7 @@ var CikaAI = (function() {
         var modelSettings = loadModelSettings();
         var baseUrl = modelSettings.baseUrl || '';
         var apiKey = modelSettings.apiKey || '';
-        var model = modelSettings.model || 'gpt-3.5-turbo';
+        var model = modelSettings.model || AGENT_DEFAULT_MODELS['openai'];
 
         if (!apiKey) {
             showSnackbar('请先在设置中配置 AI 模型');
@@ -307,9 +307,9 @@ var CikaAI = (function() {
     }
 
     // ============ 工具函数 ============
+    // 复用全局 escapeHtml（other.js 提供，行为一致）
     function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return window.escapeHtml(str);
     }
 
     // ============ 初始化 ============

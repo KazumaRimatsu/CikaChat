@@ -5,136 +5,6 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* === Polyfills for old WebView compatibility === */
-        (function() {
-                if ( !Object.values) {
-                    Object.values=function(obj) {
-                        var vals=[];
-
-                        for (var k in obj) {
-                            if (obj.hasOwnProperty(k)) vals.push(obj[k]);
-                        }
-
-                        return vals;
-                    }
-
-                    ;
-                }
-
-                if ( !Object.entries) {
-                    Object.entries=function(obj) {
-                        var entries=[];
-
-                        for (var k in obj) {
-                            if (obj.hasOwnProperty(k)) entries.push([k, obj[k]]);
-                        }
-
-                        return entries;
-                    }
-
-                    ;
-                }
-
-                if ( !Array.from) {
-                    Array.from=function(arrLike, mapFn) {
-                        var arr=[];
-                        for (var i=0; i < arrLike.length; i++) arr.push(arrLike[i]);
-
-                        if (typeof mapFn==='function') {
-                            for (var j=0; j < arr.length; j++) arr[j]=mapFn(arr[j], j);
-                        }
-
-                        return arr;
-                    }
-
-                    ;
-                }
-
-                if ( !Array.prototype.flat) {
-                    Array.prototype.flat=function(depth) {
-                        if (depth===undefined) depth=1;
-                        var result=[];
-                        var self=this;
-
-                        for (var i=0; i < self.length; i++) {
-                            if (Array.isArray(self[i]) && depth > 0) {
-                                result=result.concat(self[i].flat(depth - 1));
-                            }
-
-                            else {
-                                result.push(self[i]);
-                            }
-                        }
-
-                        return result;
-                    }
-
-                    ;
-                }
-
-                if ( !String.prototype.padStart) {
-                    String.prototype.padStart=function(targetLength, padString) {
-                        targetLength=targetLength >> 0;
-                        padString=String(padString || ' ');
-                        if (this.length >=targetLength) return String(this);
-                        var pad='';
-                        while (pad.length + this.length < targetLength) pad +=padString;
-                        return pad.slice(0, targetLength - this.length) + String(this);
-                    }
-
-                    ;
-                }
-
-                if ( !String.prototype.endsWith) {
-                    String.prototype.endsWith=function(suffix) {
-                        return this.indexOf(suffix, this.length - suffix.length) !==-1;
-                    }
-
-                    ;
-                }
-
-                if ( !String.prototype.includes) {
-                    String.prototype.includes=function(search, start) {
-                        if (typeof start !=='number') start=0;
-                        return this.indexOf(search, start) !==-1;
-                    }
-
-                    ;
-                }
-
-                if ( !Array.prototype.includes) {
-                    Array.prototype.includes=function(search) {
-                        return this.indexOf(search) !==-1;
-                    }
-
-                    ;
-                }
-            })();
-
-        /* Old WebView flexbox compatibility */
-        .chat-bar,
-        .input-container,
-        .msg-input,
-        .fab-send,
-        .more-btn {
-            -webkit-box-sizing: border-box;
-            -moz-box-sizing: border-box;
-            box-sizing: border-box;
-        }
-
-        .chat-bar {
-            display: -webkit-box;
-            display: -webkit-flex;
-            display: flex;
-        }
-
-        .input-container {
-            -webkit-box-flex: 1;
-            -webkit-flex: 1;
-            flex: 1;
-            min-width: 0;
-        }
-
         :root {
             --md-primary: #4A9EFF;
             --md-primary-variant: #1565C0;
@@ -1193,7 +1063,8 @@
             font-weight: 500;
         }
 
-        .public-page .chat-bar {
+        .public-page .chat-bar,
+        .private-page .chat-bar {
             display: flex;
             align-items: flex-end;
             gap: 8px;
@@ -1207,7 +1078,8 @@
             overflow: hidden;
         }
 
-        .public-page .chat-bar .more-btn {
+        .public-page .chat-bar .more-btn,
+        .private-page .chat-bar .more-btn {
             width: 36px;
             height: 36px;
             min-width: 36px;
@@ -1224,31 +1096,37 @@
             flex-shrink: 0;
         }
 
-        .public-page .chat-bar .more-btn:hover {
+        .public-page .chat-bar .more-btn:hover,
+        .private-page .chat-bar .more-btn:hover {
             background: var(--md-surface-4dp);
         }
 
-        .public-page .chat-bar .more-btn:active {
+        .public-page .chat-bar .more-btn:active,
+        .private-page .chat-bar .more-btn:active {
             background: var(--md-surface-6dp);
         }
 
-        .public-page .chat-bar .more-btn svg {
+        .public-page .chat-bar .more-btn svg,
+        .private-page .chat-bar .more-btn svg {
             width: 24px;
             height: 24px;
             fill: currentColor;
             transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .public-page .chat-bar .more-btn.active {
+        .public-page .chat-bar .more-btn.active,
+        .private-page .chat-bar .more-btn.active {
             background: var(--md-primary);
             color: var(--md-on-primary);
         }
 
-        .public-page .chat-bar .more-btn.active svg {
+        .public-page .chat-bar .more-btn.active svg,
+        .private-page .chat-bar .more-btn.active svg {
             transform: rotate(135deg);
         }
 
-        .public-page .chat-bar .input-container {
+        .public-page .chat-bar .input-container,
+        .private-page .chat-bar .input-container {
             flex: 1;
             min-width: 0;
             display: flex;
@@ -1258,14 +1136,19 @@
             padding: 0 4px 0 16px;
             min-height: 48px;
             transition: background 0.2s;
+        }
+
+        .public-page .chat-bar .input-container {
             position: relative;
         }
 
-        .public-page .chat-bar .input-container:focus-within {
+        .public-page .chat-bar .input-container:focus-within,
+        .private-page .chat-bar .input-container:focus-within {
             background: var(--md-surface-2dp);
         }
 
-        .public-page .chat-bar .msg-input {
+        .public-page .chat-bar .msg-input,
+        .private-page .chat-bar .msg-input {
             flex: 1;
             background: transparent;
             border: none;
@@ -1282,11 +1165,13 @@
             user-select: text !important;
         }
 
-        .public-page .chat-bar .msg-input::placeholder {
+        .public-page .chat-bar .msg-input::placeholder,
+        .private-page .chat-bar .msg-input::placeholder {
             color: var(--md-on-surface-dim);
         }
 
-        .public-page .chat-bar .fab-send {
+        .public-page .chat-bar .fab-send,
+        .private-page .chat-bar .fab-send {
             width: 44px;
             height: 44px;
             min-width: 44px;
@@ -1303,14 +1188,16 @@
             flex-shrink: 0;
         }
 
-        .public-page .chat-bar .fab-send:disabled {
+        .public-page .chat-bar .fab-send:disabled,
+        .private-page .chat-bar .fab-send:disabled {
             background: var(--md-surface-6dp);
             color: var(--md-on-surface-dim);
             box-shadow: none;
             cursor: not-allowed;
         }
 
-        .public-page .chat-bar .fab-send svg {
+        .public-page .chat-bar .fab-send svg,
+        .private-page .chat-bar .fab-send svg {
             width: 24px;
             height: 24px;
             fill: currentColor;
@@ -1753,128 +1640,6 @@
             padding: 4px 12px;
             border-radius: 8px;
             font-weight: 500;
-        }
-
-        .private-page .chat-bar {
-            display: flex;
-            align-items: flex-end;
-            gap: 8px;
-            padding: 8px 12px 8px 8px;
-            background: var(--md-surface-4dp);
-            box-shadow: var(--md-elevation-2);
-            flex-shrink: 0;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-
-        .private-page .chat-bar .more-btn {
-            width: 36px;
-            height: 36px;
-            min-width: 36px;
-            border: none;
-            border-radius: 50%;
-            background: var(--md-surface-2dp);
-            color: var(--md-on-surface-muted);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s, color 0.2s;
-            margin-bottom: 4px;
-            flex-shrink: 0;
-        }
-
-        .private-page .chat-bar .more-btn:hover {
-            background: var(--md-surface-4dp);
-        }
-
-        .private-page .chat-bar .more-btn:active {
-            background: var(--md-surface-6dp);
-        }
-
-        .private-page .chat-bar .more-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: currentColor;
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .private-page .chat-bar .more-btn.active {
-            background: var(--md-primary);
-            color: var(--md-on-primary);
-        }
-
-        .private-page .chat-bar .more-btn.active svg {
-            transform: rotate(135deg);
-        }
-
-        .private-page .chat-bar .input-container {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            align-items: flex-end;
-            background: var(--md-surface-1dp);
-            border-radius: 24px;
-            padding: 0 4px 0 16px;
-            min-height: 48px;
-            transition: background 0.2s;
-        }
-
-        .private-page .chat-bar .input-container:focus-within {
-            background: var(--md-surface-2dp);
-        }
-
-        .private-page .chat-bar .msg-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--md-on-surface);
-            font-size: 0.9375rem;
-            font-family: inherit;
-            outline: none;
-            resize: none;
-            padding: 14px 0;
-            line-height: 1.4;
-            max-height: 100px;
-            min-height: 20px;
-            -webkit-user-select: text !important;
-            user-select: text !important;
-        }
-
-        .private-page .chat-bar .msg-input::placeholder {
-            color: var(--md-on-surface-dim);
-        }
-
-        .private-page .chat-bar .fab-send {
-            width: 44px;
-            height: 44px;
-            min-width: 44px;
-            border: none;
-            border-radius: 50%;
-            background: var(--md-primary);
-            color: var(--md-on-primary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--md-elevation-2);
-            flex-shrink: 0;
-        }
-
-        .private-page .chat-bar .fab-send:disabled {
-            background: var(--md-surface-6dp);
-            color: var(--md-on-surface-dim);
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-
-        .private-page .chat-bar .fab-send svg {
-            width: 24px;
-            height: 24px;
-            fill: currentColor;
         }
 
         .search-page .search-box {
@@ -2676,20 +2441,12 @@
             flex-direction: column;
             height: 100%;
             overflow: hidden;
-        }
-
-        .page.active {
-            display: flex;
-        }
-
-        .page {
             will-change: transform, opacity;
             background: var(--md-surface);
         }
 
-        .page-container {
-            position: relative;
-            overflow: hidden;
+        .page.active {
+            display: flex;
         }
 
         /* Desktop: pages in chat-main take full height as a flex child */
@@ -2935,11 +2692,13 @@
             margin-bottom: 12px;
         }
 
-        .agent-form .md-text-field:has(select) {
+        .agent-form .md-text-field:has(select),
+        .ai-form .md-text-field:has(select) {
             position: relative;
         }
 
-        .agent-form .md-text-field:has(select)::after {
+        .agent-form .md-text-field:has(select)::after,
+        .ai-form .md-text-field:has(select)::after {
             content: '';
             position: absolute;
             right: 14px;
@@ -2954,11 +2713,13 @@
             transition: border-top-color 0.2s;
         }
 
-        .agent-form .md-text-field:has(select):focus-within::after {
+        .agent-form .md-text-field:has(select):focus-within::after,
+        .ai-form .md-text-field:has(select):focus-within::after {
             border-top-color: var(--md-primary);
         }
 
-        .agent-form select {
+        .agent-form select,
+        .ai-form select {
             width: 100%;
             height: 56px;
             padding: 0 40px 0 16px;
@@ -2970,30 +2731,34 @@
             font-family: inherit;
             outline: none;
             cursor: pointer;
-            transition: border-color 0.2s,
-                background 0.2s;
+            transition: border-color 0.2s, background 0.2s;
             appearance: none;
             -webkit-appearance: none;
         }
 
-        .agent-form select:hover {
+        .agent-form select:hover,
+        .ai-form select:hover {
             border-color: var(--md-on-surface-dim);
         }
 
-        .agent-form select:focus {
+        .agent-form select:focus,
+        .ai-form select:focus {
             border: 2px solid var(--md-primary);
             padding: 0 39px 0 15px;
             background: var(--md-surface-2dp);
         }
 
-        .agent-form select option {
+        .agent-form select option,
+        .ai-form select option {
             background: var(--md-surface-3dp);
             color: var(--md-on-surface);
             padding: 10px 16px;
         }
 
         .agent-form select option:hover,
-        .agent-form select option:checked {
+        .agent-form select option:checked,
+        .ai-form select option:hover,
+        .ai-form select option:checked {
             background: var(--md-primary);
             color: var(--md-on-primary);
         }
@@ -3238,68 +3003,6 @@
             font-size: 0.875rem;
             color: var(--md-on-surface-dim);
             padding: 0 4px;
-        }
-
-        .ai-form select {
-            width: 100%;
-            height: 56px;
-            padding: 0 40px 0 16px;
-            background: var(--md-surface-1dp);
-            border: 1px solid var(--md-outline);
-            border-radius: var(--radius-md);
-            color: var(--md-on-surface);
-            font-size: 0.9375rem;
-            font-family: inherit;
-            outline: none;
-            cursor: pointer;
-            transition: border-color 0.2s, background 0.2s;
-            appearance: none;
-            -webkit-appearance: none;
-        }
-
-        .ai-form select:hover {
-            border-color: var(--md-on-surface-dim);
-        }
-
-        .ai-form select:focus {
-            border: 2px solid var(--md-primary);
-            padding: 0 39px 0 15px;
-            background: var(--md-surface-2dp);
-        }
-
-        .ai-form select option {
-            background: var(--md-surface-3dp);
-            color: var(--md-on-surface);
-            padding: 10px 16px;
-        }
-
-        .ai-form select option:hover,
-        .ai-form select option:checked {
-            background: var(--md-primary);
-            color: var(--md-on-primary);
-        }
-
-        .ai-form .md-text-field:has(select) {
-            position: relative;
-        }
-
-        .ai-form .md-text-field:has(select)::after {
-            content: '';
-            position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 6px solid var(--md-on-surface-dim);
-            pointer-events: none;
-            transition: border-top-color 0.2s;
-        }
-
-        .ai-form .md-text-field:has(select):focus-within::after {
-            border-top-color: var(--md-primary);
         }
 
         .ai-baseurl-wrapper {

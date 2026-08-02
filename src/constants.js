@@ -13,7 +13,7 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const APP_VERSION = 49;
-        const VERSION = '26.8.301';
+        const VERSION = '26.8.302';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护中，暂时无法登录。请联系管理员解除维护状态。';
         const SALT = 'mjchat_2026_salt_v1';
@@ -30,5 +30,36 @@
             'whatsapp': { file: 'assets/notify/whatsapp.mp3', label: 'WhatsApp提示音' },
             'three_note': { file: 'assets/notify/three_note.mp3', label: '经典三全音' }
         };
+
+        // 通知默认设置（多处复用；写入缓存前必须拷贝，避免共享引用被修改）
+        const DEFAULT_NOTIFY = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+
+        // AI 服务商 → 默认模型（ai.js / 智能体设置共用，避免三处各自维护）
+        const AGENT_DEFAULT_MODELS = {
+            'openai': 'gpt-3.5-turbo',
+            'google': 'gemini-1.5-flash',
+            'anthropic': 'claude-3-5-sonnet-20241022',
+            'baidu': 'ernie-4.0-8k-latest',
+            'ali': 'qwen3.7-flash',
+            'bytedance': 'doubao-pro-4k',
+            'zhipu': 'glm-4-flash',
+            'deepseek': 'deepseek-v4-flash',
+            'custom': 'gpt-3.5-turbo'
+        };
+
+        // 语音消息播放/暂停按钮图标（渲染语音气泡与切换播放状态共用）
+        const ICON_PLAY = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+        const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+        // 表情列表（公聊/私聊选择器共用，仅渲染一次）
+        const EMOJIS = ['😀', '😂', '🥰', '😎', '🤔', '😴', '😭', '😡', '👍', '👎', '❤️', '🔥', '🎉', '✨', '💯', '🚀', '👀', '🤝',
+            '🙏', '💪', '☕', '🍕', '🎵', '⭐', '🌙', '🌸', '💎', '🎯', '🎨', '🎭', '🎪', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎲',
+            '♟️', '🎳', '🎮', '🕹️', '🎬', '🎶', '🎼', '🥳', '🤯', '🤩', '😇', '🙃', '😉', '😋', '😜', '🤪', '🤭', '🫡', '🫶', '🤍',
+            '💚', '💙', '🩵', '💜', '🤎', '🖤', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️‍🔥', '❤️‍🩹', '💘', '💌',
+            '💋', '🫦', '💢', '💬', '🗯️', '💭', '💤', '💫', '🌀', '🌊', '🌈', '☀️', '🌤️', '⛅', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️',
+            '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', '🌫️', '💧', '💦', '☔', '☂️', '🌂', '🧵', '🧶', '👗', '👘', '🥻',
+            '🩱', '🩲', '🩳', '👙', '👚', '👕', '👖', '🧣', '🧤', '🧥', '🧦', '👔', '👞', '👟', '🥾', '🥿', '👠', '👡', '👢', '👑',
+            '👒', '🎩', '🎓', '🧢', '⛑️', '📿', '💄', '💍', '🔮', '🖼️'
+        ];
 
         const PAGE_STACK_KEY = 'mjchat_page_stack';

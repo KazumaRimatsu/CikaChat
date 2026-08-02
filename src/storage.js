@@ -182,12 +182,7 @@
                     themeColor: localStorage.getItem('mjchat_theme_color') || '',
                     unread: { publicLastRead: null, privateLastRead: {} },
                     dismissedPrivacyBanners: [],
-                    notify: {
-                        enabled: true,
-                        sound: 'three_note',
-                        publicEnabled: false,
-                        privateEnabled: true
-                    },
+                    notify: Object.assign({}, DEFAULT_NOTIFY),
                     version: 1
                 };
                 // Migrate old unread state if it exists
@@ -216,12 +211,7 @@
 
             // Migrate: ensure notify settings exist for existing users
             if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = {
-                    enabled: true,
-                    sound: 'three_note',
-                    publicEnabled: false,
-                    privateEnabled: true
-                };
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
                 await syncSettingsToEncryptedStore();
             }
 
