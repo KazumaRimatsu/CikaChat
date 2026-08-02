@@ -11,7 +11,7 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const MJCHAT_VERSION = 40;
-        const APP_VERSION = '26.8.202';
+        const APP_VERSION = '26.8.203';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
@@ -3133,6 +3133,18 @@
             if (!e.target.closest('.msg-context-menu') && !e.target.closest('.bubble')) {
                 closeContextMenu();
             }
+        });
+
+        // Tauri 环境下，外部链接交给系统默认浏览器打开；浏览器模式下保持默认行为
+        document.addEventListener('click', (e) => {
+            if (!window.__TAURI__ || !window.__TAURI__.opener || !window.__TAURI__.opener.openUrl) return;
+            if (e.defaultPrevented) return;
+            const anchor = e.target.closest ? e.target.closest('a[href]') : null;
+            if (!anchor) return;
+            const href = anchor.getAttribute('href');
+            if (!href || !/^(https?:|mailto:|tel:)/i.test(href)) return;
+            e.preventDefault();
+            window.__TAURI__.opener.openUrl(href);
         });
 
         async function safeInsertPrivateMsg(sessionId, sender, content) {

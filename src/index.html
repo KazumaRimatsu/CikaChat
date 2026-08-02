@@ -345,7 +345,7 @@
                     <div class="about-name">CikaChat</div>
                     <div class="about-version" id="aboutVersion">版本 v33</div>
                     <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v33.0.0.</div>
-                    <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat">KazumaRimatsu/CikaChat</a></div>
+                    <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat" target="_blank" rel="noopener noreferrer">KazumaRimatsu/CikaChat</a></div>
                     <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer"> MJChat </a>及其他<a href="javascript:void(0)" onclick="showOpensourceDialog()"> 开源项目 </a></div>
                 </div>
             </div>
@@ -588,26 +588,22 @@
             <div class="md-dialog">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <h2 style="margin:0;">开源项目</h2>
-                    <button onclick="closeOpensourceDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;line-height:1;">✕</button>
                 </div>
-                <p>CikaChat 基于以下开源项目构建，感谢所有作者的贡献。</p>
+                <p>本项目的存活离不开以下开源项目，感谢所有作者的贡献。</p>
                 <div class="opensource-section">
-                    <div class="opensource-section-title">核心依赖</div>
+                    <div class="opensource-section-title">客户端</div>
                     <ul class="opensource-list">
-                        <li><a href="https://github.com/supabase/supabase-js" target="_blank" rel="noopener noreferrer">supabase-js</a> —— Supabase 官方 JavaScript 客户端，用于数据库、实时通道与 RPC 调用。</li>
-                        <li><a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer">MJChat</a> —— 本项目聊天内核的前身与设计参考。</li>
-                        <li><a href="https://github.com/supabase/supabase" target="_blank" rel="noopener noreferrer">Supabase</a> —— 开源 Firebase 替代品，提供 Postgres 数据库、Realtime 与 Auth。</li>
-                        <li><a href="https://github.com/PostgREST/postgrest" target="_blank" rel="noopener noreferrer">PostgREST</a> —— 将 PostgreSQL 数据库直接转化为 RESTful API。</li>
+                        <li><a href="https://github.com/supabase/supabase-js" target="_blank" rel="noopener noreferrer">supabase-js</a> —— Supabase 的 JavaScript 客户端</li>
+                        <li><a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer">MJChat</a> —— 聊天内核</li>    
                     </ul>
-                </div>
-                <div class="opensource-section">
-                    <div class="opensource-section-title">致谢</div>
+                    <div class="opensource-section-title">服务端</div>
                     <ul class="opensource-list">
-                        <li><a href="https://github.com/KazumaRimatsu/CikaChat" target="_blank" rel="noopener noreferrer">KazumaRimatsu/CikaChat</a> —— CikaChat 本体仓库。</li>
+                        <li><a href="https://github.com/supabase/supabase" target="_blank" rel="noopener noreferrer">Supabase</a> —— 开源的 Firebase 替代品</li>
+                        <li><a href="https://github.com/PostgREST/postgrest" target="_blank" rel="noopener noreferrer">PostgREST</a> —— 将 PostgreSQL 数据库直接转化为 RESTful API的工具</li>
                     </ul>
                 </div>
                 <p class="opensource-license">若您认为本项目遗漏了某个依赖项目，欢迎提交 Issue 补充。</p>
-                <div class="dialog-actions"><button class="md-button text" onclick="closeOpensourceDialog()">关闭</button></div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeOpensourceDialog()">完成</button></div>
             </div>
         </div>
 
