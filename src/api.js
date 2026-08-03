@@ -676,6 +676,7 @@
                 initPrivateEmojiPicker();
                 initInteractions();
                 initPrivateInteractions();
+                initPasteImage();
                 updatePublicEntry();
                 updatePublicBadge();
                 updateAllAvatars();

@@ -647,6 +647,10 @@
         function showThemeDialog() {
             const dialog = document.getElementById('themeDialog');
             if (!dialog) return;
+            if (!window.ThemeManager) {
+                showSnackbar('主题功能未初始化，请刷新页面重试');
+                return;
+            }
             _themeDialogOriginalId = ThemeManager.getActiveThemeId();
             _themeDialogPendingId = _themeDialogOriginalId;
             renderThemeList();
@@ -804,7 +808,11 @@
 
         function showFontDialog() {
             const dialog = document.getElementById('fontDialog');
-            if (!dialog || !window.FontManager) return;
+            if (!dialog) return;
+            if (!window.FontManager) {
+                showSnackbar('字体功能未初始化，请刷新页面重试');
+                return;
+            }
             _fontDialogOriginalId = FontManager.getActiveFontId();
             _fontDialogPendingId = _fontDialogOriginalId;
             renderFontList();
@@ -892,7 +900,11 @@
 
         function showFontSizeDialog() {
             const dialog = document.getElementById('fontSizeDialog');
-            if (!dialog || !window.TypographyManager) return;
+            if (!dialog) return;
+            if (!window.TypographyManager) {
+                showSnackbar('字号功能未初始化，请刷新页面重试');
+                return;
+            }
             _fontSizeDialogOriginalId = TypographyManager.getActiveScaleId();
             _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
             renderFontSizeList();
@@ -980,7 +992,11 @@
 
         function showFontWeightDialog() {
             const dialog = document.getElementById('fontWeightDialog');
-            if (!dialog || !window.TypographyManager) return;
+            if (!dialog) return;
+            if (!window.TypographyManager) {
+                showSnackbar('字重功能未初始化，请刷新页面重试');
+                return;
+            }
             _fontWeightDialogOriginalId = TypographyManager.getActiveWeightId();
             _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
             renderFontWeightList();

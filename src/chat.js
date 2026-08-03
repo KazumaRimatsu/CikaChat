@@ -325,23 +325,19 @@
                         `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(marked.displayText)}</a>`;
                     msgType = 'link';
                 } else if (marked && marked.type === 'file') {
-                    if (isImageFile(marked.fileInfo)) {
-                        const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
-                        const fileName = fileParts ? fileParts[1] : marked.fileInfo;
+                    const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
+                    const fileName = fileParts ? fileParts[1] : marked.fileInfo;
+                    const fileSize = fileParts ? fileParts[2] : '';
+                    if (isImageFile(fileName)) {
                         bubbleContent = `<img src="${escapeAttr(marked.url)}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(marked.url)}')">`;
                         msgType = 'image';
                         imageUrl = marked.url;
-                    } else if (isVideoFile(marked.fileInfo)) {
-                        const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
-                        const fileName = fileParts ? fileParts[1] : marked.fileInfo;
+                    } else if (isVideoFile(fileName)) {
                         bubbleContent = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(marked.url)}')"><video src="${escapeAttr(marked.url)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileName)}</div></div>`;
                         msgType = 'video';
                         linkUrl = marked.url;
                     } else {
-                        const iconPath = getFileIconSvg(marked.fileInfo);
-                        const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
-                        const fileName = fileParts ? fileParts[1] : marked.fileInfo;
-                        const fileSize = fileParts ? fileParts[2] : '';
+                        const iconPath = getFileIconSvg(fileName);
                         bubbleContent =
                             `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)} KB)` : ''}</span></a>`;
                         msgType = 'file';
@@ -692,10 +688,6 @@
 
             messagesEl.addEventListener('contextmenu', (e) => {
                 const target = e.target;
-                if (target.tagName === 'IMG') {
-                    e.preventDefault();
-                    return;
-                }
                 if (!e.target.closest('.msg-input')) {
                     e.preventDefault();
                     // 头像右键：弹出 @ / 拍一拍 菜单
@@ -733,7 +725,6 @@
             const startPress = (e) => {
                 const target = e.target;
                 if (target.closest('.msg-input')) return;
-                if (target.tagName === 'IMG') return;
                 const bubble = target.closest('.bubble');
                 if (!bubble) return;
                 const row = bubble.closest('.msg-row');
@@ -965,7 +956,8 @@
                         fetch(url).then(res => res.blob()).then(blob => {
                             const a = document.createElement('a');
                             a.href = URL.createObjectURL(blob);
-                            a.download = 'image.jpg';
+                            const urlName = decodeURIComponent(url.split('/').pop() || '');
+                            a.download = (urlName && urlName.includes('.')) ? urlName : 'image.jpg';
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
@@ -1373,9 +1365,9 @@
                 row.dataset.replyContent = replyContentStr;
             }
             if (voiceMatch) row.dataset.msgType = 'voice';
-            else if (imgMatch) row.dataset.msgType = 'image';
+            else if (imgMatch) { row.dataset.msgType = 'image'; row.dataset.imageUrl = imgMatch[1] || ''; }
             else if (linkMatch && isSafeUrl(linkMatch[2])) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
-            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; }
+            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; if (fileIsImage) row.dataset.imageUrl = fileMatch[3] || ''; }
             else row.dataset.msgType = 'text';
             row.innerHTML = `
                 <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>

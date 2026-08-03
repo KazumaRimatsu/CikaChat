@@ -345,14 +345,19 @@
                 showSnackbar('未选择图片');
                 return;
             }
+            await uploadImagesAndSend(files, false);
+        }
 
+        // 核心：图片文件列表 → 压缩上传 → 发送（公共/私聊共用，剪贴板粘贴也复用）
+        async function uploadImagesAndSend(files, isPrivate) {
+            if (!files || files.length === 0) return;
             if (files.length > MAX_IMAGES_PER_MSG) {
-                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
+                showSnackbar(`一次最多发送 ${MAX_IMAGES_PER_MSG} 张图片`);
                 return;
             }
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
+                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 ${MAX_IMAGE_SIZE / 1024 / 1024}MB`); return; }
                 if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
             }
 
@@ -367,7 +372,7 @@
                         blobToUpload = await compressImage(file, 1920, 0.7);
                     } catch (e) { /* use original */ }
                 }
-                const filePath = `chat/${Date.now()}-${generateId()}-${i}.jpg`;
+                const filePath = (isPrivate ? `private/${privateSessionId}/` : 'chat/') + `${Date.now()}-${generateId()}-${i}.jpg`;
                 try {
                     const url = await uploadToBucket(filePath, blobToUpload, 'image/jpeg');
                     if (!url) return;
@@ -380,22 +385,73 @@
 
             let text = '';
             if (imageUrls.length === 1) {
-                text = '';
+                text = isPrivate ? `![](${imageUrls[0]})` : '';
             } else {
                 text = imageUrls.map(url => `![](${url})`).join('\n');
                 text = '🖼️ ' + text;
             }
 
-            const payload = {
-                sender: currentUser,
-                text: text,
-                image_url: imageUrls[0],
-                msg_version: APP_VERSION,
-                is_system: false
+            if (isPrivate) {
+                try {
+                    const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, text);
+                    appendPrivateMsgLocally(newMsg, true);
+                } catch (ie) {
+                    const msg = ie.message || '';
+                    showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
+                }
+            } else {
+                const payload = {
+                    sender: currentUser,
+                    text: text,
+                    image_url: imageUrls[0],
+                    msg_version: APP_VERSION,
+                    is_system: false
+                };
+                const result = await sendPublicMessageSecure(payload);
+                if (!result.success) {
+                    showSnackbar('发送图片失败: ' + (result.message || ''));
+                }
+            }
+        }
+
+        // 剪贴板粘贴图片直接发送
+        function handlePasteImage(e, isPrivate) {
+            const imageFiles = [];
+            const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
+            const collect = (file) => {
+                if (!file) return;
+                const isImageByType = file.type && file.type.startsWith('image/');
+                const ext = (file.name || '').split('.').pop().toLowerCase();
+                const isImageByName = IMAGE_EXTS.includes(ext);
+                if (isImageByType || isImageByName) imageFiles.push(file);
             };
-            const result = await sendPublicMessageSecure(payload);
-            if (!result.success) {
-                showSnackbar('发送图片失败: ' + (result.message || ''));
+
+            if (e.clipboardData) {
+                const items = e.clipboardData.items || [];
+                for (const item of items) {
+                    if (item.kind === 'file') collect(item.getAsFile());
+                }
+                // 兼容部分环境 items 不可用、仅提供 files 的情况
+                if (imageFiles.length === 0 && e.clipboardData.files) {
+                    for (const file of e.clipboardData.files) collect(file);
+                }
+            }
+            if (imageFiles.length === 0) return; // 剪贴板中没有图片，不拦截默认粘贴
+
+            e.preventDefault();
+            showConfirm('发送图片', `确认发送 ${imageFiles.length} 张图片吗？`, () => {
+                uploadImagesAndSend(imageFiles, isPrivate);
+            });
+        }
+
+        function initPasteImage() {
+            const publicInput = document.getElementById('publicMsgInput');
+            const privateInput = document.getElementById('privateMsgInput');
+            if (publicInput) {
+                publicInput.addEventListener('paste', (e) => handlePasteImage(e, false));
+            }
+            if (privateInput) {
+                privateInput.addEventListener('paste', (e) => handlePasteImage(e, true));
             }
         }
 
@@ -528,7 +584,7 @@
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
-            if (file.size > 10 * 1024 * 1024) { showSnackbar('文件不能超过 10MB'); return; }
+            if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `files/${Date.now()}-${generateId()}.${ext}`;
@@ -823,54 +879,7 @@
             const files = Array.from(event.target.files || []);
             event.target.value = '';
             if (files.length === 0) return;
-            if (files.length > MAX_IMAGES_PER_MSG) {
-                showSnackbar(`一次最多选择 ${MAX_IMAGES_PER_MSG} 张图片`);
-                return;
-            }
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 5MB`); return; }
-                if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
-            }
-            showSnackbar(`正在上传 ${files.length} 张图片...`);
-            const imageUrls = [];
-            for (let i = 0; i < files.length; i++) {
-                let file = files[i];
-                let blobToUpload = file;
-                if (file.size > COMPRESS_THRESHOLD) {
-                    try {
-                        blobToUpload = await compressImage(file, 1920, 0.7);
-                    } catch (e) { /* use original */ }
-                }
-                const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}-${i}.jpg`;
-                try {
-                    const url = await uploadToBucket(filePath, blobToUpload, 'image/jpeg');
-                    if (!url) return;
-                    imageUrls.push(url);
-                } catch (e) {
-                    showSnackbar('上传失败');
-                    return;
-                }
-            }
-            let content = '';
-            if (imageUrls.length === 1) {
-                content = `![](${imageUrls[0]})`;
-            } else {
-                content = imageUrls.map(url => `![](${url})`).join('\n');
-                content = '🖼️ ' + content;
-            }
-            const payload = {
-                session_id: privateSessionId,
-                sender: currentUser,
-                content: content
-            };
-            try {
-                const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
-                appendPrivateMsgLocally(newMsg, true);
-            } catch (ie) {
-                const msg = ie.message || '';
-                showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg);
-            }
+            await uploadImagesAndSend(files, true);
         }
 
         function privateOpenFilePicker() {
@@ -882,7 +891,7 @@
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
-            if (file.size > 10 * 1024 * 1024) { showSnackbar('文件不能超过 10MB'); return; }
+            if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `private/${privateSessionId}/files/${Date.now()}-${generateId()}.${ext}`;
