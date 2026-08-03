@@ -2193,6 +2193,36 @@
             gap: 14px;
         }
 
+        /* v040: 快速登录样式 */
+        .quick-login-area {
+            width: 100%;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .quick-login-avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .quick-login-user {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 8px;
+            color: var(--md-on-surface);
+        }
+
         .wc-input {
             position: relative;
         }

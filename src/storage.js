@@ -28,6 +28,8 @@
             const state = getUnreadState();
             const pubLastRead = state.publicLastRead;
             publicUnread = 0;
+            // 群聊免打扰开启时不恢复红点
+            if (typeof _mutePublic !== 'undefined' && _mutePublic) return;
             if (pubLastRead) {
                 publicMessages.forEach(m => {
                     if (!m.is_system && m.sender !== currentUser && new Date(m.created_at) > new Date(pubLastRead)) {
@@ -46,6 +48,8 @@
             privateUnreadCounts = {};
             if (window.privateSessions) {
                 window.privateSessions.forEach(s => {
+                    // 私聊免打扰开启的会话不恢复红点
+                    if (_mutePerPrivateSession && _mutePerPrivateSession[s.id]) return;
                     const lastRead = state.privateLastRead[s.id];
                     if (lastRead && s.updated_at) {
                         if (new Date(s.updated_at) > new Date(lastRead)) {
@@ -177,6 +181,7 @@
                 }
             }
 
+            let wasMigrated = false;
             if (!userConfig) {
                 // No encrypted config yet - migrate from old localStorage keys (one-time)
                 userConfig = {
@@ -187,6 +192,7 @@
                     notify: Object.assign({}, DEFAULT_NOTIFY),
                     version: 1
                 };
+                wasMigrated = true;
                 // Migrate old unread state if it exists
                 try {
                     const oldUnread = JSON.parse(localStorage.getItem('mjchat_unread'));
@@ -210,6 +216,12 @@
 
             // Cache decrypted settings in memory
             _userSettingsCache = userConfig;
+
+            // v057 修复：迁移/新建出的配置立即加密落盘，
+            // 否则下次启动解不到配置，设置（主题色、通知等）会退回默认
+            if (wasMigrated) {
+                await syncSettingsToEncryptedStore();
+            }
 
             // Migrate: ensure notify settings exist for existing users
             if (!_userSettingsCache.notify) {
@@ -354,7 +366,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "26.8.303",
+                version: "26.8.305",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

@@ -323,7 +323,8 @@ var CikaAI = (function() {
         // 暴露全局方法供 index.html onclick 和 app.js 调用
         window.showAIModelSettings = showModelSettings;
         window.closeAIModelSettings = closeModelSettings;
-        window.saveAIModelSettings = saveModelSettingsHandler;
+        // 弹窗保存处理器挂到独立全局名，避免覆盖 storage.js 的 saveAIModelSettings（同名会导致递归）
+        window.saveAIModelSettingsDialog = saveModelSettingsHandler;
         window.updateAIModelPlaceholder = updateAIModelPlaceholder;
         window.showAITranslationSettings = showTranslationSettings;
         window.closeAITranslationSettings = closeTranslationSettings;

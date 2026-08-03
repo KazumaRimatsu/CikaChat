@@ -71,6 +71,8 @@
         function maybeNotifyPrivateSound(sessionId) {
             if (privateChatActive && privateSessionId === sessionId) return;
             if (!getPrivateNotifyEnabled()) return;
+            // v053: 私聊按会话免打扰
+            if (_mutePerPrivateSession[sessionId]) return;
             if (document.getElementById('privatePage').classList.contains('active')) return;
             playNotifySound();
         }
@@ -82,7 +84,8 @@
                 loadPrivateSessions().then(() => {
                     const updated = (window.privateSessions || []);
                     if (updated.some(s => s.id === sessionId) && sender !== currentUser) {
-                        incrementUnread(sessionId);
+                        // 免打扰时不显示红点、不播放提示音
+                        if (!_mutePerPrivateSession[sessionId]) incrementUnread(sessionId);
                         maybeNotifyPrivateSound(sessionId);
                     }
                 });
@@ -98,7 +101,8 @@
             });
             loadPrivateSessions().then(() => {
                 if (sender !== currentUser) {
-                    incrementUnread(sessionId);
+                    // 免打扰时不显示红点、不播放提示音
+                    if (!_mutePerPrivateSession[sessionId]) incrementUnread(sessionId);
                     maybeNotifyPrivateSound(sessionId);
                 }
             });
@@ -170,6 +174,7 @@
             if (publicMessages.some(m => m.id === msg.id)) return;
             if (msg.is_system && isGarbledText(msg.text)) return;
             if (msg.is_system && msg.text && (
+                msg.text.includes('加入了CikaChat') || msg.text.includes('离开了CikaChat') ||
                 msg.text.includes('加入了MJChat') || msg.text.includes('离开了MJChat')
             )) return;
             const nm = {
@@ -202,12 +207,18 @@
                     markPublicRead(nm.created_at);
                 }
             } else if (!isHistory && nm.sender !== currentUser && !nm.is_system) {
-                publicUnread++;
-                updatePublicBadge();
-                updateBackBadge();
-                // Play notification sound for public chat
-                if (getPublicNotifyEnabled()) {
-                    playNotifySound();
+                // 消息免打扰：开启时不显示红点、不播放提示音；@提及绕过免打扰
+                var isMentioned = _checkMention(nm.text || '');
+                if (!_mutePublic || isMentioned) {
+                    publicUnread++;
+                    updatePublicBadge();
+                    updateBackBadge();
+                    // 提示音：免打扰开启时仅 @ 消息播放；免打扰关闭时按「消息提示音」开关
+                    if (isMentioned && _mutePublic) {
+                        playNotifySound();
+                    } else if (!_mutePublic && getPublicNotifyEnabled()) {
+                        playNotifySound();
+                    }
                 }
             }
         }

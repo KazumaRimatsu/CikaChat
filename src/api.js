@@ -15,6 +15,16 @@
         let _publicBackupPollTimer = null;
         let _publicRetryCount = 0;
         var _rateLimits = {};
+        // v053: 免打扰系统
+        let _mutePublic = false;
+        let _mutePerPrivateSession = {};
+        // v053: 恢复静音状态
+        try {
+            var _savedMutePublic = localStorage.getItem('mjchat_public_muted');
+            if (_savedMutePublic === '1') _mutePublic = true;
+            var _savedPrivateMuted = localStorage.getItem('mjchat_private_muted');
+            if (_savedPrivateMuted) _mutePerPrivateSession = JSON.parse(_savedPrivateMuted);
+        } catch(e) {}
 
         function checkRateLimit(action, maxCount, windowMs) {
             var now = Date.now();
@@ -219,12 +229,112 @@
             hideEl('regSuccess');
             document.getElementById('authContainer').style.display = 'flex';
             document.getElementById('appContainer').style.display = 'none';
+            // v040: 快速登录——有上次登录记录时显示简化界面
+            updateQuickLoginUI();
         }
 
         function showRegister() {
             document.getElementById('loginScreen').classList.add('hidden');
             document.getElementById('registerScreen').classList.remove('hidden');
             hideEl('loginError');
+            // v040: 注册时隐藏快速登录界面
+            var quickInfo = document.getElementById('quickLoginInfo');
+            var normalForm = document.getElementById('loginNormalForm');
+            if (quickInfo) quickInfo.classList.add('hidden');
+            if (normalForm) normalForm.classList.remove('hidden');
+        }
+
+        // v040: 快速登录——直接登录（无需输入密码，从session读取）
+        // 但需要用户输入密码，所以显示密码输入框然后自动提交
+        async function quickLogin() {
+            var savedSession = null;
+            try {
+                var raw = localStorage.getItem('mjchat_session');
+                if (raw) savedSession = JSON.parse(raw);
+            } catch (e) {}
+            if (!savedSession || !savedSession.username) {
+                switchToNormalLogin();
+                return;
+            }
+            // 显示密码输入框
+            var quickInfo = document.getElementById('quickLoginInfo');
+            var quickPwdRow = document.getElementById('quickLoginPwdRow');
+            var quickPwdInput = document.getElementById('quickLoginPassword');
+            if (quickPwdRow) quickPwdRow.classList.remove('hidden');
+            var submitBtn = document.getElementById('quickLoginSubmitBtn');
+            if (submitBtn) submitBtn.classList.remove('hidden');
+            if (quickPwdInput) {
+                quickPwdInput.value = '';
+                setTimeout(function() { quickPwdInput.focus(); }, 100);
+            }
+        }
+
+        // v040: 快速登录提交密码
+        async function doQuickLoginSubmit() {
+            var savedSession = null;
+            try {
+                var raw = localStorage.getItem('mjchat_session');
+                if (raw) savedSession = JSON.parse(raw);
+            } catch (e) {}
+            if (!savedSession || !savedSession.username) return;
+            var pwdEl = document.getElementById('quickLoginPassword');
+            var password = pwdEl ? pwdEl.value : '';
+            if (!password) {
+                showEl('loginError', '请输入密码');
+                if (pwdEl) pwdEl.focus();
+                return;
+            }
+            hideEl('loginError');
+            showGlobalLoading('登录中', '欢迎回来，' + savedSession.username);
+            // 设置 loginUsername 给 doLogin 使用
+            var unameEl = document.getElementById('loginUsername');
+            var pwdMainEl = document.getElementById('loginPassword');
+            if (unameEl) unameEl.value = savedSession.username;
+            if (pwdMainEl) pwdMainEl.value = password;
+            await doLogin();
+        }
+
+        // v040: 快速登录——读取上次登录记录，简化登录界面
+        function updateQuickLoginUI() {
+            var quickInfo = document.getElementById('quickLoginInfo');
+            var normalForm = document.getElementById('loginNormalForm');
+            var quickUserEl = document.getElementById('quickLoginUser');
+            var quickAvatarEl = document.getElementById('quickLoginAvatar');
+            // 读取session中上次登录信息
+            var savedSession = null;
+            try {
+                var raw = localStorage.getItem('mjchat_session');
+                if (raw) savedSession = JSON.parse(raw);
+            } catch (e) {}
+            if (savedSession && savedSession.username) {
+                if (quickInfo) quickInfo.classList.remove('hidden');
+                if (normalForm) normalForm.classList.add('hidden');
+                if (quickUserEl) quickUserEl.textContent = savedSession.username;
+                if (quickAvatarEl) {
+                    quickAvatarEl.textContent = savedSession.username.charAt(0).toUpperCase();
+                    quickAvatarEl.removeAttribute('src');
+                    quickAvatarEl.style.backgroundImage = '';
+                    quickAvatarEl.className = 'quick-login-avatar av-' + (hashStr(savedSession.username) % 8);
+                }
+            } else {
+                if (quickInfo) quickInfo.classList.add('hidden');
+                if (normalForm) normalForm.classList.remove('hidden');
+            }
+        }
+
+        // v040: 切换到普通登录（从快速登录模式切换）
+        function switchToNormalLogin() {
+            var quickInfo = document.getElementById('quickLoginInfo');
+            var normalForm = document.getElementById('loginNormalForm');
+            if (quickInfo) quickInfo.classList.add('hidden');
+            if (normalForm) normalForm.classList.remove('hidden');
+            // 隐藏快速登录密码区
+            var pwdRow = document.getElementById('quickLoginPwdRow');
+            var submitBtn = document.getElementById('quickLoginSubmitBtn');
+            if (pwdRow) pwdRow.classList.add('hidden');
+            if (submitBtn) submitBtn.classList.add('hidden');
+            var unameEl = document.getElementById('loginUsername');
+            if (unameEl) unameEl.focus();
         }
 
         async function doRegister() {
@@ -544,6 +654,8 @@
                     console.error('[enterApp] connectPublic failed, will retry:', pubErr);
                     // Don't block the entire app - continue with private chat
                 }
+                // v044: 启动公聊轮询备份
+                startPublicPollingBackup();
                 await loadPrivateSessions();
                 setupGlobalPrivateListener();
                 restoreUnreadCounts();
@@ -996,6 +1108,58 @@
             });
         }
 
+        // v044: 公聊轻量轮询备份——Realtime 连接正常时也定期轮询，防止 postgres_changes 事件漏发
+        var _lastPublicPollTime = null;
+        function startPublicPollingBackup() {
+            if (_publicBackupPollTimer) clearInterval(_publicBackupPollTimer);
+            _publicBackupPollTimer = setInterval(async () => {
+                if (!sb || !currentUser || !isEntered) return;
+                try {
+                    await _pollPublicMessages();
+                } catch (e) { /* ignore */ }
+            }, 10000);
+        }
+
+        async function _pollPublicMessages() {
+            if (!sb || !isEntered) return;
+            try {
+                var latestTime = _lastPublicPollTime;
+                if (publicMessages && publicMessages.length > 0) {
+                    for (var i = publicMessages.length - 1; i >= 0; i--) {
+                        if (publicMessages[i].created_at) {
+                            latestTime = publicMessages[i].created_at;
+                            break;
+                        }
+                    }
+                }
+                var query = sb.from(TABLE_PUBLIC_MSG)
+                    .select('id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system')
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+                if (latestTime) query = query.gt('created_at', latestTime);
+                var result = await query;
+                if (result.error || !result.data || !Array.isArray(result.data)) return;
+                if (result.data.length === 0) return;
+                result.data.reverse().forEach(function(msg) {
+                    if (!publicMessages.some(function(m) { return m.id === msg.id; })) {
+                        handlePublicMessage(msg);
+                        updatePublicEntry();
+                        var container = document.getElementById('publicMessages');
+                        if (!isUserScrolledUp && container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                        }
+                    }
+                });
+                if (publicChannel && publicChannel.presenceState) {
+                    try {
+                        onlineUsers = publicChannel.presenceState();
+                        renderOnlineUsers();
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (e) { /* silent fail */ }
+        }
+
         async function loadPublicHistory() {
             try {
                 let result = await sb.from(TABLE_PUBLIC_MSG).select(
@@ -1283,10 +1447,10 @@
                         }
                     });
                 }
-                // 网络不佳时实时广播可能丢失，轮询补拉发现的新消息需要正常播放提示音
+                // 网络不佳时实时广播可能丢失，轮询补拉发现的新消息需要正常播放提示音（免打扰时不播放）
                 if (notifyNew && prevIds) {
                     const fresh = privateMessages.filter(m => !prevIds.has(m.id) && m.sender !== currentUser);
-                    if (fresh.length > 0 && getPrivateNotifyEnabled() &&
+                    if (fresh.length > 0 && !_mutePerPrivateSession[privateSessionId] && getPrivateNotifyEnabled() &&
                         !document.getElementById('privatePage').classList.contains('active')) {
                         playNotifySound();
                     }
@@ -1364,12 +1528,18 @@
                             updateScrollButton(container);
                         }
                     } else {
-                        incrementUnread(sessionId);
+                        // v053: 私聊免打扰时不增加未读计数
+                        if (!_mutePerPrivateSession[sessionId]) {
+                            incrementUnread(sessionId);
+                        }
                     }
                     // Play notification sound for private chat (when not in view or not own msg)
                     if (msg.sender !== currentUser && getPrivateNotifyEnabled()) {
-                        if (!document.getElementById('privatePage').classList.contains('active')) {
-                            playNotifySound();
+                        // v053: 私聊按会话免打扰
+                        if (!_mutePerPrivateSession[sessionId]) {
+                            if (!document.getElementById('privatePage').classList.contains('active')) {
+                                playNotifySound();
+                            }
                         }
                     }
                     if (msg.created_at) {
@@ -1665,6 +1835,11 @@
             if (privateChannel) { sb.removeChannel(privateChannel);
                 privateChannel = null; }
             localStorage.removeItem('mjchat_session');
+            // v053: 登出时重置免打扰状态
+            _mutePublic = false;
+            _mutePerPrivateSession = {};
+            localStorage.removeItem('mjchat_public_muted');
+            localStorage.removeItem('mjchat_private_muted');
             currentUser = '';
             publicMessages = [];
             privateMessages = [];
@@ -1879,6 +2054,35 @@
                 privateBlockedStatus = newBlockState;
                 showSnackbar(newBlockState ? '已加入黑名单' : '已移出黑名单');
             } catch (e) { showSnackbar('操作失败'); }
+        }
+
+        // v053: 群聊免打扰切换
+        function togglePublicMute() {
+            _mutePublic = !_mutePublic;
+            showSnackbar(_mutePublic ? '已开启群聊消息免打扰' : '已关闭群聊消息免打扰');
+            try { localStorage.setItem('mjchat_public_muted', _mutePublic ? '1' : '0'); } catch(e) {}
+            updatePublicMenu();
+            updatePublicBadge();
+            updateBackBadge();
+        }
+
+        // v053: 私聊按会话免打扰切换
+        function togglePrivateMute() {
+            if (!privateSessionId) return;
+            const cur = !!_mutePerPrivateSession[privateSessionId];
+            _mutePerPrivateSession[privateSessionId] = !cur;
+            showSnackbar(!cur ? '已开启消息免打扰' : '已关闭消息免打扰');
+            try { localStorage.setItem('mjchat_private_muted', JSON.stringify(_mutePerPrivateSession)); } catch(e) {}
+            updatePrivateMenu();
+            renderPrivateList();
+            updateBackBadge();
+        }
+
+        // v046: 检测消息文本中是否@提到了当前用户
+        function _checkMention(text) {
+            if (!text || !currentUser) return false;
+            var mentionPattern = '@' + currentUser;
+            return text.indexOf(mentionPattern) !== -1;
         }
 
         async function loadBlocklist() {

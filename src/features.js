@@ -154,9 +154,11 @@
         document.addEventListener('keydown', unlockNotifyAudio, true);
 
         function playNotifySound() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+            }
             const ns = _userSettingsCache.notify;
-            if (!ns.enabled) return;
             const sound = NOTIFY_SOUNDS[ns.sound] || NOTIFY_SOUNDS['three_note'];
             try {
                 if (!_notifyAudio) _notifyAudio = new Audio();
@@ -173,64 +175,67 @@
             }
         }
 
+        // 群聊「消息提示音」开关（是否播放提示音由调用方结合免打扰状态判断）
         function getPublicNotifyEnabled() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return false;
-            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.publicEnabled;
+            if (!_userSettingsCache) return false;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+            }
+            return !!_userSettingsCache.notify.publicEnabled;
         }
 
+        // 私聊「消息提示音」开关（是否播放提示音由调用方结合免打扰状态判断）
         function getPrivateNotifyEnabled() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return true;
-            return _userSettingsCache.notify.enabled && _userSettingsCache.notify.privateEnabled;
+            if (!_userSettingsCache) return false;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+            }
+            return !!_userSettingsCache.notify.privateEnabled;
         }
 
         function refreshNotifySettingsUI() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+            }
             const ns = _userSettingsCache.notify;
 
-            // Update settings page
-            const soundItem = document.getElementById('settingsNotifySoundItem');
-            if (soundItem) {
-                soundItem.style.display = ns.enabled ? '' : 'none';
-            }
+            // Update settings page（提示音选择始终可见）
             const soundValue = document.getElementById('settingsNotifySoundValue');
             if (soundValue) {
                 const snd = NOTIFY_SOUNDS[ns.sound];
                 soundValue.textContent = snd ? snd.label : '经典三全音';
             }
 
-            // Update chat menu items
+            // Update chat menu items：免打扰关闭时显示「消息提示音」开关，开启时隐藏
             const publicMenuItem = document.getElementById('publicMenuNotifyItem');
             if (publicMenuItem) {
-                publicMenuItem.style.display = ns.enabled ? '' : 'none';
+                const publicMuted = (typeof _mutePublic !== 'undefined') && _mutePublic;
+                publicMenuItem.style.display = publicMuted ? 'none' : '';
                 const publicLabel = document.getElementById('publicNotifyLabel');
                 if (publicLabel) {
-                    publicLabel.textContent = ns.publicEnabled ? '关闭消息提示' : '开启消息提示';
+                    publicLabel.textContent = ns.publicEnabled ? '关闭消息提示音' : '开启消息提示音';
                 }
             }
 
             const privateMenuItem = document.getElementById('privateMenuNotifyItem');
             if (privateMenuItem) {
-                privateMenuItem.style.display = ns.enabled ? '' : 'none';
+                const privateMuted = privateSessionId && _mutePerPrivateSession && _mutePerPrivateSession[privateSessionId];
+                privateMenuItem.style.display = privateMuted ? 'none' : '';
                 const privateLabel = document.getElementById('privateNotifyLabel');
                 if (privateLabel) {
-                    privateLabel.textContent = ns.privateEnabled ? '关闭消息提示' : '开启消息提示';
+                    privateLabel.textContent = ns.privateEnabled ? '关闭消息提示音' : '开启消息提示音';
                 }
             }
         }
 
-        async function toggleNotifyEnabled() {
+        function showNotifySoundDialog() {
             if (!_userSettingsCache) return;
+            // 兼容旧版本：如果 notify 不存在，自动用默认值初始化
             if (!_userSettingsCache.notify) {
                 _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+                syncSettingsToEncryptedStore();
             }
-            _userSettingsCache.notify.enabled = !_userSettingsCache.notify.enabled;
-            await syncSettingsToEncryptedStore();
-            refreshNotifySettingsUI();
-            showSnackbar(_userSettingsCache.notify.enabled ? '已开启消息提示' : '已关闭消息提示');
-        }
-
-        function showNotifySoundDialog() {
-            if (!_userSettingsCache || !_userSettingsCache.notify || !_userSettingsCache.notify.enabled) return;
             const dialog = document.getElementById('notifySoundDialog');
             if (dialog) {
                 dialog.classList.remove('hidden');
@@ -244,7 +249,10 @@
         }
 
         function updateNotifySoundDialog() {
-            if (!_userSettingsCache || !_userSettingsCache.notify) return;
+            if (!_userSettingsCache) return;
+            if (!_userSettingsCache.notify) {
+                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+            }
             const currentSound = _userSettingsCache.notify.sound || 'three_note';
             const items = document.querySelectorAll('.notify-sound-item');
             items.forEach(function(item) {
@@ -282,6 +290,7 @@
             }
         }
 
+        // 群聊「消息提示音」开关（仅免打扰关闭时在聊天菜单显示）
         async function togglePublicNotify() {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
@@ -290,9 +299,10 @@
             _userSettingsCache.notify.publicEnabled = !_userSettingsCache.notify.publicEnabled;
             await syncSettingsToEncryptedStore();
             refreshNotifySettingsUI();
-            showSnackbar(_userSettingsCache.notify.publicEnabled ? '公共聊天消息提示已开启' : '公共聊天消息提示已关闭');
+            showSnackbar(_userSettingsCache.notify.publicEnabled ? '公共聊天消息提示音已开启' : '公共聊天消息提示音已关闭');
         }
 
+        // 私聊「消息提示音」开关（仅免打扰关闭时在聊天菜单显示）
         async function togglePrivateNotify() {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
@@ -301,7 +311,7 @@
             _userSettingsCache.notify.privateEnabled = !_userSettingsCache.notify.privateEnabled;
             await syncSettingsToEncryptedStore();
             refreshNotifySettingsUI();
-            showSnackbar(_userSettingsCache.notify.privateEnabled ? '私聊消息提示已开启' : '私聊消息提示已关闭');
+            showSnackbar(_userSettingsCache.notify.privateEnabled ? '私聊消息提示音已开启' : '私聊消息提示音已关闭');
         }
 
         // Pure JavaScript SHA-256 implementation for old WebView compatibility

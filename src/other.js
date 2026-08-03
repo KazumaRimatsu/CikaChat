@@ -476,6 +476,9 @@
             // Current user is always online (they are logged in); green dot unless banned.
             applyCurrentUserStatus(dot, avatar);
             refreshNotifySettingsUI();
+            // v053: 更新群聊免打扰标签
+            var muteLabel = document.getElementById('publicMuteLabel');
+            if (muteLabel) muteLabel.textContent = (typeof _mutePublic !== 'undefined' && _mutePublic) ? '取消群聊免打扰' : '群聊免打扰';
         }
 
         let privateBlockedStatus = false;
@@ -519,6 +522,11 @@
             } catch (e) { privateBlockedStatus = false; }
             labelEl.textContent = privateBlockedStatus ? '移出黑名单' : '加入黑名单';
             refreshNotifySettingsUI();
+            // v053: 更新私聊免打扰标签
+            var muteLabel = document.getElementById('privateMuteLabel');
+            if (muteLabel && privateSessionId) {
+                muteLabel.textContent = (_mutePerPrivateSession[privateSessionId]) ? '取消消息免打扰' : '消息免打扰';
+            }
         }
 
         function showBlocklistModal() {
@@ -583,6 +591,24 @@
                 syncSettingsToEncryptedStore();
             }
             updateThemeLabel();
+            // v042: 持久化主题到服务端 user_settings 表
+            saveThemeToServer(next);
+        }
+
+        // v042: 保存主题到服务端
+        async function saveThemeToServer(theme) {
+            if (!sb || !currentUser) return;
+            try {
+                const userSettingsObj = {
+                    theme: theme,
+                    updated_at: new Date().toISOString()
+                };
+                await sb.from('user_settings').upsert({
+                    username: currentUser,
+                    settings: userSettingsObj,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'username' });
+            } catch (e) { /* silent - localStorage handles persistence */ }
         }
 
         function updateThemeLabel() {
@@ -782,8 +808,8 @@
                     currentUser = session.username;
                     currentAvatarUrl = userData.avatar_url || '';
                     userAvatarCache[currentUser] = currentAvatarUrl;
-                    // v049: 用会话中保存的密码哈希重新加载加密设置
                     if (session.pwhash) {
+                        // v049: 用会话中保存的密码哈希重新加载加密设置
                         try {
                             await initUserSettings(session.pwhash, session.username);
                             // 重新应用主题和颜色（init 中已调用过但当时 _userSettingsCache 为空）
@@ -792,6 +818,15 @@
                         } catch (e) {
                             console.warn('Session restore: initUserSettings failed:', e);
                         }
+                    } else {
+                        // v057 修复：旧版本保存的会话没有密码哈希，无法解密本地设置。
+                        // 直接进入会导致本地设置无法加载/保存（加密密钥为空），
+                        // 改为要求重新输入一次密码（保留会话，走快速登录），登录后会重新写入带 pwhash 的会话。
+                        if (timeoutId) clearTimeout(timeoutId);
+                        hideGlobalLoading();
+                        showLogin();
+                        showEl('loginError', '请重新登录以恢复本地设置');
+                        return;
                     }
                     updateLoadingText('登录中…', '欢迎回来 ' + currentUser);
                     authorizeEnterApp();

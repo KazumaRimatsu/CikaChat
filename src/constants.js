@@ -12,8 +12,8 @@
         const STORAGE_BUCKET = 'chat-images';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 49;
-        const VERSION = '26.8.303';
+        const APP_VERSION = 57;
+        const VERSION = '26.8.305';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护中，暂时无法登录。请联系管理员解除维护状态。';
         const SALT = 'mjchat_2026_salt_v1';
@@ -32,7 +32,8 @@
         };
 
         // 通知默认设置（多处复用；写入缓存前必须拷贝，避免共享引用被修改）
-        const DEFAULT_NOTIFY = { enabled: true, sound: 'three_note', publicEnabled: false, privateEnabled: true };
+        // enabled 主开关已废弃（v057：合并为「消息免打扰」后删除）；publicEnabled/privateEnabled 即各聊天「消息提示音」开关
+        const DEFAULT_NOTIFY = { sound: 'three_note', publicEnabled: false, privateEnabled: true };
 
         // AI 服务商 → 默认模型（ai.js / 智能体设置共用，避免三处各自维护）
         const AGENT_DEFAULT_MODELS = {
