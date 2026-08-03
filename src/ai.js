@@ -25,29 +25,35 @@ var CikaAI = (function() {
         PROVIDER_CONFIGS[p] = { baseUrl: PROVIDER_BASE_URLS[p] || '', model: AGENT_DEFAULT_MODELS[p] };
     });
 
-    // ============ 存储操作 ============
+    // ============ 存储操作（解密缓存由 storage.js 维护，落盘为 AES-GCM 加密） ============
     function loadModelSettings() {
-        try {
-            var raw = localStorage.getItem('cika_ai_model_settings');
-            if (raw) { return JSON.parse(raw); }
-        } catch (e) { /* ignore */ }
+        if (typeof getAIModelSettings === 'function') {
+            var cached = getAIModelSettings();
+            if (cached) return cached;
+        }
         return {};
     }
 
     function saveModelSettings(settings) {
-        localStorage.setItem('cika_ai_model_settings', JSON.stringify(settings));
+        if (typeof saveAIModelSettings === 'function') {
+            return saveAIModelSettings(settings);
+        }
+        return Promise.resolve();
     }
 
     function loadTranslateSettings() {
-        try {
-            var raw = localStorage.getItem('cika_ai_translate_settings');
-            if (raw) { return JSON.parse(raw); }
-        } catch (e) { /* ignore */ }
+        if (typeof getAITranslateSettings === 'function') {
+            var cached = getAITranslateSettings();
+            if (cached) return cached;
+        }
         return { targetLang: DEFAULTS.translateTargetLang };
     }
 
     function saveTranslateSettings(settings) {
-        localStorage.setItem('cika_ai_translate_settings', JSON.stringify(settings));
+        if (typeof saveAITranslateSettings === 'function') {
+            return saveAITranslateSettings(settings);
+        }
+        return Promise.resolve();
     }
 
     // ============ 模型设置弹窗 ============
@@ -100,7 +106,7 @@ var CikaAI = (function() {
         }
     }
 
-    function saveModelSettingsHandler() {
+    async function saveModelSettingsHandler() {
         var provider = document.getElementById('aiModelProvider').value;
         var baseUrl = document.getElementById('aiModelBaseUrl').value.trim();
         var apiKey = document.getElementById('aiModelApiKey').value.trim();
@@ -109,7 +115,7 @@ var CikaAI = (function() {
         if (!apiKey) { showSnackbar('请输入 API Key'); return; }
         if (!model) { showSnackbar('请输入模型 ID'); return; }
 
-        saveModelSettings({
+        await saveModelSettings({
             provider: provider,
             baseUrl: baseUrl,
             apiKey: apiKey,
@@ -150,9 +156,9 @@ var CikaAI = (function() {
         if (dialog) { dialog.classList.add('hidden'); }
     }
 
-    function saveTranslationSettingsHandler() {
+    async function saveTranslationSettingsHandler() {
         var targetLang = document.getElementById('aiTranslateTargetLang').value;
-        saveTranslateSettings({ targetLang: targetLang });
+        await saveTranslateSettings({ targetLang: targetLang });
         showSnackbar('翻译设置已保存');
         closeTranslationSettings();
     }

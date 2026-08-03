@@ -969,7 +969,7 @@
                     // 翻译：仅当已配置 AI 模型时才显示
                     var _hasAiConfig = false;
                     try {
-                        var _aiSettings = JSON.parse(localStorage.getItem('cika_ai_model_settings') || 'null');
+                        var _aiSettings = (typeof getAIModelSettings === 'function') ? (getAIModelSettings() || {}) : null;
                         _hasAiConfig = !!(_aiSettings && _aiSettings.apiKey);
                     } catch (_) {}
                     if (_hasAiConfig) {

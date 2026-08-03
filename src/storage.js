@@ -141,6 +141,8 @@
         // In-memory cache: holds decrypted settings for the current user
         let _userSettingsCache = null;
         let _encryptionKey = null;
+        // AI 设置解密缓存（模型/翻译），登录时从加密存储加载
+        let _aiSettingsCache = null;
 
         // Load the raw per-user configs object from localStorage
         function loadAllUserConfigs() {
@@ -217,6 +219,9 @@
 
             // Apply settings immediately
             applyUserSettings();
+
+            // 解密 AI 设置（模型/翻译）到内存缓存
+            await loadAISettingsToCache();
         }
 
         // Apply cached settings to the app state
@@ -260,6 +265,158 @@
         function clearEncryptionKey() {
             _encryptionKey = null;
             _userSettingsCache = null;
+            _aiSettingsCache = null;
+        }
+
+        // ============================================
+        // AI 设置加密存取（模型/翻译，含 API Key）
+        // 与用户设置共用 AES-GCM 密钥；旧版明文在下次登录时自动迁移为加密格式
+        // ============================================
+
+        // 读取并解密单个 AI 设置键；旧版明文数据自动加密迁移
+        async function decryptAISettingsValue(key, raw) {
+            if (!raw) return null;
+            let obj = null;
+            try { obj = JSON.parse(raw); } catch (e) { return null; }
+            if (obj && typeof obj === 'object' && obj.iv && obj.data) {
+                // 已是加密格式
+                if (!_encryptionKey) return null;
+                try {
+                    const plain = await decryptData(_encryptionKey, obj.iv, obj.data);
+                    return JSON.parse(plain);
+                } catch (e) { return null; }
+            }
+            // 旧版明文：用当前密钥加密迁移
+            if (_encryptionKey) {
+                try {
+                    const enc = await encryptData(_encryptionKey, JSON.stringify(obj));
+                    localStorage.setItem(key, JSON.stringify(enc));
+                } catch (e) {}
+            }
+            return obj;
+        }
+
+        // 加密写入单个 AI 设置键；密钥未就绪时降级为明文（下次登录自动迁移）
+        async function encryptAISettingsValue(key, obj) {
+            if (obj === null || obj === undefined) { localStorage.removeItem(key); return; }
+            const json = JSON.stringify(obj);
+            if (_encryptionKey) {
+                try {
+                    const enc = await encryptData(_encryptionKey, json);
+                    localStorage.setItem(key, JSON.stringify(enc));
+                    return;
+                } catch (e) {}
+            }
+            localStorage.setItem(key, json);
+        }
+
+        // 登录时解密全部 AI 设置到内存缓存
+        async function loadAISettingsToCache() {
+            _aiSettingsCache = {
+                model: await decryptAISettingsValue('cika_ai_model_settings', localStorage.getItem('cika_ai_model_settings')),
+                translate: await decryptAISettingsValue('cika_ai_translate_settings', localStorage.getItem('cika_ai_translate_settings'))
+            };
+        }
+
+        // 同步读取已解密的 AI 模型设置
+        function getAIModelSettings() {
+            return _aiSettingsCache ? _aiSettingsCache.model : null;
+        }
+
+        // 同步读取已解密的 AI 翻译设置
+        function getAITranslateSettings() {
+            return _aiSettingsCache ? _aiSettingsCache.translate : null;
+        }
+
+        // 保存 AI 模型设置（更新缓存 + 加密落盘）
+        async function saveAIModelSettings(settings) {
+            if (!_aiSettingsCache) _aiSettingsCache = { model: null, translate: null };
+            _aiSettingsCache.model = settings || null;
+            await encryptAISettingsValue('cika_ai_model_settings', _aiSettingsCache.model);
+        }
+
+        // 保存 AI 翻译设置（更新缓存 + 加密落盘）
+        async function saveAITranslateSettings(settings) {
+            if (!_aiSettingsCache) _aiSettingsCache = { model: null, translate: null };
+            _aiSettingsCache.translate = settings || null;
+            await encryptAISettingsValue('cika_ai_translate_settings', _aiSettingsCache.translate);
+        }
+
+        // ============================================
+        // 设置导入导出
+        // ============================================
+
+        // 导出设置：应用设置（主题/通知等）+ AI 设置（含 API Key）打包为 JSON 文件
+        function exportSettings() {
+            if (!_userSettingsCache) { showSnackbar('设置尚未加载'); return; }
+            const userSettings = Object.assign({}, _userSettingsCache);
+            delete userSettings.unread; // 未读状态属设备临时数据，不随设置迁移
+            const data = {
+                app: 'com.cika.chatapp',
+                type: '#settings#',
+                version: "26.8.303",
+                exportedAt: new Date().toISOString(),
+                user: currentUser || '',
+                settings: {
+                    user: userSettings,
+                    aiModel: getAIModelSettings() || null,
+                    aiTranslate: getAITranslateSettings() || null
+                }
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'com.cika.chatapp:backup-' + new Date().toISOString().slice(0, 10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            showSnackbar('设置已导出，文件包含 AI API Key，请妥善保管');
+        }
+
+        // 导入设置：选择 JSON 文件并确认后恢复设置
+        function importSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = function() {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function() {
+                    let data = null;
+                    try {
+                        data = JSON.parse(reader.result);
+                    } catch (e) { showSnackbar('导入失败: 文件解析错误'); return; }
+                    if (!data || data.type !== '#settings#' || !data.settings) {
+                        showSnackbar('导入失败: 不是有效的 CikaChat 设置文件');
+                        return;
+                    }
+                    showConfirm('导入设置', '导入后将覆盖当前的主题、通知与 AI 设置，是否继续？', function() {
+                        applyImportedSettings(data.settings);
+                    });
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // 应用导入的设置：写入加密存储与 localStorage 并立即生效
+        async function applyImportedSettings(settings) {
+            if (settings.user && typeof settings.user === 'object') {
+                _userSettingsCache = Object.assign({}, _userSettingsCache, settings.user);
+                if (!_userSettingsCache.notify) _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
+                syncSettingsToEncryptedStore();
+                applyUserSettings();
+            }
+            if (settings.aiModel) {
+                await saveAIModelSettings(settings.aiModel);
+            }
+            if (settings.aiTranslate) {
+                await saveAITranslateSettings(settings.aiTranslate);
+            }
+            showSnackbar('设置导入成功');
         }
 
         // ============================================
