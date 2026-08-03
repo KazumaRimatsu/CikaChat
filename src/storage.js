@@ -7,6 +7,10 @@
             }
             return { publicLastRead: null, privateLastRead: {} };
         }
+        // v058: 上次登录时间（mjchat_last_login_time），作为未读计数的兜底基准
+        function getLastLoginTime() {
+            try { return localStorage.getItem('mjchat_last_login_time') || ''; } catch (e) { return ''; }
+        }
         function saveUnreadState(state) {
             // Update encrypted settings cache
             if (_userSettingsCache) {
@@ -30,9 +34,12 @@
             publicUnread = 0;
             // 群聊免打扰开启时不恢复红点
             if (typeof _mutePublic !== 'undefined' && _mutePublic) return;
-            if (pubLastRead) {
+            // v058: 以 lastLogin 时间为兜底基准——无 lastRead 记录时只统计上次登录后的消息，
+            // 不再把全部历史消息算作未读
+            const baseline = pubLastRead || getLastLoginTime() || null;
+            if (baseline) {
                 publicMessages.forEach(m => {
-                    if (!m.is_system && m.sender !== currentUser && new Date(m.created_at) > new Date(pubLastRead)) {
+                    if (!m.is_system && m.sender !== currentUser && new Date(m.created_at) > new Date(baseline)) {
                         publicUnread++;
                     }
                 });
@@ -51,11 +58,13 @@
                     // 私聊免打扰开启的会话不恢复红点
                     if (_mutePerPrivateSession && _mutePerPrivateSession[s.id]) return;
                     const lastRead = state.privateLastRead[s.id];
-                    if (lastRead && s.updated_at) {
-                        if (new Date(s.updated_at) > new Date(lastRead)) {
-                            countUnreadPrivateMessages(s.id, lastRead);
+                    // v058: 无 lastRead 时以 lastLogin 时间为兜底基准
+                    const baseline = lastRead || getLastLoginTime() || null;
+                    if (baseline && s.updated_at) {
+                        if (new Date(s.updated_at) > new Date(baseline)) {
+                            countUnreadPrivateMessages(s.id, baseline);
                         }
-                    } else if (!lastRead) {
+                    } else if (!baseline) {
                         if (s.last_message) {
                             countUnreadPrivateMessages(s.id, null);
                         }
@@ -381,7 +390,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "26.8.312",
+                version: "26.8.401",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

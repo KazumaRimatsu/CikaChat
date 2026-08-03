@@ -272,6 +272,48 @@
     -webkit-user-drag: none;
 }
 
+/* v058: 图片加载占位动画——加载完成前显示 MD 圆圈（对齐新版 MJChat v055/v056）
+   图片隐藏/显示用 !important 覆盖上方高优先级规则（.image-grid img / .image-single img） */
+.img-loading-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-surface-2dp);
+    border-radius: 8px;
+    min-width: 120px;
+    min-height: 120px;
+    position: relative;
+    overflow: hidden;
+}
+
+.img-loading-wrap.loaded {
+    display: inline-block;
+    min-width: 0;
+    min-height: 0;
+    background: transparent;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.img-loading-wrap img {
+    display: none !important;
+}
+
+.img-loading-wrap.loaded img {
+    display: block !important;
+}
+
+.img-loading-wrap .md-circular-loader {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -11px 0 0 -11px;
+}
+
+.img-loading-wrap.loaded .md-circular-loader {
+    display: none;
+}
+
 /* --- 图片消息（私聊） --- */
 .private-page .messages .msg-row .bubble img {
     display: block;

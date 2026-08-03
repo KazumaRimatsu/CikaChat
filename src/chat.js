@@ -223,6 +223,20 @@
             }
         }
 
+        // v058: 图片加载占位动画——图片加载完成前显示 MD 圆圈动画（对齐新版 MJChat v055/v056）
+        const _mdLoaderSvg = '<span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span>';
+        function _wrapImgWithLoader(url, extraAttrs, extraStyle) {
+            const uid = 'img_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+            const style = extraStyle || '';
+            const attrs = extraAttrs || '';
+            return '<div class="img-loading-wrap" id="' + uid + '">' + _mdLoaderSvg +
+                '<img src="' + escapeAttr(url) + '" ' + attrs + ' style="' + style + '" ' +
+                'onload="this.classList.add(\'img-loaded\');var w=this.parentNode;w.classList.add(\'loaded\');" ' +
+                'onerror="this.classList.add(\'img-loaded\');this.style.display=\'none\';var w=this.parentNode;w.classList.add(\'loaded\');w.innerHTML+=\'<span style=font-size:0.75rem;color:var(--md-on-surface-variant);padding:4px>图片加载失败</span>\';" ' +
+                'draggable="false" oncontextmenu="return false;">' +
+                '</div>';
+        }
+
         function renderPublicMessage(msg) {
             const c = document.getElementById('publicMessages');
             const isOwn = msg.sender === currentUser;
@@ -264,7 +278,7 @@
                     const senderDisplay = repliedMsg.sender_deleted ? `[用户已注销] ${repliedMsg.sender}` : repliedMsg.sender;
                     let contentPreview = '';
                     if (repliedMsg.image_url) {
-                        contentPreview = `<img src="${escapeAttr(repliedMsg.image_url)}" style="max-width:100px;max-height:100px;border-radius:4px;">`;
+                        contentPreview = _wrapImgWithLoader(repliedMsg.image_url, '', 'max-width:100px;max-height:100px;border-radius:4px;');
                     } else if (repliedMsg.audio_url) {
                         contentPreview = `[语音] ${formatDuration(repliedMsg.audio_dur || 0)}`;
                     } else if (repliedMsg.text && repliedMsg.text.startsWith('🔗 ')) {
@@ -301,11 +315,10 @@
                     }
                 }
                 if (imageUrls.length > 1) {
-                    bubbleContent = `<div class="image-grid">${imageUrls.map(url => `<img src="${escapeAttr(url)}" onclick="previewImage('${escapeAttr(url)}')" draggable="false" oncontextmenu="return false;">`).join('')}</div>`;
+                    bubbleContent = `<div class="image-grid">${imageUrls.map(url => _wrapImgWithLoader(url, `onclick="previewImage('${escapeAttr(url)}')"`)).join('')}</div>`;
                     msgType = 'image';
                 } else {
-                    bubbleContent =
-                        `<img src="${escapeAttr(msg.image_url)}" onclick="previewImage('${escapeAttr(msg.image_url)}')" draggable="false" oncontextmenu="return false;">`;
+                    bubbleContent = _wrapImgWithLoader(msg.image_url, `onclick="previewImage('${escapeAttr(msg.image_url)}')"`);
                     msgType = 'image';
                 }
                 if (msg.text && !msg.text.startsWith('🖼️ ')) {
@@ -1116,6 +1129,24 @@
             window.__TAURI__.opener.openUrl(href);
         });
 
+        // 统一更新侧边栏选中高亮：公共会话入口与私聊列表项互斥。
+        // 依据当前激活页面（.page.active）判定：公共页高亮公共入口，私聊页高亮对应会话，其余清空。
+        function updateSidebarHighlight() {
+            var items = document.querySelectorAll('.home-page .private-list .list-item');
+            for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+            var publicEntry = document.getElementById('publicChatEntry');
+            if (publicEntry) publicEntry.classList.remove('active');
+            var activePage = document.querySelector('.page.active');
+            if (activePage && activePage.id === 'publicPage') {
+                if (publicEntry) publicEntry.classList.add('active');
+                return;
+            }
+            if (activePage && activePage.id === 'privatePage' && privateSessionId) {
+                var activeItem = document.querySelector('.home-page .private-list .list-item[data-session="' + privateSessionId + '"]');
+                if (activeItem) activeItem.classList.add('active');
+            }
+        }
+
         function renderPrivateList() {
             var container = document.getElementById('privateList');
             var sessions = window.privateSessions || [];
@@ -1149,11 +1180,8 @@
             }).join('');
             // Update online status dots after render
             updatePrivateListStatusDots();
-            // Restore the previously opened chat's selected state
-            if (privateSessionId) {
-                var activeItem = container.querySelector('.list-item[data-session="' + privateSessionId + '"]');
-                if (activeItem) activeItem.classList.add('active');
-            }
+            // 恢复/清除选中态：由 updateSidebarHighlight 统一判定（公共入口与私聊项互斥）
+            updateSidebarHighlight();
         }
 
         function updatePrivateListStatusDots() {
@@ -1194,11 +1222,6 @@
             privateChatActive = true;
             privateHasMore = true;
             privateLoadingMore = false;
-            // Highlight the selected chat in the sidebar list
-            var items = document.querySelectorAll('.home-page .private-list .list-item');
-            for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
-            var activeItem = document.querySelector('.home-page .private-list .list-item[data-session="' + sessionId + '"]');
-            if (activeItem) activeItem.classList.add('active');
             document.getElementById('privateChatTitle').textContent = otherUser;
             if (dismissedPrivacyBanners.has(otherUser)) {
                 document.getElementById('privacyBanner').classList.add('hidden-banner');
@@ -1206,6 +1229,7 @@
                 document.getElementById('privacyBanner').classList.remove('hidden-banner');
             }
             switchPage('privatePage', true);
+            updateSidebarHighlight();
             pushPageHistory('private');
             clearUnread(sessionId);
             await loadPrivateMessages(sessionId);
@@ -1330,8 +1354,7 @@
                 const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
                 contentHtml = buildVoiceBubbleHtml(audioUrl, duration, '语音消息');
             } else if (imgMatch) {
-                contentHtml =
-                    `<img src="${escapeAttr(imgMatch[1])}" onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片" style="max-width:180px;max-height:180px;border-radius:2px;display:block;" oncontextmenu="return false;">`;
+                contentHtml = _wrapImgWithLoader(imgMatch[1], `onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片"`, 'max-width:180px;max-height:180px;border-radius:2px;display:block;');
                 const extraText = actualContent.replace(/!\[.*?\]\(.*?\)/, '').trim();
                 if (extraText) {
                     contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
@@ -1341,7 +1364,7 @@
                     `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
             } else if (fileMatch && isSafeUrl(fileMatch[3])) {
                 if (isImageFile(fileMatch[1])) {
-                    contentHtml = `<img src="${escapeAttr(fileMatch[3])}" alt="${escapeAttr(fileMatch[1])}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(fileMatch[3])}')">`;
+                    contentHtml = _wrapImgWithLoader(fileMatch[3], `alt="${escapeAttr(fileMatch[1])}" onclick="viewImage('${escapeAttr(fileMatch[3])}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
                     fileIsImage = true;
                 } else if (isVideoFile(fileMatch[1])) {
                     contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(fileMatch[3])}')"><video src="${escapeAttr(fileMatch[3])}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileMatch[1])}</div></div>`;

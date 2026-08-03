@@ -154,7 +154,7 @@
                         <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                     </button>
                 </div>
-                <div class="public-chat-entry" onclick="navigateTo('public')">
+                <div class="public-chat-entry" id="publicChatEntry" onclick="navigateTo('public')">
                     <div class="icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></div>
                     <div class="info"><div class="name">公共</div><div class="sub" id="publicEntrySub">点击进入聊天</div></div>
                     <div class="badge" id="publicUnreadBadge" style="display:none;">新</div>
@@ -443,21 +443,17 @@
 
         <div id="authContainer" style="display:flex;flex-direction:column;height:100%;">
             <div class="auth-screen" id="loginScreen">
-                <div class="auth-header">
+                <div class="auth-header" id="loginAuthHeader">
                     <div class="auth-logo">
                         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                     </div>
                     <div class="auth-brand">CikaChat</div>
                 </div>
-                <!-- v040: 快速登录区域 -->
+                <!-- v040: 快速登录区域（一键登录——对齐新版 MJChat） -->
                 <div class="quick-login-area hidden" id="quickLoginInfo">
                     <div class="quick-login-avatar av-0" id="quickLoginAvatar">U</div>
                     <div class="quick-login-user" id="quickLoginUser"></div>
-                    <button class="wc-btn" style="margin-top:12px;" onclick="quickLogin()">点击登录</button>
-                    <div class="wc-input hidden" id="quickLoginPwdRow" style="margin-top:12px;">
-                        <input type="password" id="quickLoginPassword" placeholder="输入密码" onkeypress="if(event.key==='Enter')doQuickLoginSubmit()">
-                    </div>
-                    <button class="wc-btn hidden" id="quickLoginSubmitBtn" style="margin-top:12px;" onclick="doQuickLoginSubmit()">登录</button>
+                    <button class="wc-btn" style="margin-top:12px;" onclick="quickLogin()">登录</button>
                     <div style="margin-top:16px;font-size:0.8rem;opacity:0.6;"><a onclick="switchToNormalLogin()">切换账号</a></div>
                 </div>
                 <div class="auth-form" id="loginNormalForm">

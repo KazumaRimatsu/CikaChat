@@ -214,6 +214,13 @@
             } catch (e) { /* ignore */ }
         }
 
+        // v058: 记录上次登录账号与时间（对齐新版 MJChat 的 mjchat_last_login），
+        // 快捷登录界面展示用；mjchat_last_login_time 作为未读计数的时间兜底基准
+        function recordLastLogin(username) {
+            try { localStorage.setItem('mjchat_last_login', username); } catch (e) {}
+            try { localStorage.setItem('mjchat_last_login_time', new Date().toISOString()); } catch (e) {}
+        }
+
         async function getClientIP() {
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
@@ -244,97 +251,134 @@
             if (normalForm) normalForm.classList.remove('hidden');
         }
 
-        // v040: 快速登录——直接登录（无需输入密码，从session读取）
-        // 但需要用户输入密码，所以显示密码输入框然后自动提交
+        // v040+: 一键登录——有有效会话时直接验证进入（对齐新版 MJChat），无会话/会话过期则转密码表单
         async function quickLogin() {
+            // 解锁浏览器音频限制（对齐新版 MJChat quickLogin 行为）
+            try {
+                var silentAudio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+                silentAudio.volume = 0.001;
+                silentAudio.play().catch(function() {});
+            } catch (e) { /* ignore */ }
+
+            var lastLogin = '';
+            try { lastLogin = localStorage.getItem('mjchat_last_login') || ''; } catch (e) {}
             var savedSession = null;
             try {
                 var raw = localStorage.getItem('mjchat_session');
                 if (raw) savedSession = JSON.parse(raw);
             } catch (e) {}
-            if (!savedSession || !savedSession.username) {
-                switchToNormalLogin();
+
+            if (savedSession && savedSession.username && savedSession.token) {
+                // 与上次登录账号不一致时不允许一键登录
+                if (lastLogin && savedSession.username !== lastLogin) return showLoginForm();
+                currentUser = savedSession.username;
+                if (savedSession.pwhash) {
+                    // 一键登录：服务端校验会话后进入（复用启动时的会话恢复逻辑）
+                    showGlobalLoading('欢迎回来…', '正在登录 ' + currentUser);
+                    restoreSession(null);
+                    return;
+                }
+                // 旧会话缺少 pwhash 无法解密本地设置：预填用户名并转密码表单
+                showLoginForm(savedSession.username);
                 return;
             }
-            // 显示密码输入框
-            var quickInfo = document.getElementById('quickLoginInfo');
-            var quickPwdRow = document.getElementById('quickLoginPwdRow');
-            var quickPwdInput = document.getElementById('quickLoginPassword');
-            if (quickPwdRow) quickPwdRow.classList.remove('hidden');
-            var submitBtn = document.getElementById('quickLoginSubmitBtn');
-            if (submitBtn) submitBtn.classList.remove('hidden');
-            if (quickPwdInput) {
-                quickPwdInput.value = '';
-                setTimeout(function() { quickPwdInput.focus(); }, 100);
-            }
+            // 无会话（如登出后）：转密码表单并自动填充上次登录的用户名
+            showLoginForm(lastLogin);
         }
 
-        // v040: 快速登录提交密码
-        async function doQuickLoginSubmit() {
-            var savedSession = null;
-            try {
-                var raw = localStorage.getItem('mjchat_session');
-                if (raw) savedSession = JSON.parse(raw);
-            } catch (e) {}
-            if (!savedSession || !savedSession.username) return;
-            var pwdEl = document.getElementById('quickLoginPassword');
-            var password = pwdEl ? pwdEl.value : '';
-            if (!password) {
-                showEl('loginError', '请输入密码');
-                if (pwdEl) pwdEl.focus();
-                return;
-            }
-            hideEl('loginError');
-            showGlobalLoading('登录中', '欢迎回来，' + savedSession.username);
-            // 设置 loginUsername 给 doLogin 使用
-            var unameEl = document.getElementById('loginUsername');
-            var pwdMainEl = document.getElementById('loginPassword');
-            if (unameEl) unameEl.value = savedSession.username;
-            if (pwdMainEl) pwdMainEl.value = password;
-            await doLogin();
-        }
-
-        // v040: 快速登录——读取上次登录记录，简化登录界面
-        function updateQuickLoginUI() {
+        // v040: 切换到普通登录表单（可预填用户名，用于旧会话缺少 pwhash 的场景）
+        function showLoginForm(prefillUser) {
+            // 切换账号时清除上次登录记录（对齐新版 MJChat）
+            try { localStorage.removeItem('mjchat_last_login'); } catch (e) {}
+            try { localStorage.removeItem('mjchat_last_login_time'); } catch (e) {}
             var quickInfo = document.getElementById('quickLoginInfo');
             var normalForm = document.getElementById('loginNormalForm');
-            var quickUserEl = document.getElementById('quickLoginUser');
-            var quickAvatarEl = document.getElementById('quickLoginAvatar');
-            // 读取session中上次登录信息
-            var savedSession = null;
-            try {
-                var raw = localStorage.getItem('mjchat_session');
-                if (raw) savedSession = JSON.parse(raw);
-            } catch (e) {}
-            if (savedSession && savedSession.username) {
-                if (quickInfo) quickInfo.classList.remove('hidden');
-                if (normalForm) normalForm.classList.add('hidden');
-                if (quickUserEl) quickUserEl.textContent = savedSession.username;
-                if (quickAvatarEl) {
-                    quickAvatarEl.textContent = savedSession.username.charAt(0).toUpperCase();
-                    quickAvatarEl.removeAttribute('src');
-                    quickAvatarEl.style.backgroundImage = '';
-                    quickAvatarEl.className = 'quick-login-avatar av-' + (hashStr(savedSession.username) % 8);
-                }
-            } else {
-                if (quickInfo) quickInfo.classList.add('hidden');
-                if (normalForm) normalForm.classList.remove('hidden');
+            var loginHeader = document.getElementById('loginAuthHeader');
+            if (quickInfo) quickInfo.classList.add('hidden');
+            if (normalForm) normalForm.classList.remove('hidden');
+            if (loginHeader) loginHeader.classList.remove('hidden');
+            var unameEl = document.getElementById('loginUsername');
+            var pwdEl = document.getElementById('loginPassword');
+            if (prefillUser && unameEl) {
+                unameEl.value = prefillUser;
+                if (pwdEl) pwdEl.focus();
+            } else if (unameEl) {
+                unameEl.focus();
             }
         }
 
         // v040: 切换到普通登录（从快速登录模式切换）
         function switchToNormalLogin() {
+            showLoginForm();
+        }
+
+        // v040: 快速登录界面——以 mjchat_last_login 记录为基准展示上次登录账号
+        function updateQuickLoginUI() {
             var quickInfo = document.getElementById('quickLoginInfo');
             var normalForm = document.getElementById('loginNormalForm');
-            if (quickInfo) quickInfo.classList.add('hidden');
-            if (normalForm) normalForm.classList.remove('hidden');
-            // 隐藏快速登录密码区
-            var pwdRow = document.getElementById('quickLoginPwdRow');
-            var submitBtn = document.getElementById('quickLoginSubmitBtn');
-            if (pwdRow) pwdRow.classList.add('hidden');
-            if (submitBtn) submitBtn.classList.add('hidden');
-            var unameEl = document.getElementById('loginUsername');
-            if (unameEl) unameEl.focus();
+            var quickUserEl = document.getElementById('quickLoginUser');
+            var quickAvatarEl = document.getElementById('quickLoginAvatar');
+            var loginHeader = document.getElementById('loginAuthHeader');
+            var lastLogin = '';
+            try { lastLogin = localStorage.getItem('mjchat_last_login') || ''; } catch (e) {}
+            if (lastLogin) {
+                if (quickInfo) quickInfo.classList.remove('hidden');
+                if (normalForm) normalForm.classList.add('hidden');
+                // 一键登录模式隐藏品牌 logo（对齐新版 MJChat 登录页布局）
+                if (loginHeader) loginHeader.classList.add('hidden');
+                if (quickUserEl) quickUserEl.textContent = lastLogin;
+                if (quickAvatarEl) {
+                    // 渐变底色 + 首字母，云端头像异步加载（加载中显示 MD 圆圈动画）
+                    quickAvatarEl.textContent = lastLogin.charAt(0).toUpperCase();
+                    quickAvatarEl.removeAttribute('src');
+                    quickAvatarEl.style.backgroundImage = '';
+                    quickAvatarEl.className = 'quick-login-avatar';
+                    quickAvatarEl.style.background = 'linear-gradient(135deg, hsl(' + (hashStr(lastLogin) % 360) +
+                        ',70%,60%), hsl(' + ((hashStr(lastLogin) + 60) % 360) + ',70%,48%))';
+                    quickAvatarEl.style.backgroundSize = 'cover';
+                    quickAvatarEl.style.backgroundPosition = 'center';
+                    quickAvatarEl.innerHTML = '';
+                    var loader = document.createElement('span');
+                    loader.className = 'md-circular-loader';
+                    loader.innerHTML = '<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg>';
+                    quickAvatarEl.appendChild(loader);
+                    loadQuickLoginAvatar(lastLogin, quickAvatarEl, loader);
+                }
+            } else {
+                if (quickInfo) quickInfo.classList.add('hidden');
+                if (normalForm) normalForm.classList.remove('hidden');
+                if (loginHeader) loginHeader.classList.remove('hidden');
+            }
+        }
+
+        // 异步加载上次登录账号的云端头像；成功则替换为图片，失败则保留首字母渐变
+        async function loadQuickLoginAvatar(username, avatarEl, loader) {
+            var avatarUrl = '';
+            if (sb) {
+                try {
+                    var rpcRes = await sb.rpc('get_user_profile', { p_username: username });
+                    if (rpcRes && rpcRes.data && rpcRes.data.success !== false && rpcRes.data.avatar_url) {
+                        avatarUrl = rpcRes.data.avatar_url;
+                    }
+                } catch (e) { /* fallback to direct query */ }
+                if (!avatarUrl) {
+                    try {
+                        var qRes = await sb.from(TABLE_USERS).select('avatar_url').eq('username', username).limit(1);
+                        if (qRes && qRes.data && qRes.data.length && qRes.data[0].avatar_url) {
+                            avatarUrl = qRes.data[0].avatar_url;
+                        }
+                    } catch (e2) { /* ignore */ }
+                }
+            }
+            if (!avatarEl || !avatarEl.isConnected) return;
+            if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+            var cleanUrl = sanitizeAvatarUrl(avatarUrl);
+            if (cleanUrl) {
+                avatarEl.textContent = '';
+                avatarEl.style.backgroundImage = 'url(' + cleanUrl + ')';
+                avatarEl.style.backgroundSize = 'cover';
+                avatarEl.style.backgroundPosition = 'center';
+            }
         }
 
         async function doRegister() {
@@ -416,6 +460,7 @@
                         return;
                     }
                 } catch (ccErr) { /* ignore */ }
+                recordLastLogin(username);
                 const sessionToken = regSessionToken || generateLocalNonce();
                 localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key (new user, starts fresh)
@@ -596,6 +641,7 @@
                         return;
                     }
                 } catch (ccErr) { /* ignore */ }
+                recordLastLogin(username);
                 authorizeEnterApp();
                 enterApp();
             } catch (e) {

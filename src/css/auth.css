@@ -72,6 +72,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
     width: 72px;
     height: 72px;
     border-radius: 50%;
@@ -85,6 +87,44 @@
     font-size: 1.2rem;
     font-weight: 600;
     color: var(--md-on-surface);
+}
+
+/* v058: MD 圆圈加载动画（登录头像 / 图片消息共用）——对齐新版 MJChat */
+.md-circular-loader {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-primary);
+    animation: md-circular-rotate 1.4s linear infinite;
+}
+
+.md-circular-loader svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+    transform: rotate(-90deg);
+}
+
+.md-circular-loader circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 1, 200;
+    stroke-dashoffset: 0;
+    animation: md-circular-dash 1.4s ease-in-out infinite;
+}
+
+.quick-login-avatar .md-circular-loader {
+    width: 32px;
+    height: 32px;
+}
+
+.quick-login-avatar .md-circular-loader svg {
+    width: 32px;
+    height: 32px;
 }
 
 /* 登录/注册切换链接 */

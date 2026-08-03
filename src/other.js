@@ -321,12 +321,14 @@
             if (page === 'home') {
                 pushPageHistory('home');
                 switchPage('homePage', true);
+                updateSidebarHighlight();
                 loadPrivateSessions();
                 updatePublicEntry();
                 updatePublicBadge();
             } else if (page === 'public') {
                 pushPageHistory('public');
                 switchPage('publicPage', true);
+                updateSidebarHighlight();
                 if (publicMessages.length > 0) {
                     const lastMsg = publicMessages[publicMessages.length - 1];
                     markPublicRead(lastMsg.created_at);
@@ -400,6 +402,7 @@
             const statusEl = document.getElementById('privateChatStatus');
             if (statusEl) { statusEl.textContent = ''; statusEl.className = 'private-status'; }
             switchPage('homePage', false);
+            updateSidebarHighlight();
             if (pageHistory.length > 1) {
                 popPageHistory();
             }
@@ -1256,6 +1259,7 @@
                     currentUser = session.username;
                     currentAvatarUrl = userData.avatar_url || '';
                     userAvatarCache[currentUser] = currentAvatarUrl;
+                    recordLastLogin(currentUser);
                     if (session.pwhash) {
                         // v049: 用会话中保存的密码哈希重新加载加密设置
                         try {
