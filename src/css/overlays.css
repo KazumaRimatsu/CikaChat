@@ -61,6 +61,101 @@
     user-select: none;
 }
 
+/* --- 预览关闭按钮（图片/视频共用） --- */
+.preview-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 310;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.preview-close-btn:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: scale(1.1);
+}
+
+.preview-close-btn:active {
+    transform: scale(0.95);
+}
+
+/* --- 视频预览（全屏遮罩） --- */
+.video-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-scrim-high);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.video-preview-overlay video {
+    max-width: 95vw;
+    max-height: 90vh;
+    border-radius: 8px;
+    outline: none;
+}
+
+/* --- 视频消息气泡 --- */
+.video-bubble {
+    position: relative;
+    width: 260px;
+    max-width: 280px;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #000;
+}
+
+.video-bubble video {
+    width: 100%;
+    height: auto;
+    display: block;
+    pointer-events: none;
+}
+
+.video-play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    transition: background 0.2s;
+}
+
+.video-bubble:hover .video-play-overlay {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.video-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: #fff;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* --- 消息长按菜单（上下文菜单） --- */
 .msg-context-menu {
     position: fixed;

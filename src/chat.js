@@ -331,6 +331,12 @@
                         bubbleContent = `<img src="${escapeAttr(marked.url)}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(marked.url)}')">`;
                         msgType = 'image';
                         imageUrl = marked.url;
+                    } else if (isVideoFile(marked.fileInfo)) {
+                        const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
+                        const fileName = fileParts ? fileParts[1] : marked.fileInfo;
+                        bubbleContent = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(marked.url)}')"><video src="${escapeAttr(marked.url)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileName)}</div></div>`;
+                        msgType = 'video';
+                        linkUrl = marked.url;
                     } else {
                         const iconPath = getFileIconSvg(marked.fileInfo);
                         const fileParts = marked.fileInfo.match(/^(.*?)\s*\(([\d.]+)\s*KB\)$/);
@@ -947,6 +953,11 @@
                 }
             });
 
+            const iconsExt = {
+                play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+                download: '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>'
+            };
+
             if (msgType === 'image') {
                 addContextMenuItem(menu, '保存图片', icons.save, () => {
                     const url = imageUrl;
@@ -965,6 +976,23 @@
                     }
                 });
                 if (canDelete) addDeleteItem();
+            } else if (msgType === 'video') {
+                if (linkUrl) {
+                    addContextMenuItem(menu, '预览视频', iconsExt.play, () => openVideoPreview(linkUrl));
+                    addContextMenuItem(menu, '下载视频', iconsExt.download, () => {
+                        fetch(linkUrl).then(res => res.blob()).then(blob => {
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = linkUrl.split('/').pop() || 'video.mp4';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(a.href);
+                        }).catch(() => showSnackbar('下载失败'));
+                    });
+                    addContextMenuItem(menu, '在新标签页打开', icons.open, () => window.open(linkUrl, '_blank'));
+                }
+                if (canDelete) addDeleteItem();
             } else if (msgType === 'link' || msgType === 'file') {
                 if (linkUrl) {
                     addContextMenuItem(menu, '打开链接', icons.open, () => window.open(linkUrl, '_blank'));
@@ -973,6 +1001,8 @@
                 if (copyText) {
                     addContextMenuItem(menu, '复制文字', icons.copy, () => copyToClipboardWithToast(copyText));
                 }
+                if (canDelete) addDeleteItem();
+            } else if (msgType === 'voice') {
                 if (canDelete) addDeleteItem();
             } else if (msgType === 'text') {
                 if (text) {
@@ -1321,6 +1351,8 @@
                 if (isImageFile(fileMatch[1])) {
                     contentHtml = `<img src="${escapeAttr(fileMatch[3])}" alt="${escapeAttr(fileMatch[1])}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(fileMatch[3])}')">`;
                     fileIsImage = true;
+                } else if (isVideoFile(fileMatch[1])) {
+                    contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(fileMatch[3])}')"><video src="${escapeAttr(fileMatch[3])}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileMatch[1])}</div></div>`;
                 } else {
                     const iconPath = getFileIconSvg(fileMatch[1]);
                     contentHtml =
@@ -1343,7 +1375,7 @@
             if (voiceMatch) row.dataset.msgType = 'voice';
             else if (imgMatch) row.dataset.msgType = 'image';
             else if (linkMatch && isSafeUrl(linkMatch[2])) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
-            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : 'file'; row.dataset.linkUrl = fileMatch[3] || ''; }
+            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; }
             else row.dataset.msgType = 'text';
             row.innerHTML = `
                 <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>

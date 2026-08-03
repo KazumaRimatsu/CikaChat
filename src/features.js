@@ -503,6 +503,22 @@
 
         document.getElementById('imagePreview').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
+        function openVideoPreview(url) {
+            if (!url) return;
+            const overlay = document.getElementById('videoPreview');
+            const video = document.getElementById('previewVideo');
+            video.src = url;
+            overlay.classList.remove('hidden');
+        }
+
+        function closeVideoPreview() {
+            const overlay = document.getElementById('videoPreview');
+            const video = document.getElementById('previewVideo');
+            video.pause();
+            video.src = '';
+            overlay.classList.add('hidden');
+        }
+
         function openFilePicker() {
             closeFeaturePanel();
             document.getElementById('fileInput').click();
@@ -768,6 +784,12 @@
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
             return IMAGE_EXTS.includes(ext);
+        }
+
+        function isVideoFile(filename) {
+            const ext = (filename.split('.').pop() || '').toLowerCase();
+            const VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
+            return VIDEO_EXTS.includes(ext);
         }
 
         function togglePrivateFeaturePanel() {
