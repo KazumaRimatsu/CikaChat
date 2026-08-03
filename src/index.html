@@ -116,7 +116,21 @@
         })();
         }
     </script>
-    <link rel="stylesheet" href="app.css">
+    <!-- 样式表：按依赖顺序加载（tokens 最先，responsive 最后） -->
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/appbar-menu.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/chat.css">
+    <link rel="stylesheet" href="css/chat-input.css">
+    <link rel="stylesheet" href="css/overlays.css">
+    <link rel="stylesheet" href="css/dialog.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/search.css">
+    <link rel="stylesheet" href="css/settings.css">
+    <link rel="stylesheet" href="css/ai.css">
+    <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
     <div class="app">
@@ -324,16 +338,35 @@
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-title">外观</div>
-                        <div class="settings-item" onclick="toggleTheme();">
-                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg></div>
-                            <span class="settings-item-label" id="settingsThemeLabel">暗黑模式</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-                        </div>
-                        <div class="settings-item" onclick="document.getElementById('themeColorPicker').click();">
+                        <div class="settings-item" id="settingsThemeColorItem" onclick="document.getElementById('themeColorPicker').click();">
                             <div class="settings-item-icon" id="themeColorSwatch" style="width:24px;height:24px;border-radius:50%;background:var(--md-primary);"></div>
                             <span class="settings-item-label">主题色</span>
                             <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
                             <input type="color" id="themeColorPicker" style="position:absolute;opacity:0;pointer-events:none;" onchange="setCustomColor(this.value)">
+                        </div>
+                        <div class="settings-item" onclick="showThemeDialog();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></div>
+                            <span class="settings-item-label">主题</span>
+                            <span class="settings-item-value" id="settingsThemeValue">暗黑模式</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                        <div class="settings-item" onclick="showFontDialog();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div>
+                            <span class="settings-item-label">字体</span>
+                            <span class="settings-item-value" id="settingsFontValue">系统默认</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                        <div class="settings-item" onclick="showFontSizeDialog();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg></div>
+                            <span class="settings-item-label">字号</span>
+                            <span class="settings-item-value" id="settingsFontSizeValue">默认</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                        </div>
+                        <div class="settings-item" onclick="showFontWeightDialog();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div>
+                            <span class="settings-item-label">字重</span>
+                            <span class="settings-item-value" id="settingsFontWeightValue">默认</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -730,10 +763,80 @@
             </div>
         </div>
 
+        <div class="dialog-overlay hidden theme-modal" id="themeDialog" onclick="if(event.target===this)closeThemeDialog()">
+            <div class="md-dialog theme-dialog">
+                <div class="theme-dialog-header">
+                    <h2>主题</h2>
+                    <button class="theme-dialog-close" onclick="closeThemeDialog()">✕</button>
+                </div>
+                <div class="theme-tip">点击主题可实时预览整体效果，点击「应用」后正式生效</div>
+                <div class="theme-list" id="themeList"></div>
+                <div class="theme-actions">
+                    <button class="md-button text" onclick="openThemeImport()">导入主题文件</button>
+                    <button class="md-button text" onclick="downloadThemeTemplate()">下载主题模板</button>
+                </div>
+                <div class="dialog-actions">
+                    <button class="md-button text" onclick="closeThemeDialog()">取消</button>
+                    <button class="md-button text" onclick="applyThemeDialog()">应用</button>
+                </div>
+                <input type="file" id="themeFileInput" accept=".json,application/json" style="display:none" onchange="handleThemeFileSelect(event)">
+            </div>
+        </div>
+
+        <!-- 字体选择对话框：应用级设置，独立于主题文件 -->
+        <div class="dialog-overlay hidden theme-modal" id="fontDialog" onclick="if(event.target===this)closeFontDialog()">
+            <div class="md-dialog theme-dialog">
+                <div class="theme-dialog-header">
+                    <h2>字体</h2>
+                    <button class="theme-dialog-close" onclick="closeFontDialog()">✕</button>
+                </div>
+                <div class="theme-tip">选择应用全局的字体</div>
+                <div class="theme-list" id="fontList"></div>
+                <div class="dialog-actions">
+                    <button class="md-button text" onclick="closeFontDialog()">取消</button>
+                    <button class="md-button text" onclick="applyFontDialog()">应用</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 字号选择对话框：应用级设置，独立于主题文件 -->
+        <div class="dialog-overlay hidden theme-modal" id="fontSizeDialog" onclick="if(event.target===this)closeFontSizeDialog()">
+            <div class="md-dialog theme-dialog">
+                <div class="theme-dialog-header">
+                    <h2>字号</h2>
+                    <button class="theme-dialog-close" onclick="closeFontSizeDialog()">✕</button>
+                </div>
+                <div class="theme-tip">调整应用全局的字体大小</div>
+                <div class="theme-list" id="fontSizeList"></div>
+                <div class="dialog-actions">
+                    <button class="md-button text" onclick="closeFontSizeDialog()">取消</button>
+                    <button class="md-button text" onclick="applyFontSizeDialog()">应用</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 字重选择对话框：应用级设置，独立于主题文件 -->
+        <div class="dialog-overlay hidden theme-modal" id="fontWeightDialog" onclick="if(event.target===this)closeFontWeightDialog()">
+            <div class="md-dialog theme-dialog">
+                <div class="theme-dialog-header">
+                    <h2>字重</h2>
+                    <button class="theme-dialog-close" onclick="closeFontWeightDialog()">✕</button>
+                </div>
+                <div class="theme-tip">调整应用全局的字体粗细</div>
+                <div class="theme-list" id="fontWeightList"></div>
+                <div class="dialog-actions">
+                    <button class="md-button text" onclick="closeFontWeightDialog()">取消</button>
+                    <button class="md-button text" onclick="applyFontWeightDialog()">应用</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
 
     <script src="constants.js"></script>
+    <script src="theme.js"></script>
+    <script src="fonts.js"></script>
     <script src="storage.js"></script>
     <script src="api.js"></script>
     <script src="chat.js"></script>

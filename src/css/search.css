@@ -1,0 +1,81 @@
+/* ==========================================================================
+   search.css —— 搜索用户页
+   ========================================================================== */
+
+.search-page .search-box {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: var(--md-search-bg);
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-search-border);
+}
+
+.search-page .search-box input {
+    width: 100%;
+    padding: 10px 16px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-search-border);
+    border-radius: var(--radius-md);
+    outline: none;
+    background: var(--md-search-input-bg);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    color: var(--md-search-text);
+}
+
+.search-page .search-box input:focus {
+    border-color: var(--md-search-input-focus-border);
+}
+
+.search-page .search-box input::placeholder {
+    color: var(--md-search-text-dim);
+}
+
+.search-page .search-results {
+    flex: 1;
+    padding: 8px 0;
+    overflow-y: auto;
+}
+
+.search-page .search-results .result-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-search-border);
+    cursor: pointer;
+}
+
+.search-page .search-results .result-item:hover {
+    background: var(--md-search-item-hover);
+}
+
+.search-page .search-results .result-item .av {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    margin-right: 12px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+}
+
+.search-page .search-results .result-item .name {
+    flex: 1;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-search-text);
+}
+
+.search-page .search-results .result-item .status {
+    font-size: 0.75rem;
+    color: var(--md-search-text-dim);
+}
+
+.search-page .search-results .empty {
+    padding: 40px 0;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--md-search-text-dim);
+}

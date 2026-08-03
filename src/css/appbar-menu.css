@@ -1,0 +1,319 @@
+/* ==========================================================================
+   appbar-menu.css —— 顶栏与菜单
+   --------------------------------------------------------------------------
+   职责：应用顶栏（标题/返回/在线药丸/菜单键）、用户菜单（下拉卡片）、
+   头像底部菜单（avatar-menu）。
+   z-index 说明：顶栏 10，用户菜单遮罩 50，底部菜单 150。
+   ========================================================================== */
+
+/* --- 顶栏 --- */
+.app-bar {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    height: 56px;
+    padding: 0 8px;
+    background: var(--md-appbar-bg);
+    color: var(--md-appbar-text);
+    box-shadow: var(--md-elevation-2);
+    z-index: 10;
+}
+
+.app-bar .title-block {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    gap: 8px;
+    margin-left: 4px;
+}
+
+.app-bar .title {
+    font-size: 1.125rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+}
+
+/* 私聊页顶栏连接状态 */
+.app-bar .private-status {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--md-appbar-text-muted);
+    white-space: nowrap;
+}
+
+/* 圆形图标按钮基础样式（返回键与图标键共用） */
+.app-bar .back-btn,
+.icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--md-appbar-text);
+    cursor: pointer;
+}
+
+.icon-button {
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+}
+
+.app-bar .back-btn:hover {
+    background: var(--md-ripple);
+}
+
+.icon-button:active {
+    background: var(--md-ripple);
+}
+
+.app-bar .back-btn svg,
+.icon-button svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+/* 返回键未读数角标 */
+.app-bar .back-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 18px;
+    height: 18px;
+    margin-left: 2px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--md-error);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--md-on-error);
+}
+
+.app-bar .back-badge.hidden {
+    display: none;
+}
+
+/* 在线人数药丸 */
+.online-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+    padding: 4px 10px;
+    border-radius: 16px;
+    background: var(--md-online-bg);
+    font-size: 0.75rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-online-text);
+    cursor: pointer;
+}
+
+.online-indicator:hover {
+    background: var(--md-online-bg-hover);
+}
+
+.online-indicator .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--md-online-dot);
+}
+
+/* --- 用户菜单（右上角下拉） --- */
+.user-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 16px;
+    background: var(--md-scrim);
+    animation: fade-in 0.2s ease;
+}
+
+.user-menu-overlay.show {
+    display: flex;
+}
+
+/* 侧边栏内的下拉形态：定位到顶栏下方，取代全屏遮罩 */
+.sidebar-menu {
+    position: absolute !important;
+    inset: auto !important;
+    top: 56px;
+    right: 8px;
+    bottom: auto;
+    left: 8px;
+    z-index: 50;
+    padding: 0 !important;
+    background: none !important;
+    justify-content: flex-end !important;
+}
+
+.sidebar-menu .user-menu-card {
+    width: 240px;
+    max-width: 100%;
+    margin-top: 0;
+}
+
+.user-menu-card {
+    min-width: 200px;
+    max-width: 280px;
+    margin-top: 56px;
+    padding: 20px 16px 12px;
+    border-radius: var(--radius-lg);
+    background: var(--md-menu-bg-card);
+    box-shadow: var(--md-elevation-8);
+    animation: menu-slide 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes menu-slide {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.user-menu-card .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-menu-border);
+}
+
+.user-menu-card .user-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+}
+
+.user-menu-card .user-name {
+    font-size: 1rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-menu-text);
+}
+
+/* 头像容器（在线状态点定位宿主） */
+.avatar-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+/* 头像在线状态点（公开菜单中默认隐藏，由 JS 添加状态类控制） */
+.avatar-status-dot {
+    display: none;
+}
+
+.user-menu-card .menu-list {
+    margin-top: 8px;
+    list-style: none;
+}
+
+.user-menu-card .menu-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--md-menu-item-bg);
+    font-size: 0.875rem;
+    color: var(--md-menu-text-muted);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.user-menu-card .menu-list li:hover {
+    background: var(--md-menu-item-hover);
+}
+
+.user-menu-card .menu-list li:active {
+    background: var(--md-menu-item-active);
+}
+
+.user-menu-card .menu-list li svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    opacity: 0.7;
+}
+
+.user-menu-card .menu-list li.logout-item {
+    color: var(--md-error);
+}
+
+/* --- 头像底部菜单（移动端 bottom sheet） --- */
+.avatar-menu {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 150;
+    padding: 16px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--md-menu-bg-sheet);
+    box-shadow: var(--md-elevation-8);
+    animation: slide-up 0.25s ease;
+}
+
+@keyframes slide-up {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.avatar-menu .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    color: var(--md-menu-text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.avatar-menu .menu-item:hover {
+    background: var(--md-menu-hover);
+}
+
+.avatar-menu .menu-item svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    opacity: 0.7;
+}
+
+.avatar-menu .cancel-btn {
+    margin-top: 8px;
+    padding: 14px;
+    border-top: var(--md-outline-width) var(--md-outline-style) var(--md-menu-border);
+    text-align: center;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-menu-text-dim);
+    cursor: pointer;
+}

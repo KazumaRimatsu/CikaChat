@@ -1,0 +1,130 @@
+/* ==========================================================================
+   auth.css —— 认证页（登录/注册/快速登录）
+   ========================================================================== */
+
+.auth-screen {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 36px;
+    padding: 48px 40px;
+    overflow-y: auto;
+    background: var(--md-background);
+}
+
+.auth-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.auth-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--md-primary), var(--md-primary-variant));
+    color: var(--md-on-primary);
+    box-shadow: var(--md-elevation-4);
+}
+
+.auth-logo svg {
+    width: 38px;
+    height: 38px;
+    fill: currentColor;
+}
+
+.auth-brand {
+    font-size: 1.5rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    letter-spacing: 0.02em;
+    color: var(--md-on-surface);
+}
+
+/* 表单：账号/密码输入 */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 320px;
+}
+
+/* v040: 快速登录（演示账号一键登录） */
+.quick-login-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.quick-login-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+}
+
+.quick-login-user {
+    margin-top: 8px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--md-on-surface);
+}
+
+/* 登录/注册切换链接 */
+.auth-switch {
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--md-on-surface-muted);
+}
+
+.auth-switch a {
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-primary);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* 表单提示条：默认隐藏，JS 添加 .show 后显示；
+   错误与成功共用布局，仅配色不同（边框走全局描边令牌） */
+.auth-error,
+.auth-success {
+    display: none;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.auth-error.show,
+.auth-success.show {
+    display: block;
+}
+
+.auth-error {
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-error);
+    background: var(--md-error-container);
+    color: var(--md-on-error-container);
+}
+
+.auth-success {
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-primary);
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+}

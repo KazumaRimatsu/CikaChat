@@ -1,0 +1,373 @@
+/* ==========================================================================
+   base.css —— 全局基础样式
+   --------------------------------------------------------------------------
+   职责：全局重置、根容器、页面系统、通用工具类、表单组件、加载态。
+   命名规范：类名一律 kebab-case；属性按「定位→盒模型→排版→视觉→交互」排序。
+   ========================================================================== */
+
+/* --- 全局重置 --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* WebView 必需：去掉触摸高亮 */
+    -webkit-tap-highlight-color: transparent;
+}
+
+html {
+    font-size: calc(16px * var(--app-font-scale, 1));
+}
+
+/* --- 根容器 --- */
+body {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    /* 应用级字体优先（FontManager 写入 --app-font-family），未选择时回退主题字体 */
+    font-family: var(--app-font-family, var(--md-font-family));
+    font-weight: var(--app-font-weight-normal, var(--md-font-weight-normal));
+    color: var(--md-on-background);
+    background: var(--md-background);
+    /* 移动端双击缩放/长按干扰抑制 */
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.app {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--md-surface);
+}
+
+/* --- 页面系统（聊天主区 / 侧边栏多页切换） --- */
+.page-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.page {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: var(--md-surface);
+    will-change: transform, opacity;
+}
+
+.page.active {
+    display: flex;
+}
+
+/* --- 工具类 --- */
+.hidden {
+    display: none !important;
+}
+
+/* 点击波纹容器与波纹元素（由 JS 生成 .ripple-effect 节点） */
+.ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--md-ripple-effect);
+    pointer-events: none;
+    animation: ripple-anim 0.6s ease-out;
+}
+
+@keyframes ripple-anim {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* 头像底色调色板（颜色取自 --md-avatar-* 令牌，随主题可自定义） */
+.av-0 { background: var(--md-avatar-0); }
+.av-1 { background: var(--md-avatar-1); }
+.av-2 { background: var(--md-avatar-2); }
+.av-3 { background: var(--md-avatar-3); }
+.av-4 { background: var(--md-avatar-4); }
+.av-5 { background: var(--md-avatar-5); }
+.av-6 { background: var(--md-avatar-6); }
+.av-7 { background: var(--md-avatar-7); }
+
+/* --- 表单组件 --- */
+/* 通用 Material 按钮：contained 实心 / text 文字 */
+.md-button {
+    position: relative;
+    height: 48px;
+    padding: 0 24px;
+    border: none;
+    border-radius: 24px;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.md-button.contained {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    box-shadow: var(--md-elevation-2);
+}
+
+.md-button.contained:hover {
+    filter: brightness(1.08);
+    box-shadow: var(--md-elevation-4);
+}
+
+.md-button.contained:active {
+    transform: scale(0.98);
+}
+
+.md-button.text {
+    background: transparent;
+    color: var(--md-primary);
+}
+
+.md-button.text:hover {
+    background: var(--md-primary-container);
+}
+
+/* Material 文本框：浮动标签（placeholder-shown 控制） */
+.md-text-field {
+    position: relative;
+}
+
+.md-text-field input {
+    width: 100%;
+    height: 56px;
+    padding: 0 16px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-field-border);
+    border-radius: var(--radius-md);
+    outline: none;
+    background: var(--md-surface-1dp);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    color: var(--md-on-surface);
+    transition: border-color 0.2s, padding 0.2s;
+}
+
+/* 聚焦态使用强调描边令牌，主题可整体定制 */
+.md-text-field input:focus {
+    border: var(--md-focus-border);
+    padding: 0 15px;
+}
+
+.md-text-field label {
+    position: absolute;
+    top: 50%;
+    left: 16px;
+    padding: 0 4px;
+    background: var(--md-background);
+    color: var(--md-on-surface-dim);
+    font-size: 0.9375rem;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.md-text-field input:focus+label,
+.md-text-field input:not(:placeholder-shown)+label {
+    top: 0;
+    font-size: 0.75rem;
+    color: var(--md-primary);
+}
+
+/* 极简下划线输入框（登录/注册页） */
+.wc-input {
+    position: relative;
+}
+
+.wc-input input {
+    width: 100%;
+    height: 48px;
+    padding: 0 4px;
+    border: none;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-field-border);
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--md-on-surface);
+    transition: border-color 0.2s;
+}
+
+.wc-input input::placeholder {
+    color: var(--md-on-surface-dim);
+}
+
+.wc-input input:focus {
+    border-bottom: var(--md-focus-border);
+}
+
+.wc-btn {
+    align-self: center;
+    width: 200px;
+    height: 46px;
+    margin-top: 16px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--md-primary);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    letter-spacing: 0.06em;
+    color: var(--md-on-primary);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.wc-btn:hover {
+    background: var(--md-primary-variant);
+}
+
+.wc-btn:active {
+    filter: brightness(0.85);
+    transform: scale(0.98);
+}
+
+/* --- 加载态 --- */
+/* 启动加载页：置于所有层级之上 */
+.global-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: var(--md-surface);
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.global-loading.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.global-loading .md-progress {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    color: var(--md-primary);
+    animation: md-circular-rotate 1.4s linear infinite;
+}
+
+.global-loading .md-progress svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.global-loading .md-progress circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 125.66;
+    stroke-dashoffset: 0;
+    animation: md-circular-dash 1.4s ease-in-out infinite;
+}
+
+.global-loading .loading-text {
+    font-size: 1rem;
+    letter-spacing: 0.3px;
+    color: var(--md-on-surface-muted);
+}
+
+.global-loading .loading-sub {
+    margin-top: -8px;
+    font-size: 0.8125rem;
+    color: var(--md-on-surface-dim);
+}
+
+/* 消息列表「加载更多」指示器 */
+.load-more-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    color: var(--md-on-surface-dim);
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    color: var(--md-primary);
+    animation: md-circular-rotate 1.4s linear infinite;
+}
+
+.loading-spinner svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.loading-spinner circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-dasharray: 125.66;
+    stroke-dashoffset: 0;
+    animation: md-circular-dash 1.4s ease-in-out infinite;
+}
+
+/* --- 基础关键帧（供各模块复用） --- */
+@keyframes md-circular-rotate {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes md-circular-dash {
+    0% {
+        stroke-dasharray: 1, 200;
+        stroke-dashoffset: 0;
+    }
+
+    50% {
+        stroke-dasharray: 100, 200;
+        stroke-dashoffset: -15;
+    }
+
+    100% {
+        stroke-dasharray: 100, 200;
+        stroke-dashoffset: -125;
+    }
+}
+
+/* 遮罩淡入（对话框遮罩 / 菜单遮罩共用） */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

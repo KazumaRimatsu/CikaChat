@@ -13,7 +13,7 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const APP_VERSION = 57;
-        const VERSION = '26.8.305';
+        const VERSION = '26.8.308';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护中，暂时无法登录。请联系管理员解除维护状态。';
         const SALT = 'mjchat_2026_salt_v1';
@@ -25,10 +25,10 @@
         const PAGE_SIZE = 200;
 
         const NOTIFY_SOUNDS = {
-            'qq': { file: 'assets/notify/qq.mp3', label: 'QQ提示音' },
-            'wechat': { file: 'assets/notify/wechat.mp3', label: '微信提示音' },
-            'whatsapp': { file: 'assets/notify/whatsapp.mp3', label: 'WhatsApp提示音' },
-            'three_note': { file: 'assets/notify/three_note.mp3', label: '经典三全音' }
+            'qq': { file: 'assets/notify/qq.mp3', label: 'QQ' },
+            'wechat': { file: 'assets/notify/wechat.mp3', label: '微信' },
+            'whatsapp': { file: 'assets/notify/whatsapp.mp3', label: 'WhatsApp' },
+            'three_note': { file: 'assets/notify/three_note.mp3', label: '三全音' }
         };
 
         // 通知默认设置（多处复用；写入缓存前必须拷贝，避免共享引用被修改）

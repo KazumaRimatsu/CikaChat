@@ -398,7 +398,7 @@
             if (targetRow) {
                 targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 targetRow.style.transition = 'background 1s';
-                targetRow.style.background = 'rgba(74, 158, 255, 0.25)';
+                targetRow.style.background = 'var(--md-primary-highlight)';
                 targetRow.style.marginLeft = '-16px';
                 targetRow.style.marginRight = '-16px';
                 targetRow.style.paddingLeft = '16px';
@@ -440,9 +440,9 @@
             const sender = last.sender_deleted ? `[已注销] ${last.sender}` : last.sender;
             let content = '';
             if (last.image_url) {
-                content = '🖼️ 图片';
+                content = `[图片] (${last.image_url})`;
             } else if (last.audio_url) {
-                content = '🎤 语音';
+                content = `[语音] (${last.audio_url})`;
             } else {
                 content = getMessagePreview(last.text);
             }
@@ -1112,7 +1112,7 @@
                 var avUrl = userAvatarCache[other];
                 var avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                 var avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
-                return '<div class="list-item" onclick="openPrivateChat(\'' + s.id + '\',\'' + escapeAttr(other) + '\')">' +
+                return '<div class="list-item" data-session="' + s.id + '" onclick="openPrivateChat(\'' + s.id + '\',\'' + escapeAttr(other) + '\')">' +
                             '<div class="av-wrap">' +
                                 '<div class="av av-' + idx + '" data-username="' + escapeAttr(other) + '"' + avStyle + '>' + avText + '</div>' +
                                 '<div class="av-status-dot" data-username="' + escapeAttr(other) + '"></div>' +
@@ -1127,6 +1127,11 @@
             }).join('');
             // Update online status dots after render
             updatePrivateListStatusDots();
+            // Restore the previously opened chat's selected state
+            if (privateSessionId) {
+                var activeItem = container.querySelector('.list-item[data-session="' + privateSessionId + '"]');
+                if (activeItem) activeItem.classList.add('active');
+            }
         }
 
         function updatePrivateListStatusDots() {
@@ -1167,6 +1172,11 @@
             privateChatActive = true;
             privateHasMore = true;
             privateLoadingMore = false;
+            // Highlight the selected chat in the sidebar list
+            var items = document.querySelectorAll('.home-page .private-list .list-item');
+            for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+            var activeItem = document.querySelector('.home-page .private-list .list-item[data-session="' + sessionId + '"]');
+            if (activeItem) activeItem.classList.add('active');
             document.getElementById('privateChatTitle').textContent = otherUser;
             if (dismissedPrivacyBanners.has(otherUser)) {
                 document.getElementById('privacyBanner').classList.add('hidden-banner');
@@ -1306,7 +1316,7 @@
                 }
             } else if (linkMatch && isSafeUrl(linkMatch[2])) {
                 contentHtml =
-                    `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:#64B5F6;text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
+                    `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
             } else if (fileMatch && isSafeUrl(fileMatch[3])) {
                 if (isImageFile(fileMatch[1])) {
                     contentHtml = `<img src="${escapeAttr(fileMatch[3])}" alt="${escapeAttr(fileMatch[1])}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(fileMatch[3])}')">`;

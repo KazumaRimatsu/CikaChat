@@ -1,0 +1,119 @@
+/* ==========================================================================
+   overlays.css —— 浮动覆盖层
+   --------------------------------------------------------------------------
+   职责：Snackbar 提示条（z 200）、图片预览（z 300）、消息长按菜单（z 500）。
+   与对话框（dialog.css）区分：本模块为轻量浮动层，不阻塞交互。
+   ========================================================================== */
+
+/* --- Snackbar 提示条 --- */
+.snackbar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    z-index: 200;
+    max-width: 90vw;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--md-snackbar-bg);
+    font-size: 0.875rem;
+    color: var(--md-snackbar-text);
+    box-shadow: var(--md-elevation-4);
+    transform: translateX(-50%);
+    animation: snackbar-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes snackbar-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* --- 图片预览（全屏遮罩，禁止选中/滚动穿透） --- */
+.image-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-scrim-high);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.image-preview-overlay img {
+    max-width: 95vw;
+    max-height: 95vh;
+    border-radius: 8px;
+    transform-origin: center;
+    touch-action: none;
+    will-change: transform;
+    transition: transform 0.05s ease-out;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* --- 消息长按菜单（上下文菜单） --- */
+.msg-context-menu {
+    position: fixed;
+    z-index: 500;
+    display: none;
+    min-width: 140px;
+    padding: 4px 0;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    background: var(--md-menu-bg);
+    box-shadow: var(--md-elevation-8);
+}
+
+.msg-context-menu.show {
+    display: block;
+    animation: menu-enter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes menu-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.msg-context-menu .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    font-size: 0.875rem;
+    color: var(--md-menu-text);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.msg-context-menu .menu-item:hover,
+.msg-context-menu .menu-item:active {
+    background: var(--md-menu-hover);
+}
+
+.msg-context-menu .menu-item.danger {
+    color: var(--md-error);
+}
+
+.msg-context-menu .menu-item svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    opacity: 0.7;
+}

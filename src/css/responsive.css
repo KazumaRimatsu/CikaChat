@@ -1,0 +1,75 @@
+/* ==========================================================================
+   responsive.css —— 响应式媒体查询（必须最后加载，覆盖各模块默认样式）
+   ========================================================================== */
+
+/* 窄屏（≤600px）：双栏改为上下布局，侧边栏收缩为列表区 */
+@media (max-width: 600px) {
+    .app-layout {
+        flex-direction: column;
+    }
+
+    .chat-sidebar {
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        max-height: 45%;
+        border-right: none;
+        border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-sidebar-border);
+    }
+
+    .chat-main {
+        flex: 1;
+        height: auto;
+    }
+
+    .user-menu-overlay {
+        padding: 8px;
+    }
+}
+
+/* 超窄屏（≤360px）：压缩输入栏与对话框内边距 */
+@media (max-width: 360px) {
+
+    .public-page .chat-bar,
+    .private-page .chat-bar {
+        gap: 4px;
+        padding: 6px 8px;
+    }
+
+    .public-page .chat-bar .fab-send,
+    .private-page .chat-bar .fab-send {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+    }
+
+    .public-page .chat-bar .more-btn,
+    .private-page .chat-bar .more-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+    }
+
+    .public-page .chat-bar .more-btn svg,
+    .private-page .chat-bar .more-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .public-page .chat-bar .fab-send svg,
+    .private-page .chat-bar .fab-send svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .public-page .chat-bar .input-container,
+    .private-page .chat-bar .input-container {
+        min-height: 40px;
+        padding: 0 4px 0 12px;
+    }
+
+    .md-dialog {
+        width: calc(100% - 16px);
+        padding: 20px 16px;
+    }
+}

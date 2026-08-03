@@ -240,13 +240,28 @@
         function applyUserSettings() {
             if (!_userSettingsCache) return;
 
-            // Apply theme
-            const theme = _userSettingsCache.theme || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
+            // Apply theme（内置 dark/light 或自定义主题统一由 ThemeManager 处理）
+            const themeId = _userSettingsCache.themeId || _userSettingsCache.theme || 'dark';
+            if (window.ThemeManager) {
+                ThemeManager.activate(themeId);
+            } else {
+                document.documentElement.setAttribute('data-theme', _userSettingsCache.theme || 'dark');
+            }
             updateThemeLabel();
 
-            // Apply theme color
-            if (_userSettingsCache.themeColor) {
+            // Apply font（应用级设置，独立于主题；字体仅本地生效）
+            if (window.FontManager) {
+                FontManager.activate(_userSettingsCache.fontId || 'default');
+            }
+
+            // Apply typography（字号/字重，应用级设置，仅本地生效）
+            if (window.TypographyManager) {
+                TypographyManager.activateScale(_userSettingsCache.fontScaleId || 'default');
+                TypographyManager.activateWeight(_userSettingsCache.fontWeightId || 'default');
+            }
+
+            // Apply theme color（自定义主题生效时主题色被主题接管）
+            if (_userSettingsCache.themeColor && !(window.ThemeManager && ThemeManager.isCustomThemeActive())) {
                 applyThemeColor(_userSettingsCache.themeColor);
                 const picker = document.getElementById('themeColorPicker');
                 if (picker) picker.value = _userSettingsCache.themeColor;
@@ -366,7 +381,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "26.8.305",
+                version: "26.8.308",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

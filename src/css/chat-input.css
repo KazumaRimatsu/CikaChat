@@ -1,0 +1,474 @@
+/* ==========================================================================
+   chat-input.css —— 聊天输入区与功能面板
+   --------------------------------------------------------------------------
+   职责：输入栏（更多按钮/输入框/发送键）、功能面板（图片/链接/文件/表情/
+   语音/文字特效子面板）、录音控件、回复预览条、隐私提示横幅。
+   ========================================================================== */
+
+/* --- 输入栏 --- */
+.public-page .chat-bar,
+.private-page .chat-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-shrink: 0;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 12px 8px 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: var(--md-chatbar-bg);
+    box-shadow: var(--md-elevation-2);
+}
+
+/* 「+」更多功能按钮 */
+.public-page .chat-bar .more-btn,
+.private-page .chat-bar .more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    margin-bottom: 4px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-chatbar-btn-bg);
+    color: var(--md-chatbar-text-muted);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.public-page .chat-bar .more-btn:hover,
+.private-page .chat-bar .more-btn:hover {
+    background: var(--md-chatbar-btn-hover);
+}
+
+.public-page .chat-bar .more-btn:active,
+.private-page .chat-bar .more-btn:active {
+    background: var(--md-chatbar-btn-active);
+}
+
+.public-page .chat-bar .more-btn svg,
+.private-page .chat-bar .more-btn svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 面板展开时按钮高亮并旋转 135°（变叉号） */
+.public-page .chat-bar .more-btn.active,
+.private-page .chat-bar .more-btn.active {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+}
+
+.public-page .chat-bar .more-btn.active svg,
+.private-page .chat-bar .more-btn.active svg {
+    transform: rotate(135deg);
+}
+
+/* 输入框容器 */
+.public-page .chat-bar .input-container,
+.private-page .chat-bar .input-container {
+    display: flex;
+    align-items: flex-end;
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 4px 0 16px;
+    border-radius: 24px;
+    background: var(--md-chatbar-input-bg);
+    transition: background 0.2s;
+}
+
+/* 公共输入框容器作为表情/链接等子面板的定位宿主 */
+.public-page .chat-bar .input-container {
+    position: relative;
+}
+
+.public-page .chat-bar .input-container:focus-within,
+.private-page .chat-bar .input-container:focus-within {
+    background: var(--md-chatbar-input-bg-focus);
+}
+
+.public-page .chat-bar .msg-input,
+.private-page .chat-bar .msg-input {
+    flex: 1;
+    min-height: 20px;
+    max-height: 100px;
+    padding: 14px 0;
+    border: none;
+    outline: none;
+    resize: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: var(--md-chatbar-text);
+    /* 输入框内允许选中复制 */
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+
+.public-page .chat-bar .msg-input::placeholder,
+.private-page .chat-bar .msg-input::placeholder {
+    color: var(--md-chatbar-text-muted);
+}
+
+/* 发送按钮 */
+.public-page .chat-bar .fab-send,
+.private-page .chat-bar .fab-send {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    box-shadow: var(--md-elevation-2);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.public-page .chat-bar .fab-send:disabled,
+.private-page .chat-bar .fab-send:disabled {
+    background: var(--md-chatbar-btn-active);
+    color: var(--md-chatbar-text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.public-page .chat-bar .fab-send svg,
+.private-page .chat-bar .fab-send svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+/* --- 功能面板（输入栏上方展开） --- */
+.feature-panel {
+    flex-shrink: 0;
+    max-height: 0;
+    overflow: hidden;
+    background: var(--md-panel-bg);
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feature-panel.show {
+    max-height: 400px;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 20px 16px;
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.feature-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--md-panel-icon-bg);
+    transition: background 0.15s;
+}
+
+.feature-icon:active {
+    background: var(--md-panel-icon-active);
+}
+
+.feature-icon svg {
+    width: 28px;
+    height: 28px;
+    fill: var(--md-panel-text);
+}
+
+.feature-label {
+    font-size: 0.75rem;
+    color: var(--md-panel-text);
+}
+
+/* --- 子面板（表情/文字特效/语音） --- */
+.sub-panel {
+    display: none;
+}
+
+.sub-panel.active {
+    display: flex;
+    flex-direction: column;
+    max-height: 360px;
+}
+
+.sub-panel-header {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 8px;
+    padding: 12px 16px 4px;
+}
+
+.sub-panel-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--md-panel-text);
+    cursor: pointer;
+}
+
+.sub-panel-back:hover {
+    background: var(--md-ripple);
+}
+
+.sub-panel-back svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.sub-panel-title {
+    font-size: 0.875rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-panel-text);
+}
+
+/* 表情子面板 */
+.emoji-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.emoji-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.emoji-scroll::-webkit-scrollbar-thumb {
+    border-radius: 2px;
+    background: var(--md-outline);
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 8px 16px 16px;
+}
+
+.emoji-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.emoji-item:hover {
+    background: var(--md-ripple);
+}
+
+/* 文字特效子面板 */
+.text-effect-grid {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.effect-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-panel-icon-bg);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--md-panel-text);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.effect-btn:hover {
+    background: var(--md-panel-icon-active);
+}
+
+.effect-btn:active {
+    background: var(--md-panel-icon-pressed);
+}
+
+.effect-hint {
+    padding: 0 16px 16px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--md-panel-text-dim);
+}
+
+/* 语音子面板 */
+.voice-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 16px;
+}
+
+.record-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-error);
+    color: var(--md-on-error);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.record-btn:hover {
+    transform: scale(1.05);
+}
+
+.record-btn:active {
+    transform: scale(0.95);
+}
+
+.record-btn.recording {
+    background: var(--md-error);
+    animation: pulse-rec 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-rec {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 var(--md-error-glow);
+    }
+
+    50% {
+        box-shadow: 0 0 0 16px rgba(0, 0, 0, 0);
+    }
+}
+
+.record-btn svg {
+    width: 32px;
+    height: 32px;
+    fill: currentColor;
+}
+
+.record-timer {
+    font-size: 1.5rem;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    color: var(--md-panel-text-strong);
+}
+
+.record-hint {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--md-panel-text-dim);
+}
+
+.record-stop-btn {
+    display: none;
+    padding: 8px 24px;
+    border: none;
+    border-radius: 4px;
+    background: var(--md-panel-icon-bg);
+    font-size: 0.875rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-panel-text-strong);
+    cursor: pointer;
+}
+
+.record-stop-btn.show {
+    display: block;
+}
+
+/* --- 回复预览条（输入栏上方） --- */
+.reply-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 0 2px 0;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    border-left: var(--md-accent-border);
+    background: var(--md-chatbar-input-bg);
+    font-size: 0.8125rem;
+    color: var(--md-chatbar-text-muted);
+}
+
+.reply-preview .reply-content {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.reply-preview .reply-cancel {
+    padding: 0 4px;
+    border: none;
+    background: none;
+    font-size: 1.2rem;
+    color: var(--md-chatbar-text-muted);
+    cursor: pointer;
+}
+
+/* --- 隐私提示横幅（消息区顶部） --- */
+.privacy-banner {
+    padding: 6px 12px;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-error-container-border);
+    overflow: hidden;
+    background: var(--md-error-container);
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-error);
+    cursor: pointer;
+    transition: opacity 0.3s, height 0.3s, padding 0.3s;
+}
+
+.privacy-banner.hidden-banner {
+    height: 0;
+    padding: 0;
+    border-bottom: none;
+    opacity: 0;
+    pointer-events: none;
+}

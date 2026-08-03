@@ -1,0 +1,491 @@
+/* ==========================================================================
+   chat.css —— 消息区（公共/私聊共用，已合并重复规则）
+   --------------------------------------------------------------------------
+   职责：消息滚动区、消息行、气泡、图片/文件/语音消息、回复引用块、
+   系统消息、日期分隔、回到底部按钮。
+   说明：公共与私聊消息结构一致，仅头像尺寸/字体等细节不同，因此
+   相同属性用组合选择器合并，差异部分单独保留。
+   ========================================================================== */
+
+/* --- 消息滚动区 --- */
+.public-page .messages,
+.private-page .messages {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 2px;
+    padding: 16px;
+    overflow-y: auto;
+    background: var(--md-chat-bg);
+    /* WebView 惯性滚动（旧版 iOS 兼容） */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* --- 消息行 --- */
+.public-page .messages .msg-row,
+.private-page .messages .msg-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    animation: md-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes md-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 自己的消息靠右排列 */
+.public-page .messages .msg-row.own,
+.private-page .messages .msg-row.own {
+    flex-direction: row-reverse;
+}
+
+/* 头像（公共 36px 可点击；私聊 32px） */
+.public-page .messages .msg-row .avatar,
+.private-page .messages .msg-row .avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+}
+
+.public-page .messages .msg-row .avatar {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.private-page .messages .msg-row .avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 0.75rem;
+}
+
+.public-page .messages .msg-row .avatar.deleted {
+    filter: grayscale(1);
+    opacity: 0.5;
+}
+
+/* 消息内容列 */
+.public-page .messages .msg-row .content,
+.private-page .messages .msg-row .content {
+    display: flex;
+    flex-direction: column;
+    max-width: 72%;
+}
+
+.public-page .messages .msg-row.own .content,
+.private-page .messages .msg-row.own .content {
+    align-items: flex-end;
+}
+
+/* 元信息行（发送者/时间） */
+.public-page .messages .msg-row .meta,
+.private-page .messages .msg-row .meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0 4px 2px;
+}
+
+.public-page .messages .msg-row.own .meta,
+.private-page .messages .msg-row.own .meta {
+    flex-direction: row-reverse;
+}
+
+.public-page .messages .msg-row .sender {
+    font-size: 0.8125rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-chat-sender);
+}
+
+.public-page .messages .msg-row .sender.deleted {
+    color: var(--md-chat-sender-dim);
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+.public-page .messages .msg-row.own .sender {
+    color: var(--md-chat-sender-own);
+}
+
+.private-page .messages .msg-row .sender {
+    font-size: 0.75rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-chat-sender-dim);
+}
+
+.public-page .messages .msg-row .time {
+    font-size: 0.6875rem;
+    color: var(--md-chat-time);
+}
+
+.private-page .messages .msg-row .time {
+    font-size: 0.625rem;
+    color: var(--md-chat-time);
+}
+
+/* --- 气泡 --- */
+.public-page .messages .msg-row .bubble,
+.private-page .messages .msg-row .bubble {
+    display: inline-block;
+    max-width: 100%;
+    border-radius: 4px 16px 16px 16px;
+    background: var(--md-bubble-bg);
+    font-size: 0.875rem;
+    line-height: var(--md-line-height-base);
+    word-wrap: break-word;
+    color: var(--md-bubble-text);
+}
+
+.public-page .messages .msg-row .bubble {
+    padding: 10px 14px;
+}
+
+.private-page .messages .msg-row .bubble {
+    padding: 8px 12px;
+}
+
+.public-page .messages .msg-row.own .bubble,
+.private-page .messages .msg-row.own .bubble {
+    border-radius: 16px 4px 16px 16px;
+    background: var(--md-bubble-own-bg);
+    color: var(--md-bubble-own-text);
+}
+
+/* 气泡内链接 */
+.msg-row .bubble a {
+    color: var(--md-link);
+    text-decoration: underline;
+}
+
+.msg-row.own .bubble a {
+    color: var(--md-on-primary);
+    text-decoration: underline;
+}
+
+.msg-row .bubble s {
+    text-decoration: line-through;
+}
+
+/* 回复引用块（回复消息的预览） */
+.msg-row .bubble .reply-preview-block {
+    display: block;
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    border-left: var(--md-focus-border);
+    background: var(--md-surface-1dp);
+    font-size: 0.8125rem;
+    color: var(--md-on-surface-dim);
+    cursor: pointer;
+}
+
+.msg-row.own .bubble .reply-preview-block {
+    border-left-color: var(--md-on-primary);
+    background: var(--md-on-primary-dim);
+    color: var(--md-on-surface-muted);
+}
+
+.reply-preview-block .reply-sender {
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+}
+
+.reply-preview-block .reply-content {
+    word-break: break-all;
+}
+
+/* 引用块内的图片（仅公共聊天） */
+.msg-row .bubble .reply-preview-block img {
+    max-width: 120px;
+    max-height: 120px;
+    margin-top: 2px;
+    border-radius: 4px;
+}
+
+/* --- 图片消息（公共聊天：网格 / 单图） --- */
+.public-page .messages .msg-row .bubble.image-bubble,
+.public-page .messages .msg-row .bubble.image-single {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.public-page .messages .msg-row.own .bubble.image-bubble,
+.public-page .messages .msg-row.own .bubble.image-single {
+    border-radius: 0;
+    background: transparent;
+}
+
+.public-page .messages .msg-row .bubble.image-bubble .image-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 100%;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--md-bubble-bg);
+}
+
+.public-page .messages .msg-row.own .bubble.image-bubble .image-grid {
+    background: var(--md-bubble-own-bg);
+}
+
+.public-page .messages .msg-row .bubble.image-bubble .image-grid img {
+    display: block;
+    width: 100%;
+    max-height: 300px;
+    border-radius: 2px;
+    object-fit: contain;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: auto;
+    /* WebView 必需：禁止拖拽图片 */
+    -webkit-user-drag: none;
+}
+
+.public-page .messages .msg-row .bubble.image-single img {
+    display: block;
+    max-width: 220px;
+    max-height: 400px;
+    border-radius: 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: auto;
+    -webkit-user-drag: none;
+}
+
+/* --- 图片消息（私聊） --- */
+.private-page .messages .msg-row .bubble img {
+    display: block;
+    max-width: 180px;
+    max-height: 180px;
+    border-radius: 2px;
+    cursor: pointer;
+    touch-action: auto;
+    -webkit-user-drag: none;
+}
+
+/* --- 文件消息 --- */
+.msg-row .bubble .file-msg {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.msg-row .bubble .file-msg svg {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.msg-row .bubble .file-msg span {
+    font-size: 0.875rem;
+}
+
+/* --- 语音消息 --- */
+.msg-row .bubble .voice-msg-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 130px;
+    max-width: 240px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: var(--md-voice-bg);
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.msg-row.own .bubble .voice-msg-wrap {
+    background: var(--md-voice-bg-own);
+}
+
+.voice-msg-wrap .voice-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-primary);
+    font-size: 0;
+    color: var(--md-on-primary);
+    cursor: pointer;
+}
+
+.msg-row.own .voice-msg-wrap .voice-play-btn {
+    background: var(--md-on-primary);
+    color: var(--md-primary);
+}
+
+.voice-msg-wrap .voice-play-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.voice-msg-wrap .voice-waves {
+    display: flex;
+    align-items: flex-end;
+    flex: 1;
+    gap: 2px;
+    height: 28px;
+}
+
+.voice-msg-wrap .voice-wave {
+    flex: 1;
+    min-width: 2px;
+    border-radius: 1.5px;
+    background: var(--md-primary);
+    transition: height 0.1s;
+}
+
+.msg-row.own .voice-msg-wrap .voice-wave {
+    background: var(--md-on-primary);
+}
+
+.voice-msg-wrap .voice-dur {
+    min-width: 36px;
+    font-size: 0.75rem;
+    color: var(--md-voice-text);
+    white-space: nowrap;
+}
+
+.msg-row.own .voice-msg-wrap .voice-dur {
+    color: var(--md-on-primary-muted);
+}
+
+/* 播放中：声波起伏动画（错峰延迟） */
+.voice-msg-wrap.playing .voice-wave {
+    animation: voiceAnim 0.8s ease-in-out infinite alternate;
+}
+
+.voice-msg-wrap.playing .voice-wave:nth-child(2n) {
+    animation-delay: 0.1s;
+}
+
+.voice-msg-wrap.playing .voice-wave:nth-child(3n) {
+    animation-delay: 0.2s;
+}
+
+.voice-msg-wrap.playing .voice-wave:nth-child(4n) {
+    animation-delay: 0.15s;
+}
+
+.voice-msg-wrap.playing .voice-wave:nth-child(5n) {
+    animation-delay: 0.25s;
+}
+
+@keyframes voiceAnim {
+    0% {
+        height: 4px;
+    }
+
+    100% {
+        height: 24px;
+    }
+}
+
+/* --- 系统消息 --- */
+.public-page .messages .system-msg,
+.private-page .messages .system-msg {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+}
+
+.public-page .messages .system-msg span {
+    padding: 4px 12px;
+    border-radius: 4px;
+    background: var(--md-hint-bg);
+    font-size: 0.75rem;
+    color: var(--md-hint-text);
+}
+
+.private-page .messages .system-msg span {
+    padding: 4px 12px;
+    border-radius: 4px;
+    background: var(--md-hint-bg);
+    font-size: 0.6875rem;
+    color: var(--md-hint-text);
+}
+
+/* --- 日期分隔线 --- */
+.public-page .messages .date-divider {
+    margin: 16px 0 8px;
+    text-align: center;
+}
+
+.private-page .messages .date-divider {
+    margin: 12px 0 8px;
+    text-align: center;
+}
+
+.public-page .messages .date-divider span,
+.private-page .messages .date-divider span {
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: var(--md-hint-bg-alt);
+    font-size: 0.6875rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-hint-text);
+}
+
+/* --- 回到底部按钮（消息区右下角悬浮） --- */
+.scroll-to-bottom-btn {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    box-shadow: var(--md-elevation-4);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+.scroll-to-bottom-btn.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.scroll-to-bottom-btn:active {
+    transform: scale(0.9);
+}
+
+.scroll-to-bottom-btn svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}

@@ -575,55 +575,31 @@
         }
 
         function loadTheme() {
-            // Read from encrypted settings cache, default to dark
-            const theme = (_userSettingsCache && _userSettingsCache.theme) || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
+            // 主题统一由 ThemeManager 管理（内置 dark/light + 自定义主题）
+            // theme.js 加载时已自动恢复上次使用的主题；此处仅同步设置页 UI
             updateThemeLabel();
         }
 
-        function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            // Update encrypted settings cache
-            if (_userSettingsCache) {
-                _userSettingsCache.theme = next;
-                syncSettingsToEncryptedStore();
-            }
-            updateThemeLabel();
-            // v042: 持久化主题到服务端 user_settings 表
-            saveThemeToServer(next);
-        }
-
-        // v042: 保存主题到服务端
-        async function saveThemeToServer(theme) {
-            if (!sb || !currentUser) return;
-            try {
-                const userSettingsObj = {
-                    theme: theme,
-                    updated_at: new Date().toISOString()
-                };
-                await sb.from('user_settings').upsert({
-                    username: currentUser,
-                    settings: userSettingsObj,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'username' });
-            } catch (e) { /* silent - localStorage handles persistence */ }
-        }
+        // 主题/字体均为本地设置，不同步到服务端（v1.x 起移除 saveThemeToServer）
 
         function updateThemeLabel() {
-            const homeLabel = document.getElementById('themeToggleLabel');
-            const settingsLabel = document.getElementById('settingsThemeLabel');
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const text = current === 'dark' ? '明亮模式' : '暗黑模式';
-            if (homeLabel) homeLabel.textContent = text;
-            if (settingsLabel) settingsLabel.textContent = text;
+            const settingsValue = document.getElementById('settingsThemeValue');
+            const themeColorItem = document.getElementById('settingsThemeColorItem');
+            const customActive = !!(window.ThemeManager && ThemeManager.isCustomThemeActive());
+            const current = (window.ThemeManager && ThemeManager.getActiveThemeId()) || document.documentElement.getAttribute('data-theme') || 'dark';
+            const theme = window.ThemeManager ? ThemeManager.getTheme(current) : null;
+            const name = theme ? theme.name : (current === 'dark' ? '暗黑模式' : '明亮模式');
+            if (settingsValue) settingsValue.textContent = name;
+            // 自定义主题生效时主题色被主题接管，主题色设置项不再显示
+            if (themeColorItem) themeColorItem.style.display = customActive ? 'none' : '';
+            const swatch = document.getElementById('themeColorSwatch');
+            if (swatch) swatch.style.background = 'var(--md-primary)';
         }
 
         function loadCustomColor() {
-            // Read from encrypted settings cache
             const color = (_userSettingsCache && _userSettingsCache.themeColor) || null;
-            if (color) {
+            // 自定义主题生效时主题色被主题接管，不再叠加内联覆盖
+            if (color && !(window.ThemeManager && ThemeManager.isCustomThemeActive())) {
                 applyThemeColor(color);
             }
             const picker = document.getElementById('themeColorPicker');
@@ -633,6 +609,11 @@
         }
 
         function setCustomColor(color) {
+            // 自定义主题生效时主题色设置失效
+            if (window.ThemeManager && ThemeManager.isCustomThemeActive()) {
+                showSnackbar('自定义主题生效中，主题色不可调整');
+                return;
+            }
             // Update encrypted settings cache
             if (_userSettingsCache) {
                 _userSettingsCache.themeColor = color;
@@ -657,6 +638,428 @@
             return '#' + [dr, dg, db].map(c => c.toString(16).padStart(2, '0')).join('');
         }
 
+        // ============================================================
+        // 主题选择对话框（设置页入口：预览 / 导入 / 删除）
+        // ============================================================
+        var _themeDialogOriginalId = null; // 打开对话框时正在使用的主题
+        var _themeDialogPendingId = null;  // 当前预览中的主题
+
+        function showThemeDialog() {
+            const dialog = document.getElementById('themeDialog');
+            if (!dialog) return;
+            _themeDialogOriginalId = ThemeManager.getActiveThemeId();
+            _themeDialogPendingId = _themeDialogOriginalId;
+            renderThemeList();
+            dialog.classList.remove('hidden');
+        }
+
+        function closeThemeDialog() {
+            const dialog = document.getElementById('themeDialog');
+            if (!dialog) return;
+            // 取消/关闭：回退到打开对话框前的主题（预览不持久化）
+            if (_themeDialogPendingId && _themeDialogPendingId !== _themeDialogOriginalId) {
+                ThemeManager.preview(_themeDialogOriginalId);
+                updateThemeLabel();
+            }
+            _themeDialogPendingId = _themeDialogOriginalId;
+            dialog.classList.add('hidden');
+        }
+
+        function renderThemeList() {
+            const container = document.getElementById('themeList');
+            if (!container) return;
+            const themes = ThemeManager.list();
+            container.innerHTML = '';
+            themes.forEach(function(t) {
+                const card = document.createElement('div');
+                card.className = 'theme-card' + (t.id === _themeDialogPendingId ? ' selected' : '');
+                card.onclick = function() { selectThemeCard(t.id); };
+                card.appendChild(buildThemeSwatch(t));
+                const info = document.createElement('div');
+                info.className = 'theme-card-info';
+                const nameEl = document.createElement('div');
+                nameEl.className = 'theme-card-name';
+                nameEl.textContent = t.name;
+                const baseEl = document.createElement('div');
+                baseEl.className = 'theme-card-base';
+                baseEl.textContent = t.builtin
+                    ? (t.base === 'dark' ? '内置 · 暗色' : '内置 · 亮色')
+                    : ('自定义 · 基于' + (t.base === 'dark' ? '暗色' : '亮色') + (t.description ? ' · ' + t.description : ''));
+                info.appendChild(nameEl);
+                info.appendChild(baseEl);
+                card.appendChild(info);
+                if (!t.builtin) {
+                    const del = document.createElement('button');
+                    del.className = 'theme-card-delete';
+                    del.title = '删除主题';
+                    del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+                    del.onclick = function(e) {
+                        e.stopPropagation();
+                        deleteCustomTheme(t.id);
+                    };
+                    card.appendChild(del);
+                }
+                container.appendChild(card);
+            });
+        }
+
+        function buildThemeSwatch(t) {
+            const swatch = document.createElement('div');
+            swatch.className = 'theme-swatch';
+            const cells = [
+                { cls: 'bg',         val: t.preview.background },
+                { cls: 'surface',    val: t.preview.surface },
+                { cls: 'primary',    val: t.preview.primary },
+                { cls: 'on-surface', val: t.preview.onSurface }
+            ];
+            cells.forEach(function(c) {
+                const cell = document.createElement('div');
+                cell.className = 'swatch-cell ' + c.cls;
+                cell.style.setProperty('--sw-' + c.cls, c.val);
+                swatch.appendChild(cell);
+            });
+            return swatch;
+        }
+
+        function selectThemeCard(id) {
+            _themeDialogPendingId = id;
+            ThemeManager.preview(id); // 实时预览，不持久化
+            renderThemeList();
+            updateThemeLabel();
+        }
+
+        function applyThemeDialog() {
+            if (_themeDialogPendingId && _themeDialogPendingId !== ThemeManager.getActiveThemeId()) {
+                ThemeManager.activate(_themeDialogPendingId);
+                // 同步到加密本地设置（主题不再同步到服务端）
+                const t = ThemeManager.getTheme(_themeDialogPendingId);
+                if (_userSettingsCache) {
+                    _userSettingsCache.themeId = _themeDialogPendingId;
+                    _userSettingsCache.theme = t ? t.base : 'dark';
+                    syncSettingsToEncryptedStore();
+                }
+            }
+            // 标记已提交，避免 closeThemeDialog 回退预览
+            _themeDialogPendingId = _themeDialogOriginalId;
+            closeThemeDialog();
+            updateThemeLabel();
+        }
+
+        function openThemeImport() {
+            const input = document.getElementById('themeFileInput');
+            if (input) input.click();
+        }
+
+        function handleThemeFileSelect(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            ThemeManager.importThemeFromFile(file).then(function(res) {
+                event.target.value = '';
+                if (!res.ok) {
+                    showSnackbar('导入失败：' + res.error);
+                    return;
+                }
+                // 导入成功后自动预览新主题
+                _themeDialogPendingId = res.theme.id;
+                ThemeManager.preview(res.theme.id);
+                renderThemeList();
+                updateThemeLabel();
+                showSnackbar('主题导入成功：' + res.theme.name);
+            });
+        }
+
+        function deleteCustomTheme(id) {
+            const theme = ThemeManager.getTheme(id);
+            showConfirm('删除主题', '确定删除主题「' + (theme ? theme.name : id) + '」吗？', function() {
+                const wasActive = ThemeManager.getActiveThemeId() === id;
+                ThemeManager.removeTheme(id);
+                if (wasActive) {
+                    _themeDialogPendingId = 'dark';
+                } else if (_themeDialogPendingId === id) {
+                    _themeDialogPendingId = ThemeManager.getActiveThemeId();
+                }
+                renderThemeList();
+                updateThemeLabel();
+            });
+        }
+
+        function downloadThemeTemplate() {
+            const sample = ThemeManager.buildThemeFileSample();
+            const blob = new Blob([JSON.stringify(sample, null, 4)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'cika-theme-template.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ============================================================
+        // 字体选择对话框（应用级设置，独立于主题文件）
+        // ============================================================
+        var _fontDialogOriginalId = null; // 打开对话框时正在使用的字体
+        var _fontDialogPendingId = null;  // 当前预览中的字体
+
+        function showFontDialog() {
+            const dialog = document.getElementById('fontDialog');
+            if (!dialog || !window.FontManager) return;
+            _fontDialogOriginalId = FontManager.getActiveFontId();
+            _fontDialogPendingId = _fontDialogOriginalId;
+            renderFontList();
+            dialog.classList.remove('hidden');
+        }
+
+        function closeFontDialog() {
+            const dialog = document.getElementById('fontDialog');
+            if (!dialog) return;
+            // 取消/关闭：回退到打开对话框前的字体（预览不持久化）
+            if (_fontDialogPendingId && _fontDialogPendingId !== _fontDialogOriginalId) {
+                FontManager.preview(_fontDialogOriginalId);
+                updateFontLabel();
+            }
+            _fontDialogPendingId = _fontDialogOriginalId;
+            dialog.classList.add('hidden');
+        }
+
+        function renderFontList() {
+            const container = document.getElementById('fontList');
+            if (!container) return;
+            const fonts = FontManager.list();
+            container.innerHTML = '';
+            fonts.forEach(function(f) {
+                const card = document.createElement('div');
+                card.className = 'theme-card font-card' + (f.id === _fontDialogPendingId ? ' selected' : '');
+                card.onclick = function() { selectFontCard(f.id); };
+
+                // 预览块：以该字体渲染「Aa」示例
+                const preview = document.createElement('div');
+                preview.className = 'font-preview';
+                preview.textContent = 'Aa 中';
+                if (f.family) preview.style.fontFamily = f.family;
+                card.appendChild(preview);
+
+                const info = document.createElement('div');
+                info.className = 'theme-card-info';
+                const nameEl = document.createElement('div');
+                nameEl.className = 'theme-card-name';
+                nameEl.textContent = f.name;
+                const noteEl = document.createElement('div');
+                noteEl.className = 'theme-card-base';
+                noteEl.textContent = f.note || '';
+                info.appendChild(nameEl);
+                info.appendChild(noteEl);
+                card.appendChild(info);
+                container.appendChild(card);
+            });
+        }
+
+        function selectFontCard(id) {
+            _fontDialogPendingId = id;
+            FontManager.preview(id); // 实时预览，不持久化
+            renderFontList();
+            updateFontLabel();
+        }
+
+        function applyFontDialog() {
+            if (_fontDialogPendingId && _fontDialogPendingId !== FontManager.getActiveFontId()) {
+                FontManager.activate(_fontDialogPendingId);
+                // 同步到加密本地设置（字体仅本地生效）
+                if (_userSettingsCache) {
+                    _userSettingsCache.fontId = _fontDialogPendingId;
+                    syncSettingsToEncryptedStore();
+                }
+            }
+            // 标记已提交，避免 closeFontDialog 回退预览
+            _fontDialogPendingId = _fontDialogOriginalId;
+            closeFontDialog();
+            updateFontLabel();
+        }
+
+        function updateFontLabel() {
+            const settingsValue = document.getElementById('settingsFontValue');
+            if (!window.FontManager) return;
+            const font = FontManager.getFont(FontManager.getActiveFontId());
+            if (settingsValue) settingsValue.textContent = font ? font.name : '系统默认';
+        }
+
+        // ============================================================
+        // 字号选择对话框（应用级设置，独立于主题文件）
+        // ============================================================
+        var _fontSizeDialogOriginalId = null; // 打开对话框时正在使用的字号
+        var _fontSizeDialogPendingId = null;  // 当前预览中的字号
+
+        function showFontSizeDialog() {
+            const dialog = document.getElementById('fontSizeDialog');
+            if (!dialog || !window.TypographyManager) return;
+            _fontSizeDialogOriginalId = TypographyManager.getActiveScaleId();
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            renderFontSizeList();
+            dialog.classList.remove('hidden');
+        }
+
+        function closeFontSizeDialog() {
+            const dialog = document.getElementById('fontSizeDialog');
+            if (!dialog) return;
+            // 取消/关闭：回退到打开对话框前的字号（预览不持久化）
+            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== _fontSizeDialogOriginalId) {
+                TypographyManager.previewScale(_fontSizeDialogOriginalId);
+                updateFontSizeLabel();
+            }
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            dialog.classList.add('hidden');
+        }
+
+        function renderFontSizeList() {
+            const container = document.getElementById('fontSizeList');
+            if (!container) return;
+            const scales = TypographyManager.listScales();
+            container.innerHTML = '';
+            scales.forEach(function(s) {
+                const card = document.createElement('div');
+                card.className = 'theme-card size-card' + (s.id === _fontSizeDialogPendingId ? ' selected' : '');
+                card.onclick = function() { selectFontSizeCard(s.id); };
+
+                // 预览块：以该字号渲染「Aa 中」示例
+                const preview = document.createElement('div');
+                preview.className = 'size-preview';
+                preview.textContent = 'Aa 中';
+                if (typeof s.scale === 'number') preview.style.fontSize = (1 * s.scale) + 'rem';
+                card.appendChild(preview);
+
+                const info = document.createElement('div');
+                info.className = 'theme-card-info';
+                const nameEl = document.createElement('div');
+                nameEl.className = 'theme-card-name';
+                nameEl.textContent = s.name;
+                const noteEl = document.createElement('div');
+                noteEl.className = 'theme-card-base';
+                noteEl.textContent = s.note || '';
+                info.appendChild(nameEl);
+                info.appendChild(noteEl);
+                card.appendChild(info);
+                container.appendChild(card);
+            });
+        }
+
+        function selectFontSizeCard(id) {
+            _fontSizeDialogPendingId = id;
+            TypographyManager.previewScale(id); // 实时预览，不持久化
+            renderFontSizeList();
+            updateFontSizeLabel();
+        }
+
+        function applyFontSizeDialog() {
+            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== TypographyManager.getActiveScaleId()) {
+                TypographyManager.activateScale(_fontSizeDialogPendingId);
+                // 同步到加密本地设置（字号仅本地生效）
+                if (_userSettingsCache) {
+                    _userSettingsCache.fontScaleId = _fontSizeDialogPendingId;
+                    syncSettingsToEncryptedStore();
+                }
+            }
+            // 标记已提交，避免 closeFontSizeDialog 回退预览
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            closeFontSizeDialog();
+            updateFontSizeLabel();
+        }
+
+        function updateFontSizeLabel() {
+            const settingsValue = document.getElementById('settingsFontSizeValue');
+            if (!window.TypographyManager) return;
+            const scale = TypographyManager.getScale(TypographyManager.getActiveScaleId());
+            if (settingsValue) settingsValue.textContent = scale ? scale.name : '默认';
+        }
+
+        // ============================================================
+        // 字重选择对话框（应用级设置，独立于主题文件）
+        // ============================================================
+        var _fontWeightDialogOriginalId = null; // 打开对话框时正在使用的字重
+        var _fontWeightDialogPendingId = null;  // 当前预览中的字重
+
+        function showFontWeightDialog() {
+            const dialog = document.getElementById('fontWeightDialog');
+            if (!dialog || !window.TypographyManager) return;
+            _fontWeightDialogOriginalId = TypographyManager.getActiveWeightId();
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
+            renderFontWeightList();
+            dialog.classList.remove('hidden');
+        }
+
+        function closeFontWeightDialog() {
+            const dialog = document.getElementById('fontWeightDialog');
+            if (!dialog) return;
+            // 取消/关闭：回退到打开对话框前的字重（预览不持久化）
+            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== _fontWeightDialogOriginalId) {
+                TypographyManager.previewWeight(_fontWeightDialogOriginalId);
+                updateFontWeightLabel();
+            }
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
+            dialog.classList.add('hidden');
+        }
+
+        function renderFontWeightList() {
+            const container = document.getElementById('fontWeightList');
+            if (!container) return;
+            const weights = TypographyManager.listWeights();
+            container.innerHTML = '';
+            weights.forEach(function(w) {
+                const card = document.createElement('div');
+                card.className = 'theme-card weight-card' + (w.id === _fontWeightDialogPendingId ? ' selected' : '');
+                card.onclick = function() { selectFontWeightCard(w.id); };
+
+                // 预览块：以该字重渲染「Aa 中」示例
+                const preview = document.createElement('div');
+                preview.className = 'weight-preview';
+                preview.textContent = 'Aa 中';
+                if (typeof w.medium === 'number') preview.style.fontWeight = String(w.medium);
+                card.appendChild(preview);
+
+                const info = document.createElement('div');
+                info.className = 'theme-card-info';
+                const nameEl = document.createElement('div');
+                nameEl.className = 'theme-card-name';
+                nameEl.textContent = w.name;
+                const noteEl = document.createElement('div');
+                noteEl.className = 'theme-card-base';
+                noteEl.textContent = w.note || '';
+                info.appendChild(nameEl);
+                info.appendChild(noteEl);
+                card.appendChild(info);
+                container.appendChild(card);
+            });
+        }
+
+        function selectFontWeightCard(id) {
+            _fontWeightDialogPendingId = id;
+            TypographyManager.previewWeight(id); // 实时预览，不持久化
+            renderFontWeightList();
+            updateFontWeightLabel();
+        }
+
+        function applyFontWeightDialog() {
+            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== TypographyManager.getActiveWeightId()) {
+                TypographyManager.activateWeight(_fontWeightDialogPendingId);
+                // 同步到加密本地设置（字重仅本地生效）
+                if (_userSettingsCache) {
+                    _userSettingsCache.fontWeightId = _fontWeightDialogPendingId;
+                    syncSettingsToEncryptedStore();
+                }
+            }
+            // 标记已提交，避免 closeFontWeightDialog 回退预览
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
+            closeFontWeightDialog();
+            updateFontWeightLabel();
+        }
+
+        function updateFontWeightLabel() {
+            const settingsValue = document.getElementById('settingsFontWeightValue');
+            if (!window.TypographyManager) return;
+            const weight = TypographyManager.getWeight(TypographyManager.getActiveWeightId());
+            if (settingsValue) settingsValue.textContent = weight ? weight.name : '默认';
+        }
+
         function init() {
             // v047: safety timeout 保存在外部以便在 enterApp 后清除
             // 未完成初始化并且 loading 页仍可见时，50s 后才强制跳转登录页
@@ -675,6 +1078,35 @@
 
             loadTheme();
             loadCustomColor();
+            updateFontLabel();
+            updateFontSizeLabel();
+            updateFontWeightLabel();
+
+            // 主题变更回调：同步设置页 UI，并清除主题色内联覆盖（避免覆盖自定义主题颜色）
+            if (window.ThemeManager) {
+                ThemeManager.onChange = function() {
+                    if (ThemeManager.isCustomThemeActive()) {
+                        document.documentElement.style.removeProperty('--md-primary');
+                        document.documentElement.style.removeProperty('--md-primary-variant');
+                    }
+                    updateThemeLabel();
+                };
+            }
+
+            // 字体变更回调：同步设置页「字体」入口的当前值
+            if (window.FontManager) {
+                FontManager.onChange = function() {
+                    updateFontLabel();
+                };
+            }
+
+            // 字号/字重变更回调：同步设置页「字号」「字重」入口的当前值
+            if (window.TypographyManager) {
+                TypographyManager.onChange = function() {
+                    updateFontSizeLabel();
+                    updateFontWeightLabel();
+                };
+            }
 
             // v040: Initialize Supabase client with error handling
             try {

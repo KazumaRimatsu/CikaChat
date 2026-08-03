@@ -1,0 +1,85 @@
+/* ==========================================================================
+   layout.css —— 桌面双栏布局（微信风格）
+   --------------------------------------------------------------------------
+   职责：.app-layout 双栏骨架（侧边栏 + 主区）及占位页。
+   移动端响应式覆盖见 responsive.css（最后加载）。
+   ========================================================================== */
+
+.app-layout {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 左侧聊天列表栏 */
+.chat-sidebar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    min-width: 280px;
+    height: 100%;
+    overflow: hidden;
+    background: var(--md-sidebar-bg);
+    border-right: var(--md-outline-width) var(--md-outline-style) var(--md-sidebar-border);
+}
+
+/* 右侧聊天主区 */
+.chat-main {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--md-surface);
+}
+
+/* 未选中会话时的占位提示 */
+.chat-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 12px;
+    background: var(--md-background);
+    font-size: 0.9375rem;
+    color: var(--md-on-surface-dim);
+}
+
+.chat-placeholder svg {
+    width: 64px;
+    height: 64px;
+    fill: var(--md-on-surface-dim);
+    opacity: 0.3;
+}
+
+/* 任一页面激活时隐藏占位 */
+.chat-main .page.active ~ .chat-placeholder {
+    display: none;
+}
+
+/* 桌面端：chat-main 内页面作为 flex 子元素占满高度 */
+.chat-main .page {
+    position: relative;
+    width: 100%;
+    min-height: 0;
+}
+
+.chat-main .page.active {
+    flex: 1;
+}
+
+/* 侧边栏页面无滑动动画 */
+.chat-sidebar .page {
+    width: 100%;
+    height: 100%;
+}
+
+/* 桌面端主页（聊天列表）常驻显示 */
+.chat-sidebar .page.home-page {
+    display: flex !important;
+}

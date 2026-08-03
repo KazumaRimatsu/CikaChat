@@ -1028,7 +1028,7 @@
             overlay.style.position = 'fixed';
             overlay.style.inset = '0';
             overlay.style.zIndex = '140';
-            overlay.style.background = 'rgba(0,0,0,0.3)';
+            overlay.style.background = 'var(--md-scrim)';
             overlay.onclick = function() { closeAvatarMenu(); };
             document.body.appendChild(overlay);
         }

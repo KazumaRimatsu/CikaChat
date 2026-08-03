@@ -1,0 +1,164 @@
+/* ==========================================================================
+   settings.css —— 设置页与关于页
+   ========================================================================== */
+
+/* --- 设置页 --- */
+.settings-page .settings-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.settings-page .settings-section {
+    margin-top: 24px;
+}
+
+.settings-page .settings-section-title {
+    padding: 0 16px 8px;
+    font-size: 0.75rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--md-settings-text-dim);
+}
+
+/* 设置项：三态背景（未选中/悬停/选中）由令牌控制 */
+.settings-page .settings-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--md-settings-bg);
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-settings-border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.settings-page .settings-item:first-of-type {
+    border-top: var(--md-outline-width) var(--md-outline-style) var(--md-settings-border);
+}
+
+.settings-page .settings-item:hover {
+    background: var(--md-settings-hover);
+}
+
+.settings-page .settings-item:active {
+    background: var(--md-settings-active);
+}
+
+.settings-page .settings-item .settings-item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    margin-right: 12px;
+    border-radius: 50%;
+    background: var(--md-settings-icon-bg);
+}
+
+.settings-page .settings-item .settings-item-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--md-settings-text-muted);
+}
+
+.settings-page .settings-item .settings-item-label {
+    flex: 1;
+    font-size: 0.9375rem;
+    color: var(--md-settings-text);
+}
+
+.settings-page .settings-item .settings-chevron {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    fill: var(--md-settings-text-dim);
+}
+
+/* 禁用项：整体弱化且不可交互 */
+.settings-page .settings-item.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* 危险操作项（退出/删除等）：图标与文字转错误色 */
+.settings-page .settings-item.danger .settings-item-icon {
+    background: var(--md-error-container);
+}
+
+.settings-page .settings-item.danger .settings-item-icon svg {
+    fill: var(--md-error);
+}
+
+.settings-page .settings-item.danger .settings-item-label {
+    color: var(--md-error);
+}
+
+/* 退出登录按钮 */
+.settings-page .settings-logout-btn {
+    margin: 0 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: var(--md-error);
+    text-align: center;
+    font-size: 0.9375rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-on-error);
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.settings-page .settings-logout-btn:hover {
+    filter: brightness(1.1);
+}
+
+.settings-page .settings-logout-btn:active {
+    filter: brightness(0.9);
+}
+
+/* --- 关于页 --- */
+.about-page .about-scroll {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    padding: 48px 24px;
+    overflow-y: auto;
+}
+
+.about-page .about-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--md-on-surface);
+}
+
+.about-page .about-version {
+    font-size: 0.9375rem;
+    color: var(--md-on-surface-muted);
+}
+
+.about-page .about-desc {
+    margin-top: 4px;
+    font-size: 0.875rem;
+    color: var(--md-on-surface-dim);
+}
+
+.about-page a {
+    color: var(--md-primary);
+    text-decoration: none;
+}
+
+.about-page a:hover {
+    text-decoration: underline;
+}
+
+.about-page .about-copyright {
+    margin-top: 24px;
+    font-size: 0.75rem;
+    opacity: 0.6;
+    color: var(--md-on-surface-dim);
+}

@@ -1,0 +1,264 @@
+/* ==========================================================================
+   tokens.css —— 主题令牌（唯一变量来源）
+   --------------------------------------------------------------------------
+   职责：集中定义全部 CSS 自定义属性（令牌）。
+   - 默认暗色主题写在 :root；
+   - 明亮模式通过 [data-theme="light"] 增量覆盖；
+   - 组件级令牌默认引用通用令牌，主题文件可按控件单独覆盖。
+   本文件必须最先加载，其他模块样式仅允许使用 var() 引用，禁止硬编码颜色。
+   ========================================================================== */
+
+:root {
+    /* === 基础令牌（Material 风格） === */
+    --md-primary: #4A9EFF;
+    --md-primary-variant: #1565C0;
+    --md-secondary: #03DAC6;
+    --md-background: #121212;
+    --md-surface: #1E1E1E;
+    --md-surface-1dp: #1E1E1E;
+    --md-surface-2dp: #232323;
+    --md-surface-3dp: #252525;
+    --md-surface-4dp: #272727;
+    --md-surface-6dp: #2C2C2C;
+    --md-surface-8dp: #2E2E2E;
+    --md-surface-12dp: #313131;
+    --md-surface-16dp: #333333;
+    --md-error: #CF6679;
+    --md-on-error: #FFFFFF;
+    --md-on-primary: #FFFFFF;
+    --md-on-background: #FFFFFF;
+    --md-on-surface: #FFFFFF;
+    --md-on-surface-muted: rgba(255, 255, 255, 0.60);
+    --md-on-surface-dim: rgba(255, 255, 255, 0.38);
+    --md-outline: rgba(255, 255, 255, 0.12);
+    --md-ripple: rgba(255, 255, 255, 0.08);
+    --md-success: #81C784;
+    --md-elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+    --md-elevation-2: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+    --md-elevation-4: 0 2px 3px 0 rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
+    --md-elevation-8: 0 4px 5px 0 rgba(0, 0, 0, 0.3), 0 12px 21px 8px rgba(0, 0, 0, 0.15);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+
+    /* === 主题系统扩展令牌（颜色） === */
+    --md-primary-container: rgba(74, 158, 255, 0.12);
+    --md-primary-highlight: rgba(74, 158, 255, 0.25);
+    --md-on-primary-container: #E3F2FD;
+    --md-error-container: rgba(207, 102, 121, 0.12);
+    --md-error-container-border: rgba(207, 102, 121, 0.2);
+    --md-error-glow: rgba(207, 102, 121, 0.4);
+    --md-on-error-container: #FFCDD2;
+    --md-success-container: rgba(129, 199, 132, 0.12);
+    --md-success-container-hover: rgba(129, 199, 132, 0.2);
+    --md-surface-hover: #2A2A2A;
+    --md-surface-active: #303030;
+    --md-link: #64B5F6;
+    --md-on-primary-muted: rgba(255, 255, 255, 0.7);
+    --md-on-primary-dim: rgba(255, 255, 255, 0.05);
+    --md-on-primary-translucent: rgba(255, 255, 255, 0.15);
+    --md-ripple-effect: rgba(255, 255, 255, 0.2);
+    --md-scrim: rgba(0, 0, 0, 0.3);
+    --md-scrim-mid: rgba(0, 0, 0, 0.5);
+    --md-scrim-high: rgba(0, 0, 0, 0.9);
+    --md-avatar-text: #FFFFFF;
+
+    /* === 主题系统扩展令牌（字体） === */
+    --md-font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --md-font-size-xs: 0.6875rem;
+    --md-font-size-sm: 0.75rem;
+    --md-font-size-base: 0.875rem;
+    --md-font-size-md: 0.9375rem;
+    --md-font-size-lg: 1rem;
+    --md-font-size-xl: 1.25rem;
+    --md-font-size-xxl: 1.5rem;
+    --md-font-weight-normal: 400;
+    --md-font-weight-medium: 500;
+    --md-font-weight-bold: 700;
+    --md-line-height-base: 1.43;
+
+    /* === 主题系统扩展令牌（间距） === */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    /* === 主题系统扩展令牌（组件级独立令牌） ===
+     * 默认值为对上方“通用令牌”的引用，随明/暗主题自动适配；
+     * 主题文件可直接覆盖任一组件令牌，仅影响对应控件，避免“牵一发而动全身”。
+     */
+    /* 顶栏 */
+    --md-appbar-bg: var(--md-surface-4dp);
+    --md-appbar-text: var(--md-on-surface);
+    --md-appbar-text-muted: var(--md-on-surface-dim);
+    /* 侧边栏聊天列表 */
+    --md-sidebar-bg: var(--md-surface-1dp);
+    --md-sidebar-text: var(--md-on-surface);
+    --md-sidebar-text-muted: var(--md-on-surface-dim);
+    --md-sidebar-item-hover: var(--md-surface-2dp);
+    --md-sidebar-item-bg: var(--md-sidebar-bg);
+    --md-sidebar-item-active: var(--md-surface-3dp);
+    --md-sidebar-item-text: var(--md-sidebar-text);
+    --md-sidebar-item-text-muted: var(--md-sidebar-text-muted);
+    --md-sidebar-item-text-active: var(--md-on-surface);
+    --md-sidebar-entry-bg: var(--md-surface-2dp);
+    --md-sidebar-entry-hover: var(--md-surface-4dp);
+    /* 聊天区 */
+    --md-chat-bg: var(--md-background);
+    --md-chat-sender: var(--md-on-surface-muted);
+    --md-chat-sender-dim: var(--md-on-surface-dim);
+    --md-chat-sender-own: var(--md-primary);
+    --md-chat-time: var(--md-on-surface-dim);
+    /* 消息气泡 */
+    --md-bubble-bg: var(--md-surface-2dp);
+    --md-bubble-text: var(--md-on-surface);
+    --md-bubble-own-bg: var(--md-primary);
+    --md-bubble-own-text: var(--md-on-primary);
+    /* 输入栏 */
+    --md-chatbar-bg: var(--md-surface-4dp);
+    --md-chatbar-input-bg: var(--md-surface-1dp);
+    --md-chatbar-input-bg-focus: var(--md-surface-2dp);
+    --md-chatbar-text: var(--md-on-surface);
+    --md-chatbar-text-muted: var(--md-on-surface-dim);
+    --md-chatbar-btn-bg: var(--md-surface-2dp);
+    --md-chatbar-btn-hover: var(--md-surface-4dp);
+    --md-chatbar-btn-active: var(--md-surface-6dp);
+    /* 功能面板 */
+    --md-panel-bg: var(--md-surface-2dp);
+    --md-panel-icon-bg: var(--md-surface-4dp);
+    --md-panel-icon-active: var(--md-surface-6dp);
+    --md-panel-icon-pressed: var(--md-surface-12dp);
+    --md-panel-text: var(--md-on-surface-muted);
+    --md-panel-text-dim: var(--md-on-surface-dim);
+    --md-panel-text-strong: var(--md-on-surface);
+    /* 菜单（消息长按菜单/头像菜单/用户菜单） */
+    --md-menu-bg: var(--md-surface-6dp);
+    --md-menu-bg-card: var(--md-surface-4dp);
+    --md-menu-bg-sheet: var(--md-surface);
+    --md-menu-text: var(--md-on-surface);
+    --md-menu-text-muted: var(--md-on-surface-muted);
+    --md-menu-text-dim: var(--md-on-surface-dim);
+    --md-menu-hover: var(--md-ripple);
+    --md-menu-item-active: var(--md-surface-8dp);
+    --md-menu-item-bg: transparent;
+    --md-menu-item-hover: var(--md-menu-hover);
+    /* 对话框 */
+    --md-dialog-bg: var(--md-surface-4dp);
+    --md-dialog-text: var(--md-on-surface);
+    --md-dialog-text-muted: var(--md-on-surface-muted);
+    --md-dialog-text-dim: var(--md-on-surface-dim);
+    --md-dialog-border: var(--md-outline);
+    --md-dialog-btn-bg: var(--md-surface-4dp);
+    --md-dialog-btn-hover: var(--md-ripple);
+    --md-dialog-btn-active: var(--md-surface-6dp);
+    /* 提示条 */
+    --md-snackbar-bg: var(--md-surface-8dp);
+    --md-snackbar-text: var(--md-on-surface);
+    /* 设置页 */
+    --md-settings-bg: var(--md-surface-2dp);
+    --md-settings-hover: var(--md-surface-4dp);
+    --md-settings-active: var(--md-surface-6dp);
+    --md-settings-icon-bg: var(--md-surface-4dp);
+    --md-settings-text: var(--md-on-surface);
+    --md-settings-text-muted: var(--md-on-surface-muted);
+    --md-settings-text-dim: var(--md-on-surface-dim);
+    /* 聊天辅助信息（系统消息/日期分隔） */
+    --md-hint-bg: var(--md-surface-1dp);
+    --md-hint-bg-alt: var(--md-surface-2dp);
+    --md-hint-text: var(--md-on-surface-dim);
+    /* 语音消息条 */
+    --md-voice-bg: var(--md-surface-4dp);
+    --md-voice-bg-own: var(--md-on-primary-translucent);
+    --md-voice-text: var(--md-on-surface-muted);
+    /* 搜索页 */
+    --md-search-bg: var(--md-surface-1dp);
+    --md-search-input-bg: var(--md-surface-2dp);
+    --md-search-input-focus-border: var(--md-primary);
+    --md-search-text: var(--md-on-surface);
+    --md-search-text-dim: var(--md-on-surface-dim);
+    --md-search-item-hover: var(--md-surface-2dp);
+    /* 描边属性（宽度/线型；描边颜色仍走 --md-outline 等控件色） */
+    --md-outline-width: 1px;
+    --md-outline-style: solid;
+    --md-outline-dashed: dashed;
+    /* 描边颜色（宽度/线型统一走上方令牌，颜色可按控件独立覆盖） */
+    --md-sidebar-border: var(--md-outline);
+    --md-menu-border: var(--md-outline);
+    --md-search-border: var(--md-outline);
+    --md-settings-border: var(--md-outline);
+    --md-field-border: var(--md-outline);
+    /* 在线人数药丸（顶栏） */
+    --md-online-bg: var(--md-success-container);
+    --md-online-bg-hover: var(--md-success-container-hover);
+    --md-online-text: var(--md-success);
+    --md-online-dot: var(--md-success);
+    /* 头像调色板（.av-0 ~ .av-7，主题文件可整体更换配色） */
+    --md-avatar-0: #4A9EFF;
+    --md-avatar-1: #BA68C8;
+    --md-avatar-2: #4DB6AC;
+    --md-avatar-3: #4FC3F7;
+    --md-avatar-4: #FF8A65;
+    --md-avatar-5: #A1887F;
+    --md-avatar-6: #90A4AE;
+    --md-avatar-7: #F06292;
+    /* 强调描边（聚焦态 / 回复引用，复合简写，可整体覆盖） */
+    --md-focus-border: 2px solid var(--md-primary);
+    --md-accent-border: 3px solid var(--md-primary);
+}
+
+[data-theme="light"] {
+    --md-primary: #1976D2;
+    --md-primary-variant: #1565C0;
+    --md-secondary: #018786;
+    --md-background: #FAFAFA;
+    --md-surface: #FFFFFF;
+    --md-surface-1dp: #FFFFFF;
+    --md-surface-2dp: #F5F5F5;
+    --md-surface-3dp: #F0F0F0;
+    --md-surface-4dp: #EEEEEE;
+    --md-surface-6dp: #E8E8E8;
+    --md-surface-8dp: #E0E0E0;
+    --md-surface-12dp: #D9D9D9;
+    --md-surface-16dp: #D6D6D6;
+    --md-error: #B00020;
+    --md-on-error: #FFFFFF;
+    --md-on-primary: #FFFFFF;
+    --md-on-background: #212121;
+    --md-on-surface: #212121;
+    --md-on-surface-muted: rgba(0, 0, 0, 0.60);
+    --md-on-surface-dim: rgba(0, 0, 0, 0.38);
+    --md-outline: rgba(0, 0, 0, 0.12);
+    --md-ripple: rgba(0, 0, 0, 0.08);
+    --md-success: #2E7D32;
+    --md-elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.10), 0 1px 3px 1px rgba(0, 0, 0, 0.06);
+    --md-elevation-2: 0 1px 2px 0 rgba(0, 0, 0, 0.10), 0 2px 6px 2px rgba(0, 0, 0, 0.06);
+    --md-elevation-4: 0 2px 3px 0 rgba(0, 0, 0, 0.10), 0 6px 10px 4px rgba(0, 0, 0, 0.06);
+    --md-elevation-8: 0 4px 5px 0 rgba(0, 0, 0, 0.10), 0 12px 21px 8px rgba(0, 0, 0, 0.06);
+
+    /* 主题系统扩展令牌（明亮模式覆盖） */
+    --md-primary-container: rgba(25, 118, 210, 0.10);
+    --md-primary-highlight: rgba(25, 118, 210, 0.18);
+    --md-on-primary-container: #D6E7F7;
+    --md-error-container: rgba(176, 0, 32, 0.08);
+    --md-error-container-border: rgba(176, 0, 32, 0.15);
+    --md-error-glow: rgba(176, 0, 32, 0.3);
+    --md-on-error-container: #B00020;
+    --md-success-container: rgba(46, 125, 50, 0.12);
+    --md-success-container-hover: rgba(46, 125, 50, 0.2);
+    --md-surface-hover: #ECECEC;
+    --md-surface-active: #E3E3E3;
+    --md-link: #1565C0;
+    --md-on-primary-muted: rgba(255, 255, 255, 0.85);
+    --md-on-primary-dim: rgba(255, 255, 255, 0.12);
+    --md-on-primary-translucent: rgba(255, 255, 255, 0.25);
+    --md-ripple-effect: rgba(0, 0, 0, 0.1);
+    --md-scrim: rgba(0, 0, 0, 0.2);
+    --md-scrim-mid: rgba(0, 0, 0, 0.4);
+    --md-scrim-high: rgba(0, 0, 0, 0.75);
+    /* 头像调色板与暗色一致（品牌色，无需覆盖）；强调描边自动跟随 --md-primary */
+}

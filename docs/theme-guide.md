@@ -1,0 +1,413 @@
+# CikaChat 自定义主题功能说明与扩展规范
+
+版本：1.2
+
+---
+
+## 1. 功能说明
+
+### 1.1 功能入口
+
+- 设置页 →「外观」→「主题」：打开主题选择对话框。
+- 主题对话框中可以：
+  - **选择主题**：点击任意主题卡片即实时预览整体视觉效果（无需刷新页面，全局 UI 同步生效）；
+  - **应用主题**：点击「应用」正式生效并持久化；
+  - **取消**：关闭对话框时自动回退到打开前的主题；
+  - **导入主题文件**：从本地选择 `.json` 主题文件（自动校验，成功后立即预览）；
+  - **下载主题模板**：下载一份标准主题文件样板，方便新建主题；
+  - **删除主题**：自定义主题卡片悬停后出现删除按钮（删除当前使用中的主题会自动回退到暗黑模式）。
+
+### 1.2 内置主题与自定义主题的关系
+
+| 项目 | 内置主题（暗黑 / 明亮） | 自定义主题 |
+| --- | --- | --- |
+| 来源 | 程序内置 | 用户从本地导入 |
+| 状态管理 | ThemeManager 内置定义 | 导入后存入 localStorage |
+| 明暗切换 | 可自由切换 | **自定义主题生效时，明暗切换/主题色同步失效**（设置页对应项置灰） |
+| 持久化 | 加密设置（本地） | 本地 localStorage（`cika_theme_store_v1`） |
+
+> 主题与字体均为**本地设置**，不写入服务端 `user_settings`（不同步到其他设备）。
+> 自定义主题以「暗色」或「亮色」为基础（主题文件中的 `base` 字段），只覆盖需要修改的变量，其余继承基础主题，因此任何自定义主题都不会出现颜色溢出或样式错乱。
+
+### 1.3 关键行为约定
+
+1. **实时切换**：切换/预览主题只更新 `<html>` 属性与一个内联 `<style>` 节点，不触发页面刷新。
+2. **重启恢复**：程序启动时（`theme.js` 加载阶段）自动从 localStorage 恢复上次使用的主题。
+3. **仅本地生效**：主题与字体选择只持久化到本机（主题：`cika_theme_store_v1` + 加密设置；字体：`cika_font_store_v1` + 加密设置），不同步到服务端。
+4. **主题色联动**：自定义主题生效期间，设置页「主题色」与明暗切换均标记为不可用；切回内置主题后恢复。
+5. **字体独立于主题**：设置页「字体」为应用级设置，通过 `--app-font-family` 层叠生效（见 §2.1），自定义主题文件无法覆盖用户选择的字体。
+
+---
+
+## 2. 架构设计
+
+主题功能由新增文件 `src/theme.js` 承载，采用模块化设计，职责分离：
+
+```
+src/theme.js（ThemeManager，全局单例）
+├── 主题配置 config
+│   ├── 内置主题定义（dark / light）
+│   ├── 主题文件校验规则（schema）
+│   └── 变量命名空间白名单（--md- / --font- / --space- / --radius- / --shadow-）
+├── 状态管理 state
+│   ├── activeThemeId：当前激活的主题
+│   └── themes[]：已导入的自定义主题列表
+├── 持久化 persist
+│   ├── loadState() / saveState()：localStorage 读写（cika_theme_store_v1）
+│   └── 启动自动恢复（init()）
+└── 样式注入 inject
+    ├── applyTheme()：写 <html data-theme> / <html data-custom-theme> + 内联 <style>
+    └── buildCss()：生成「仅覆盖增量变量」的 CSS 规则
+```
+
+调用关系：
+
+```
+other.js（设置页 UI / 对话框）
+storage.js（登录后 applyUserSettings 同步）
+chat.js / api.js / features.js（仅使用 CSS 变量，无需改动）
+        └──> ThemeManager.activate() / preview() / importTheme() / removeTheme()
+              └──> applyTheme() → DOM 属性 + <style> 注入 → saveState() → onChange 回调
+```
+
+**扩展新内置主题**：只需在 `theme.js` 的 `BUILTIN_THEMES` 中追加一项，并在 `src/css/tokens.css` 增加对应的 `[data-theme="xxx"]` 变量块。
+
+### 2.1 应用级字体（独立于主题系统）
+
+字体选择由 `src/fonts.js`（FontManager，全局单例）承载，与主题系统完全解耦：
+
+```
+src/fonts.js（FontManager，全局单例）
+├── 预设字体列表（系统默认 / Roboto / 微软雅黑 / 苹方 / Noto Sans SC / 等线 / 衬线体 / 等宽字体）
+├── 状态 state：activeFontId
+├── 持久化 persist：localStorage（cika_font_store_v1，仅本地，不同步服务端）
+└── 样式注入 inject：写 <html> 内联样式 --app-font-family
+        └── body { font-family: var(--app-font-family, var(--md-font-family)) }
+```
+
+- **生效方式**：FontManager 将选中的字体族写入 `<html>` 内联样式 `--app-font-family`；`body` 优先读取它，未选择时回退 `--md-font-family`（跟随主题/系统字体）。
+- **不向自定义主题开放**：`--app-*` 命名空间**不在**主题变量白名单（`--md-` / `--font-` / `--space-` / `--radius-` / `--shadow-`）内，因此主题文件即使声明字体类变量也无法覆盖用户选择的字体。主题文件中的 `--md-font-family` 仅在用户未选择字体（系统默认）时作为回退生效。
+- **持久化**：与主题一致，仅存本机（FontManager 自身 localStorage + 设置页加密存储中的 `fontId` 字段），不写入服务端。
+
+---
+
+## 3. 主题文件格式（Schema）
+
+主题文件为 UTF-8 编码的 JSON，扩展名 `.json`，最大 512KB，最多 128 个变量。
+
+```json
+{
+    "type": "#theme#",
+    "app": "com.cika.chatapp",
+    "version": 1,
+    "id": "my-theme",
+    "name": "我的主题",
+    "base": "dark",
+    "description": "可选，最多 120 字符",
+    "variables": {
+        "--md-primary": "#4A9EFF",
+        "--md-on-primary": "#FFFFFF",
+        "--md-background": "#121212"
+    }
+}
+```
+
+| 字段 | 必填 | 规则 |
+| --- | --- | --- |
+| `type` | 是 | 固定为 `#theme#` |
+| `app` | 否 | 应用标识，默认 `com.cika.chatapp` |
+| `version` | 否 | 主题 schema 版本，默认 1 |
+| `id` | 是 | 1~64 位，仅允许字母、数字、`_`、`-`；与已有主题冲突时自动追加 `-2`、`-3` 后缀 |
+| `name` | 是 | 1~40 字符，展示名 |
+| `base` | 是 | `dark` 或 `light`，指定继承的基础主题 |
+| `description` | 否 | 最多 120 字符 |
+| `variables` | 是 | 变量对象，键必须符合下方「变量白名单前缀」，值必须是字符串（≤256 字符） |
+
+校验失败的文件会被拒绝并给出明确错误提示。
+
+---
+
+## 4. 主题变量清单
+
+自定义主题只声明需要覆盖的变量（增量），未声明的自动继承 `base` 基础主题。所有变量均为 CSS 自定义属性，可直接用于任意组件样式。
+
+### 4.1 变量命名空间白名单
+
+| 前缀 | 用途 | 示例 |
+| --- | --- | --- |
+| `--md-*` | 颜色、表面、文字、圆角半径、阴影、字体、行高等 | `--md-primary` |
+| `--font-*` | 字体族与字号 | `--font-family`（实际用 `--md-font-family`） |
+| `--space-*` | 间距 | `--space-4` |
+| `--radius-*` | 圆角 | `--radius-md` |
+| `--shadow-*` | 阴影（预留，当前阴影走 `--md-elevation-*`） | `--shadow-md` |
+
+> 只要新增 CSS 变量遵循上述前缀，主题文件无需改动即可识别新变量，方便后续扩展。
+
+### 4.2 颜色类变量（暗色默认值 / 亮色默认值）
+
+| 变量 | 含义 | 暗色默认 | 亮色默认 |
+| --- | --- | --- | --- |
+| `--md-primary` | 主色 | `#4A9EFF` | `#1976D2` |
+| `--md-primary-variant` | 主色变体（按压/深色场景） | `#1565C0` | `#1565C0` |
+| `--md-primary-container` | 主色容器底（选中/悬停背景） | `rgba(74,158,255,0.12)` | `rgba(25,118,210,0.10)` |
+| `--md-primary-highlight` | 主色高亮（消息定位闪烁） | `rgba(74,158,255,0.25)` | `rgba(25,118,210,0.18)` |
+| `--md-on-primary` | 主色上的文字/图标 | `#FFFFFF` | `#FFFFFF` |
+| `--md-on-primary-container` | 容器上的文字 | `#E3F2FD` | `#D6E7F7` |
+| `--md-on-primary-muted` | 主色上弱化文字（语音时长等） | `rgba(255,255,255,0.7)` | `rgba(255,255,255,0.85)` |
+| `--md-on-primary-dim` | 主色上极弱背景（回复引用块） | `rgba(255,255,255,0.05)` | `rgba(255,255,255,0.12)` |
+| `--md-on-primary-translucent` | 主色上半透明层（语音条背景） | `rgba(255,255,255,0.15)` | `rgba(255,255,255,0.25)` |
+| `--md-secondary` | 辅助色 | `#03DAC6` | `#018786` |
+| `--md-background` | 页面背景 | `#121212` | `#FAFAFA` |
+| `--md-surface` | 表面（导航栏等） | `#1E1E1E` | `#FFFFFF` |
+| `--md-surface-1dp` | 表面（气泡等） | `#1E1E1E` | `#FFFFFF` |
+| `--md-surface-2dp` | 表面（输入区等） | `#232323` | `#F5F5F5` |
+| `--md-surface-3dp` | 表面（侧边栏选中项等） | `#252525` | `#F0F0F0` |
+| `--md-surface-4dp` | 表面（对话框等） | `#272727` | `#EEEEEE` |
+| `--md-surface-6dp` | 表面（输入栏/按压态等） | `#2C2C2C` | `#E8E8E8` |
+| `--md-surface-8dp` | 表面（提示条等） | `#2E2E2E` | `#E0E0E0` |
+| `--md-surface-12dp` | 表面（音效按钮深按压等） | `#313131` | `#D9D9D9` |
+| `--md-surface-16dp` | 表面（最深层级） | `#333333` | `#D6D6D6` |
+| `--md-surface-hover` | 悬停背景 | `#2A2A2A` | `#ECECEC` |
+| `--md-surface-active` | 按压背景 | `#303030` | `#E3E3E3` |
+| `--md-on-background` | 背景上的文字 | `#FFFFFF` | `#212121` |
+| `--md-on-surface` | 表面上的文字 | `#FFFFFF` | `#212121` |
+| `--md-on-surface-muted` | 表面弱化文字 | `rgba(255,255,255,0.60)` | `rgba(0,0,0,0.60)` |
+| `--md-on-surface-dim` | 表面次级文字 | `rgba(255,255,255,0.38)` | `rgba(0,0,0,0.38)` |
+| `--md-bubble-bg` | 对方消息气泡背景（组件级，见 §4.2.1） | `#232323` | `#F5F5F5` |
+| `--md-bubble-text` | 对方消息气泡文字（组件级，见 §4.2.1） | `#FFFFFF` | `#212121` |
+| `--md-outline` | 描边/分隔线 | `rgba(255,255,255,0.12)` | `rgba(0,0,0,0.12)` |
+| `--md-error` | 错误/危险色 | `#CF6679` | `#B00020` |
+| `--md-on-error` | 错误色上的文字（徽标、录音按钮、退出登录等） | `#FFFFFF` | `#FFFFFF` |
+| `--md-error-container` | 错误容器底 | `rgba(207,102,121,0.12)` | `rgba(176,0,32,0.08)` |
+| `--md-error-container-border` | 错误容器描边 | `rgba(207,102,121,0.2)` | `rgba(176,0,32,0.15)` |
+| `--md-error-glow` | 录音脉冲光晕 | `rgba(207,102,121,0.4)` | `rgba(176,0,32,0.3)` |
+| `--md-on-error-container` | 错误容器文字 | `#FFCDD2` | `#B00020` |
+| `--md-success` | 成功/在线色 | `#81C784` | `#2E7D32` |
+| `--md-success-container` | 成功容器底（在线徽标） | `rgba(129,199,132,0.12)` | `rgba(46,125,50,0.12)` |
+| `--md-success-container-hover` | 成功容器悬停 | `rgba(129,199,132,0.2)` | `rgba(46,125,50,0.2)` |
+| `--md-link` | 链接色 | `#64B5F6` | `#1565C0` |
+| `--md-ripple` | 涟漪/悬停过渡色 | `rgba(255,255,255,0.08)` | `rgba(0,0,0,0.08)` |
+| `--md-ripple-effect` | 涟漪动画色 | `rgba(255,255,255,0.2)` | `rgba(0,0,0,0.1)` |
+| `--md-scrim` | 轻遮罩（头像菜单等） | `rgba(0,0,0,0.3)` | `rgba(0,0,0,0.2)` |
+| `--md-scrim-mid` | 中遮罩（对话框等） | `rgba(0,0,0,0.5)` | `rgba(0,0,0,0.4)` |
+| `--md-scrim-high` | 重遮罩（图片预览等） | `rgba(0,0,0,0.9)` | `rgba(0,0,0,0.75)` |
+| `--md-avatar-text` | 头像文字 | `#FFFFFF` | `#FFFFFF` |
+
+### 4.2.1 组件级独立令牌（控件专属）
+
+组件级令牌用于将「每个大控件」的配色与其使用到的通用令牌解耦：**默认值是 `var()` 引用**，自动随明/暗主题（以及覆盖通用令牌的自定义主题）联动；主题文件也可直接覆盖任意组件令牌，只影响对应控件，不会「牵一发而动全身」。
+
+| 变量 | 控件 / 作用 | 默认值（引用通用令牌） |
+| --- | --- | --- |
+| **顶栏** | | |
+| `--md-appbar-bg` | 顶栏背景 | `var(--md-surface-4dp)` |
+| `--md-appbar-text` | 顶栏标题/图标 | `var(--md-on-surface)` |
+| `--md-appbar-text-muted` | 顶栏次级文字（在线状态等） | `var(--md-on-surface-dim)` |
+| **在线人数药丸** | | |
+| `--md-online-bg` | 药丸背景 | `var(--md-success-container)` |
+| `--md-online-bg-hover` | 药丸悬停背景 | `var(--md-success-container-hover)` |
+| `--md-online-text` | 在线人数文字 | `var(--md-success)` |
+| `--md-online-dot` | 在线绿点 | `var(--md-success)` |
+| **侧边栏聊天列表** | | |
+| `--md-sidebar-bg` | 侧边栏背景 | `var(--md-surface-1dp)` |
+| `--md-sidebar-text` | 列表昵称 | `var(--md-on-surface)` |
+| `--md-sidebar-text-muted` | 最后消息/时间/空态 | `var(--md-on-surface-dim)` |
+| `--md-sidebar-item-hover` | 私聊列表项悬停背景 | `var(--md-surface-2dp)` |
+| `--md-sidebar-item-bg` | 私聊列表项未选中背景 | `var(--md-sidebar-bg)` |
+| `--md-sidebar-item-active` | 私聊列表项选中背景（当前打开的会话） | `var(--md-surface-3dp)` |
+| `--md-sidebar-item-text` | 私聊列表项未选中文字 | `var(--md-sidebar-text)` |
+| `--md-sidebar-item-text-muted` | 私聊列表项未选中次文字（最后消息/时间） | `var(--md-sidebar-text-muted)` |
+| `--md-sidebar-item-text-active` | 私聊列表项悬停/选中文字 | `var(--md-on-surface)` |
+| `--md-sidebar-entry-bg` | 公会频道入口背景 | `var(--md-surface-2dp)` |
+| `--md-sidebar-entry-hover` | 公会频道入口悬停背景 | `var(--md-surface-4dp)` |
+| **聊天区** | | |
+| `--md-chat-bg` | 消息区背景 | `var(--md-background)` |
+| `--md-chat-sender` | 公聊对方昵称 | `var(--md-on-surface-muted)` |
+| `--md-chat-sender-dim` | 私聊昵称/已删除昵称 | `var(--md-on-surface-dim)` |
+| `--md-chat-sender-own` | 己方昵称 | `var(--md-primary)` |
+| `--md-chat-time` | 消息时间 | `var(--md-on-surface-dim)` |
+| **消息气泡** | | |
+| `--md-bubble-bg` | 对方气泡背景 | `var(--md-surface-2dp)` |
+| `--md-bubble-text` | 对方气泡文字 | `var(--md-on-surface)` |
+| `--md-bubble-own-bg` | 己方气泡背景 | `var(--md-primary)` |
+| `--md-bubble-own-text` | 己方气泡文字 | `var(--md-on-primary)` |
+| **输入栏** | | |
+| `--md-chatbar-bg` | 输入栏整体背景 | `var(--md-surface-4dp)` |
+| `--md-chatbar-input-bg` | 输入框背景（含回复预览条） | `var(--md-surface-1dp)` |
+| `--md-chatbar-input-bg-focus` | 输入框聚焦背景 | `var(--md-surface-2dp)` |
+| `--md-chatbar-text` | 输入文字 | `var(--md-on-surface)` |
+| `--md-chatbar-text-muted` | 占位符/辅助文字/禁用发送 | `var(--md-on-surface-dim)` |
+| `--md-chatbar-btn-bg` | 「+」按钮背景 | `var(--md-surface-2dp)` |
+| `--md-chatbar-btn-hover` | 「+」按钮悬停 | `var(--md-surface-4dp)` |
+| `--md-chatbar-btn-active` | 「+」按钮按压/发送禁用 | `var(--md-surface-6dp)` |
+| **功能面板（+ 面板）** | | |
+| `--md-panel-bg` | 面板背景 | `var(--md-surface-2dp)` |
+| `--md-panel-icon-bg` | 功能图标/音效按钮背景 | `var(--md-surface-4dp)` |
+| `--md-panel-icon-active` | 图标按压背景 | `var(--md-surface-6dp)` |
+| `--md-panel-icon-pressed` | 音效按钮深按压背景 | `var(--md-surface-12dp)` |
+| `--md-panel-text` | 图标/标签/返回/标题文字 | `var(--md-on-surface-muted)` |
+| `--md-panel-text-dim` | 面板提示文字 | `var(--md-on-surface-dim)` |
+| `--md-panel-text-strong` | 录音计时/停止按钮文字 | `var(--md-on-surface)` |
+| **菜单（长按/头像/用户菜单）** | | |
+| `--md-menu-bg` | 消息长按菜单背景 | `var(--md-surface-6dp)` |
+| `--md-menu-bg-card` | 用户菜单卡片背景 | `var(--md-surface-4dp)` |
+| `--md-menu-bg-sheet` | 头像底部菜单背景 | `var(--md-surface)` |
+| `--md-menu-text` | 菜单项文字 | `var(--md-on-surface)` |
+| `--md-menu-text-muted` | 用户菜单项文字 | `var(--md-on-surface-muted)` |
+| `--md-menu-text-dim` | 菜单取消按钮文字 | `var(--md-on-surface-dim)` |
+| `--md-menu-hover` | 菜单项悬停/按压背景 | `var(--md-ripple)` |
+| `--md-menu-item-active` | 用户菜单项按压背景 | `var(--md-surface-8dp)` |
+| `--md-menu-item-bg` | 用户菜单项（主页/聊天菜单按钮）未选中背景 | `transparent` |
+| `--md-menu-item-hover` | 用户菜单项悬停背景 | `var(--md-menu-hover)` |
+| **对话框** | | |
+| `--md-dialog-bg` | 对话框背景 | `var(--md-surface-4dp)` |
+| `--md-dialog-text` | 标题/主文字 | `var(--md-on-surface)` |
+| `--md-dialog-text-muted` | 说明文字 | `var(--md-on-surface-muted)` |
+| `--md-dialog-text-dim` | 次级标签/徽标文字 | `var(--md-on-surface-dim)` |
+| `--md-dialog-border` | 列表/操作按钮分隔线 | `var(--md-outline)` |
+| `--md-dialog-btn-bg` | 小圆按钮背景（音效预览等） | `var(--md-surface-4dp)` |
+| `--md-dialog-btn-hover` | 操作按钮悬停背景 | `var(--md-ripple)` |
+| `--md-dialog-btn-active` | 操作按钮按压背景 | `var(--md-surface-6dp)` |
+| **提示条** | | |
+| `--md-snackbar-bg` | 提示条背景 | `var(--md-surface-8dp)` |
+| `--md-snackbar-text` | 提示条文字 | `var(--md-on-surface)` |
+| **设置页** | | |
+| `--md-settings-bg` | 设置项背景 | `var(--md-surface-2dp)` |
+| `--md-settings-hover` | 设置项悬停背景 | `var(--md-surface-4dp)` |
+| `--md-settings-active` | 设置项按压背景 | `var(--md-surface-6dp)` |
+| `--md-settings-icon-bg` | 设置项图标圆底 | `var(--md-surface-4dp)` |
+| `--md-settings-text` | 设置项标签 | `var(--md-on-surface)` |
+| `--md-settings-text-muted` | 设置项图标 | `var(--md-on-surface-muted)` |
+| `--md-settings-text-dim` | 分区标题/箭头/当前值 | `var(--md-on-surface-dim)` |
+| **聊天辅助信息** | | |
+| `--md-hint-bg` | 系统消息背景 | `var(--md-surface-1dp)` |
+| `--md-hint-bg-alt` | 日期分隔背景 | `var(--md-surface-2dp)` |
+| `--md-hint-text` | 系统消息/日期文字 | `var(--md-on-surface-dim)` |
+| **语音消息条** | | |
+| `--md-voice-bg` | 对方语音条背景 | `var(--md-surface-4dp)` |
+| `--md-voice-bg-own` | 己方语音条背景 | `var(--md-on-primary-translucent)` |
+| `--md-voice-text` | 语音时长文字 | `var(--md-on-surface-muted)` |
+| **搜索页** | | |
+| `--md-search-bg` | 搜索框区域背景 | `var(--md-surface-1dp)` |
+| `--md-search-input-bg` | 搜索输入框背景 | `var(--md-surface-2dp)` |
+| `--md-search-input-focus-border` | 输入框聚焦边框 | `var(--md-primary)` |
+| `--md-search-text` | 搜索结果昵称 | `var(--md-on-surface)` |
+| `--md-search-text-dim` | 状态/空态/占位符 | `var(--md-on-surface-dim)` |
+| `--md-search-item-hover` | 结果项悬停背景 | `var(--md-surface-2dp)` |
+| **描边属性** | | |
+| `--md-outline-width` | 全局描边宽度（分隔线/边框），默认 `1px` | `1px` |
+| `--md-outline-style` | 全局描边线型（`solid`/`dashed` 等），默认 `solid` | `solid` |
+| `--md-outline-dashed` | 虚线场景使用的线型，默认 `dashed` | `dashed` |
+| `--md-sidebar-border` | 侧边栏描边颜色（右分隔线、公会入口、私聊列表） | `var(--md-outline)` |
+| `--md-menu-border` | 菜单描边颜色（用户卡片/头像菜单分隔线） | `var(--md-outline)` |
+| `--md-search-border` | 搜索页描边颜色（搜索框区域/输入框/结果项） | `var(--md-outline)` |
+| `--md-settings-border` | 设置页描边颜色（设置项分隔线） | `var(--md-outline)` |
+| `--md-field-border` | 表单输入框描边颜色（登录/对话框输入、下拉框） | `var(--md-outline)` |
+| `--md-dialog-border` | 对话框描边颜色（见「对话框」分组） | `var(--md-outline)` |
+| **头像调色板** | | |
+| `--md-avatar-0` ~ `--md-avatar-7` | 头像背景色板（8 色，`.av-0` ~ `.av-7` 引用，可整体更换配色） | `#4A9EFF` / `#BA68C8` / `#4DB6AC` / `#4FC3F7` / `#FF8A65` / `#A1887F` / `#90A4AE` / `#F06292` |
+| **强调描边（主色）** | | |
+| `--md-focus-border` | 聚焦描边（输入框/下拉框聚焦态，复合简写可整体覆盖） | `2px solid var(--md-primary)` |
+| `--md-accent-border` | 强调左边框（回复引用块 / AI 翻译块） | `3px solid var(--md-primary)` |
+
+> 宽度与线型统一由 `--md-outline-width` / `--md-outline-style` / `--md-outline-dashed` 控制；**描边颜色**默认引用 `--md-outline`，但可按控件独立覆盖（上述 `--md-*-border`），避免「牵一发而动全身」。聚焦 / 回复引用等**主色强调描边**统一由 `--md-focus-border` / `--md-accent-border` 控制，主题文件可直接整体覆盖这两个复合变量。
+> 主题文件示例：`"--md-outline-width": "2px"`、`"--md-outline-style": "dashed"`、`"--md-sidebar-border": "#FFDF00"`、`"--md-accent-border": "3px solid #CAF903"`。
+
+### 4.3 阴影类变量
+
+| 变量 | 含义 |
+| --- | --- |
+| `--md-elevation-1` / `--md-elevation-2` / `--md-elevation-4` / `--md-elevation-8` | Material 风格阴影，覆盖卡片、菜单、对话框等 |
+
+### 4.4 字体类变量
+
+| 变量 | 默认值 |
+| --- | --- |
+| `--md-font-family` | `'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` |
+| `--md-font-size-xs` / `-sm` / `-base` / `-md` / `-lg` / `-xl` / `-xxl` | `0.6875rem` / `0.75rem` / `0.875rem` / `0.9375rem` / `1rem` / `1.25rem` / `1.5rem` |
+| `--md-font-weight-normal` / `-medium` / `-bold` | `400` / `500` / `700` |
+| `--md-line-height-base` | `1.43` |
+
+### 4.5 间距类变量
+
+`--space-1`(4px) `--space-2`(8px) `--space-3`(12px) `--space-4`(16px) `--space-5`(20px) `--space-6`(24px) `--space-8`(32px) `--space-10`(40px) `--space-12`(48px)
+
+### 4.6 圆角类变量
+
+`--radius-sm`(4px) `--radius-md`(8px) `--radius-lg`(16px)
+
+---
+
+## 5. 主题扩展开发规范
+
+### 5.1 新增自定义主题（最终用户）
+
+1. 设置页 →「外观」→「主题」→「下载主题模板」，或直接复制 `themes/sample.theme.json`；
+2. 修改 `id`、`name`、`base`，并按需添加/修改 `variables` 中的变量；
+3. 保存为 `.json` 文件，在「主题」对话框中点击「导入主题文件」导入。
+
+### 5.2 新增内置主题（开发者）
+
+1. 在 `src/theme.js` 的 `BUILTIN_THEMES` 数组追加一项 `{ id, name, base, builtin: true, description }`；
+2. 在 `src/css/tokens.css` 增加对应的 `[data-theme="{id}"] { ... }` 变量块（可复制暗色/亮色块修改）；
+3. 若需要默认预览色，在 `BUILTIN_PREVIEW` 中追加 `{ background, surface, primary, onSurface }`。
+
+### 5.3 新增 CSS 变量（开发者）
+
+1. 变量名遵循白名单前缀：`--md-`、`--font-`、`--space-`、`--radius-`、`--shadow-`；
+2. **通用令牌**（如 `--md-primary`）：在 `:root`（暗色）与 `[data-theme="light"]`（亮色）两处同步定义默认值；
+3. **组件级令牌**（如 `--md-appbar-bg`，见 §4.2.1）：只需在 `:root` 定义一次，默认值写作 `var(--通用令牌)` 的引用，自动随明/暗主题联动；
+4. **属性令牌**（如 `--md-outline-width`、`--md-outline-style`，默认值不随明暗变化）：只需在 `:root` 定义一次，值写作字面量；
+5. 在 `docs/theme-guide.md` 变量清单中登记默认值；
+6. 自定义主题文件无需修改即可识别新变量（白名单校验通过）。
+7. 组件样式中**禁止**直接书写边框宽度/线型字面量（如 `1px solid`），一律引用 `--md-outline-width` + `--md-outline-style`（虚线场景用 `--md-outline-dashed`）；仅颜色使用控件专属色。
+
+### 5.4 组件样式改造约定
+
+- **禁止**在组件样式中硬编码颜色，一律引用 `--md-*` 变量；
+- 每个大控件（顶栏、侧边栏、输入栏、菜单、对话框等）的样式只使用其**专属组件令牌**（见 §4.2.1），避免直接引用通用表面/文字令牌造成「牵一发而动全身」；
+- 新增控件样式时，若现有组件令牌无法表达，先按 §5.3 新增组件级令牌，再在样式规则中引用；
+- 需要主题可调的尺寸/间距/阴影，一律引用 `--space-*`、`--radius-*`、`--md-elevation-*`；
+- 头像底色 `av-0`~`av-7` 为品牌固定色板，不参与主题化（文字色使用 `--md-avatar-text`）。
+
+### 5.5 校验规则摘要
+
+| 规则 | 限制 |
+| --- | --- |
+| 自定义主题数量 | 最多 64 个 |
+| 变量数量 | 最多 128 个 |
+| 变量值长度 | ≤ 256 字符 |
+| 文件大小 | ≤ 512KB |
+| id | 字母/数字/`_`/`-`，≤ 64 位 |
+| 变量键 | 必须命中白名单前缀，否则拒绝导入 |
+
+---
+
+## 6. 测试与兼容性
+
+### 6.1 自动化单元测试
+
+- `tests/theme.test.cjs`：Node 环境可执行（`node tests/theme.test.cjs`），覆盖主题状态管理与样式加载逻辑；
+- `tests/theme-tests.html`：浏览器直接打开即可运行同一套断言，实时显示通过/失败结果（Chrome / Edge / Firefox / Safari 通用）。
+
+覆盖点：
+1. 内置主题激活与 `data-theme` 属性写入；
+2. 自定义主题导入校验（合法/非法/内置 id 冲突/变量白名单）；
+3. 自定义主题激活后的样式注入内容（选择器、变量写入）；
+4. 自定义主题生效时内置切换失效标志（`isCustomThemeActive`）；
+5. 预览不持久化、应用后持久化、重启自动恢复；
+6. 删除主题及其回退逻辑；
+7. id 冲突自动加后缀、主题样板生成与可导入性。
+
+### 6.2 跨设备 / 跨浏览器兼容性
+
+- **浏览器**：Chrome ≥ 76、Edge ≥ 79、Firefox ≥ 71、Safari ≥ 13（CSS 自定义属性与 `Promise` 均支持）；
+- **桌面端**：Windows / macOS 原生 WebView；
+- **移动端**：iOS / Android WebView（含低版本 Android WebView，theme.js 采用 ES5 语法编写）；
+- **建议人工回归项**：登录页、聊天页（明/暗气泡、语音条、回复引用）、设置页、弹窗/菜单、图片预览、头像菜单、隐私横幅、录音按钮、在线状态徽标 —— 逐一切换内置与自定义主题检查无颜色溢出、无错位。
+
+### 6.3 性能说明
+
+- 主题切换只更新 1 个 `<style>` 节点文本与 2 个 `<html>` 属性，无 DOM 重建、无页面刷新；
+- 主题数据仅导入时写入 localStorage，运行期不产生额外读写；
+- 主题系统不引入任何第三方依赖，对既有功能运行性能无影响。

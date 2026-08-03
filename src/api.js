@@ -707,7 +707,7 @@
             hideAuthBannerDynamic();
             var overlay = document.createElement('div');
             overlay.id = 'dynAuthBanner';
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;animation:fade-in 0.2s ease;';
+            overlay.style.cssText = 'position:fixed;inset:0;background:var(--md-scrim-mid);display:flex;align-items:center;justify-content:center;z-index:99999;animation:fade-in 0.2s ease;';
             var dialog = document.createElement('div');
             dialog.style.cssText = 'background:var(--md-surface, #1c1c1e);border-radius:16px;padding:24px;max-width:380px;width:86vw;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.4);';
             var titleEl = document.createElement('h2');
@@ -1665,7 +1665,7 @@
                     if (userAvatarCache[agent.name]) {
                         avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(userAvatarCache[agent.name])) + ');';
                     }
-                    var activeStyle = isActive ? 'border-color:var(--md-primary);background:rgba(74,158,255,0.05);' : '';
+                    var activeStyle = isActive ? 'border-color:var(--md-primary);background:var(--md-primary-container);' : '';
                     var useBtnStyle = 'background:' + (isActive ? 'var(--md-primary)' : 'transparent') + ';color:' + (isActive ? '#fff' : 'var(--md-primary)') + ';border:1px solid var(--md-primary);border-radius:8px;padding:6px 16px;font-size:0.75rem;font-weight:500;cursor:pointer;';
                     return '<div class="agent-item" style="' + activeStyle + '">' +
                                 '<div class="avatar av-' + avatarIdx + '" style="' + avatarStyle + '">' + (userAvatarCache[agent.name] ? '' : escapeHtml(agent.name.charAt(0).toUpperCase())) + '</div>' +

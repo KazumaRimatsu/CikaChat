@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CikaChat 主题系统单元测试（浏览器版）</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 24px; background: #121212; color: #fff; }
+        h1 { font-size: 20px; }
+        #summary { margin: 16px 0; padding: 12px 16px; border-radius: 8px; font-weight: 600; }
+        #summary.pass { background: rgba(76, 175, 80, 0.2); color: #81C784; }
+        #summary.fail { background: rgba(207, 102, 121, 0.2); color: #CF6679; }
+        #results { list-style: none; padding: 0; }
+        #results li { padding: 6px 10px; border-radius: 6px; margin: 4px 0; font-size: 14px; }
+        #results li.pass { background: rgba(76, 175, 80, 0.1); }
+        #results li.fail { background: rgba(207, 102, 121, 0.12); }
+        /* 测试页独立运行，不加载 app.css，此处提供断言所需的最小暗色令牌 */
+        :root {
+            --md-primary: #4A9EFF;
+            --md-primary-variant: #1565C0;
+            --md-background: #121212;
+            --md-surface: #1E1E1E;
+            --md-on-surface: #FFFFFF;
+        }
+    </style>
+</head>
+<body>
+    <h1>CikaChat 主题系统单元测试（浏览器版）</h1>
+    <div id="summary">运行中…</div>
+    <ul id="results"></ul>
+
+    <script src="../src/theme.js"></script>
+    <script>
+    (function () {
+        var passed = 0, failed = 0;
+        var resultsEl = document.getElementById('results');
+        var summaryEl = document.getElementById('summary');
+
+        // 隔离本地存储，避免影响真实使用数据
+        localStorage.removeItem(ThemeManager.STORAGE_KEY);
+
+        function test(name, fn) {
+            try {
+                fn();
+                passed++;
+                var li = document.createElement('li');
+                li.className = 'pass';
+                li.textContent = 'PASS  ' + name;
+                resultsEl.appendChild(li);
+            } catch (e) {
+                failed++;
+                var li2 = document.createElement('li');
+                li2.className = 'fail';
+                li2.textContent = 'FAIL  ' + name + ' -> ' + e.message;
+                resultsEl.appendChild(li2);
+            }
+        }
+        function assert(cond, msg) { if (!cond) throw new Error(msg); }
+        function assertEq(a, b, msg) { if (a !== b) throw new Error(msg + '（实际=' + JSON.stringify(a) + '，期望=' + JSON.stringify(b) + '）'); }
+        function root() { return document.documentElement; }
+        function injectedStyle() {
+            var el = document.getElementById('cika-custom-theme-style');
+            return el && el.tagName === 'STYLE' ? el : null;
+        }
+        function sample(id, name) {
+            return {
+                type: '#theme#', app: 'com.cika.chatapp', version: 1,
+                id: id, name: name, base: 'dark', description: '测试主题',
+                variables: { '--md-primary': '#00BCD4', '--md-background': '#0B1B2A' }
+            };
+        }
+        function reset() {
+            root().removeAttribute('data-theme');
+            root().removeAttribute('data-custom-theme');
+            localStorage.removeItem(ThemeManager.STORAGE_KEY);
+        }
+
+        /* ============ 状态管理 ============ */
+        test('内置主题激活写入 data-theme', function () {
+            reset();
+            ThemeManager.activate('dark');
+            assertEq(root().getAttribute('data-theme'), 'dark', 'data-theme');
+            assert(!root().hasAttribute('data-custom-theme'), '无自定义标记');
+            ThemeManager.activate('light');
+            assertEq(root().getAttribute('data-theme'), 'light', '切换 light');
+            assert(!ThemeManager.isCustomThemeActive(), '内置非自定义');
+        });
+
+        test('list() 返回内置主题与预览色', function () {
+            reset();
+            var list = ThemeManager.list();
+            assertEq(list.length, 2, '默认仅内置主题');
+            assert(list[0].preview && list[0].preview.primary, '带预览色');
+        });
+
+        test('合法主题导入成功 / 非法主题被拒绝', function () {
+            reset();
+            assert(ThemeManager.importTheme(sample('ocean', '海洋')).ok, '合法导入');
+            assert(!ThemeManager.importTheme({}).ok, '空对象拒绝');
+            assert(!ThemeManager.importTheme({ type: '#theme#', id: 'x', name: 'x', base: 'dark', variables: { color: '#fff' } }).ok, '非法变量拒绝');
+            assert(!ThemeManager.importTheme({ type: '#theme#', id: 'dark', name: 'x', base: 'dark', variables: { '--md-primary': '#fff' } }).ok, '内置 id 冲突拒绝');
+        });
+
+        test('id 冲突自动追加后缀', function () {
+            reset();
+            ThemeManager.importTheme(sample('dupe', 'A'));
+            var r = ThemeManager.importTheme(sample('dupe', 'B'));
+            assertEq(r.theme.id, 'dupe-2', '追加后缀');
+        });
+
+        /* ============ 样式加载 ============ */
+        test('自定义主题激活后注入样式与属性', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('ocean');
+            assertEq(root().getAttribute('data-theme'), 'dark', 'base=dark');
+            assertEq(root().getAttribute('data-custom-theme'), 'ocean', '自定义标记');
+            assert(ThemeManager.isCustomThemeActive(), 'isCustomThemeActive');
+            var style = injectedStyle();
+            assert(style, '<style> 已注入');
+            assert(style.textContent.indexOf('html[data-custom-theme]') === 0, '选择器正确');
+            assert(style.textContent.indexOf('--md-primary: #00BCD4;') >= 0, '主色变量写入');
+        });
+
+        test('内置主题激活时清空注入样式', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('ocean');
+            ThemeManager.activate('light');
+            assert(!root().hasAttribute('data-custom-theme'), '清除标记');
+            var style = injectedStyle();
+            assert(style && style.textContent === '', '注入样式清空');
+        });
+
+        test('自定义主题实时切换无需刷新（CSS 变量生效）', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('ocean');
+            var v = getComputedStyle(document.documentElement).getPropertyValue('--md-primary').trim();
+            assertEq(v, '#00BCD4', '页面实际读取到主题主色');
+            ThemeManager.activate('dark');
+            var v2 = getComputedStyle(document.documentElement).getPropertyValue('--md-primary').trim();
+            assertEq(v2, '#4A9EFF', '切回内置后恢复默认主色');
+        });
+
+        /* ============ 持久化 ============ */
+        test('预览不持久化，应用后持久化', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('dark');
+            var before = localStorage.getItem(ThemeManager.STORAGE_KEY);
+            ThemeManager.preview('ocean');
+            assertEq(localStorage.getItem(ThemeManager.STORAGE_KEY), before, '预览不写存储');
+            ThemeManager.activate('ocean');
+            var saved = JSON.parse(localStorage.getItem(ThemeManager.STORAGE_KEY));
+            assertEq(saved.activeThemeId, 'ocean', '应用后持久化');
+        });
+
+        test('重启后自动恢复上次主题', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('ocean');
+            root().removeAttribute('data-theme');
+            root().removeAttribute('data-custom-theme');
+            ThemeManager.init();
+            assertEq(root().getAttribute('data-custom-theme'), 'ocean', '重启恢复自定义主题');
+        });
+
+        /* ============ 删除与回退 ============ */
+        test('删除当前使用的主题自动回退暗黑', function () {
+            reset();
+            ThemeManager.importTheme(sample('ocean', '海洋'));
+            ThemeManager.activate('ocean');
+            ThemeManager.removeTheme('ocean');
+            assertEq(root().getAttribute('data-theme'), 'dark', '回退暗黑');
+            assert(!root().hasAttribute('data-custom-theme'), '无自定义标记');
+        });
+
+        test('onChange 回调在正式生效时触发', function () {
+            reset();
+            var fired = 0;
+            ThemeManager.onChange = function () { fired++; };
+            ThemeManager.activate('light');
+            assertEq(fired, 1, 'activate 触发');
+            ThemeManager.preview('dark');
+            assertEq(fired, 1, '预览不触发');
+            ThemeManager.onChange = null;
+        });
+
+        /* ============ 样板 ============ */
+        test('主题样板可生成且可导入', function () {
+            reset();
+            var s = ThemeManager.buildThemeFileSample();
+            assert(s.type === '#theme#' && s.variables['--md-primary'], '样板完整');
+            assert(ThemeManager.importTheme(s).ok, '样板可导入');
+        });
+
+        summaryEl.textContent = '通过 ' + passed + ' 项，失败 ' + failed + ' 项';
+        summaryEl.className = failed > 0 ? 'fail' : 'pass';
+    })();
+    </script>
+</body>
+</html>

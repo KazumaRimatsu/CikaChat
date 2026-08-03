@@ -1,0 +1,739 @@
+/* ==========================================================================
+   dialog.css —— 对话框与模态弹窗
+   --------------------------------------------------------------------------
+   职责：通用对话框骨架 + 各业务弹窗（开源许可/在线列表/黑名单/智能体/
+   主题选择/提示音设置）。
+   z-index 分层：普通弹窗遮罩 100；全局确认弹窗 #confirmDialog 600（置于
+   其他弹窗之上，避免被后打开的对话框覆盖）。
+   ========================================================================== */
+
+/* --- 弹窗遮罩 --- */
+.dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-scrim-mid);
+    animation: fade-in 0.2s ease;
+}
+
+.dialog-overlay.hidden {
+    display: none;
+}
+
+/* 全局确认弹窗置于所有弹窗之上，避免被后打开的对话框（如主题选择）覆盖 */
+#confirmDialog {
+    z-index: 600;
+}
+
+/* --- 通用对话框骨架 --- */
+.md-dialog {
+    width: calc(100% - 32px);
+    max-width: 360px;
+    max-height: 80vh;
+    padding: 24px;
+    overflow-y: auto;
+    border-radius: var(--radius-md);
+    background: var(--md-dialog-bg);
+    color: var(--md-dialog-text);
+    box-shadow: var(--md-elevation-8);
+    animation: dialog-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dialog-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.md-dialog h2 {
+    margin-bottom: 12px;
+    font-size: 1.125rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-dialog-text);
+}
+
+.md-dialog p {
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--md-dialog-text-muted);
+}
+
+.md-dialog .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* 底部操作按钮组（列表式菜单） */
+.md-dialog .action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.md-dialog .action-buttons .md-button {
+    padding: 14px 16px;
+    border: none;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    text-align: left;
+    color: var(--md-dialog-text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.md-dialog .action-buttons .md-button:hover {
+    background: var(--md-dialog-btn-hover);
+}
+
+.md-dialog .action-buttons .md-button:active {
+    background: var(--md-dialog-btn-active);
+    transform: scale(0.98);
+}
+
+.md-dialog .action-buttons .md-button.primary {
+    color: var(--md-primary);
+}
+
+.md-dialog .action-buttons .md-button.danger {
+    color: var(--md-error);
+}
+
+.md-dialog .action-buttons .md-button.outline {
+    color: var(--md-dialog-text);
+}
+
+.md-dialog .action-buttons .md-button.outline:hover {
+    background: var(--md-dialog-btn-hover);
+}
+
+/* 个人资料弹窗 */
+.md-dialog .profile-avatar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+    cursor: pointer;
+}
+
+.md-dialog .profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.md-dialog .profile-info .item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    font-size: 0.875rem;
+}
+
+.md-dialog .profile-info .item .label {
+    color: var(--md-dialog-text-dim);
+}
+
+.md-dialog .profile-info .item .value {
+    color: var(--md-dialog-text);
+}
+
+/* --- 开源许可弹窗 --- */
+.opensource-modal .md-dialog {
+    max-width: 480px;
+}
+
+.opensource-modal .opensource-section {
+    margin-bottom: 16px;
+}
+
+.opensource-modal .opensource-section-title {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--md-dialog-text);
+}
+
+.opensource-modal .opensource-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.opensource-modal .opensource-list li {
+    margin-bottom: 6px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--md-dialog-text-muted);
+}
+
+.opensource-modal .opensource-list a {
+    color: var(--md-primary);
+    text-decoration: none;
+}
+
+.opensource-modal .opensource-list a:hover {
+    text-decoration: underline;
+}
+
+.opensource-modal .opensource-license {
+    margin-bottom: 12px;
+    font-size: 0.75rem;
+    color: var(--md-dialog-text-dim);
+}
+
+/* --- 在线列表弹窗 --- */
+.online-list-modal .online-list {
+    flex: 1;
+    margin-top: 12px;
+    overflow-y: auto;
+}
+
+.online-list-modal .online-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    cursor: pointer;
+}
+
+.online-list-modal .online-item .av {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-weight: 700;
+    color: var(--md-avatar-text);
+}
+
+.online-list-modal .online-item .name {
+    flex: 1;
+    font-size: 0.875rem;
+    color: var(--md-dialog-text);
+}
+
+.online-list-modal .online-item .me-tag {
+    font-size: 0.75rem;
+    color: var(--md-dialog-text-dim);
+}
+
+/* --- 黑名单弹窗 --- */
+.blocklist-modal .blocklist-container {
+    flex: 1;
+    max-height: 50vh;
+    margin-top: 12px;
+    overflow-y: auto;
+}
+
+.blocklist-modal .block-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+}
+
+.blocklist-modal .block-item .name {
+    font-size: 0.875rem;
+    color: var(--md-dialog-text);
+}
+
+.blocklist-modal .block-item .unblock-btn {
+    padding: 6px 16px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-primary);
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.75rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-primary);
+    cursor: pointer;
+}
+
+.blocklist-modal .block-item .unblock-btn:hover {
+    background: var(--md-ripple);
+}
+
+/* --- 智能体列表 / 配置弹窗 --- */
+.agent-list-modal .md-dialog {
+    display: flex;
+    flex-direction: column;
+    max-width: 360px;
+    max-height: 80vh;
+}
+
+.agent-list-modal .agent-list {
+    flex: 1;
+    margin-top: 12px;
+    overflow-y: auto;
+}
+
+.agent-list-modal .agent-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    transition: background 0.2s;
+}
+
+.agent-list-modal .agent-item .avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-size: 1rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-avatar-text);
+}
+
+.agent-list-modal .agent-item .info {
+    flex: 1;
+    min-width: 0;
+}
+
+.agent-list-modal .agent-item .info .name {
+    font-size: 0.9375rem;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+}
+
+.agent-list-modal .agent-item .info .provider {
+    font-size: 0.75rem;
+    color: var(--md-dialog-text-dim);
+}
+
+.agent-list-modal .agent-item .info .creator {
+    font-size: 0.6875rem;
+    color: var(--md-dialog-text-dim);
+}
+
+.agent-list-modal .agent-item .delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--md-error);
+    cursor: pointer;
+}
+
+.agent-list-modal .agent-item .delete-btn:hover {
+    background: var(--md-ripple);
+}
+
+.agent-list-modal .agent-item .delete-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.agent-list-modal .add-agent-btn {
+    margin-top: 16px;
+    padding: 10px;
+    border: var(--md-outline-width) var(--md-outline-dashed) var(--md-dialog-border);
+    border-radius: var(--radius-md);
+    text-align: center;
+    color: var(--md-primary);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.agent-list-modal .add-agent-btn:hover {
+    background: var(--md-ripple);
+}
+
+.agent-form .md-text-field {
+    margin-bottom: 12px;
+}
+
+.agent-form .md-text-field:has(select),
+.ai-form .md-text-field:has(select) {
+    position: relative;
+}
+
+/* 自定义下拉箭头 */
+.agent-form .md-text-field:has(select)::after,
+.ai-form .md-text-field:has(select)::after {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    width: 0;
+    height: 0;
+    border-top: 6px solid var(--md-on-surface-dim);
+    border-right: 5px solid transparent;
+    border-left: 5px solid transparent;
+    content: '';
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: border-top-color 0.2s;
+}
+
+.agent-form .md-text-field:has(select):focus-within::after,
+.ai-form .md-text-field:has(select):focus-within::after {
+    border-top-color: var(--md-primary);
+}
+
+.agent-form select,
+.ai-form select {
+    width: 100%;
+    height: 56px;
+    padding: 0 40px 0 16px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-field-border);
+    border-radius: var(--radius-md);
+    outline: none;
+    background: var(--md-surface-1dp);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    color: var(--md-on-surface);
+    cursor: pointer;
+    /* 隐藏系统默认箭头（WebView 兼容） */
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.agent-form select:hover,
+.ai-form select:hover {
+    border-color: var(--md-on-surface-dim);
+}
+
+.agent-form select:focus,
+.ai-form select:focus {
+    padding: 0 39px 0 15px;
+    border: var(--md-focus-border);
+    background: var(--md-surface-2dp);
+}
+
+.agent-form select option,
+.ai-form select option {
+    padding: 10px 16px;
+    background: var(--md-surface-3dp);
+    color: var(--md-on-surface);
+}
+
+.agent-form select option:hover,
+.agent-form select option:checked,
+.ai-form select option:hover,
+.ai-form select option:checked {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+}
+
+/* --- 提示音设置弹窗 --- */
+.notify-sound-list {
+    margin: 16px 0;
+}
+
+.notify-sound-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.notify-sound-item:first-of-type {
+    border-top: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+}
+
+.notify-sound-item:hover {
+    background: var(--md-dialog-btn-hover);
+}
+
+.notify-sound-item:active {
+    background: var(--md-dialog-btn-active);
+}
+
+.notify-sound-item .notify-sound-name {
+    flex: 1;
+    font-size: 0.9375rem;
+    color: var(--md-dialog-text);
+}
+
+.notify-sound-item .notify-preview-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-right: 8px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-dialog-btn-bg);
+    color: var(--md-dialog-text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.notify-sound-item .notify-preview-btn:hover {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+}
+
+.notify-sound-item .notify-preview-btn:active {
+    transform: scale(0.92);
+}
+
+.notify-sound-item .notify-preview-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.notify-sound-item .notify-sound-check {
+    display: none;
+    width: 20px;
+    height: 20px;
+    fill: var(--md-primary);
+}
+
+.notify-sound-item.selected .notify-sound-check {
+    display: block;
+}
+
+/* 设置项右侧的值文本（通用，供弹窗内复用的设置行） */
+.settings-item .settings-item-value {
+    margin-right: 8px;
+    font-size: 0.875rem;
+    color: var(--md-settings-text-dim);
+}
+
+/* --- 主题选择对话框 --- */
+.theme-modal .theme-dialog {
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 32px);
+    max-width: 400px;
+    max-height: 82vh;
+}
+
+.theme-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.theme-dialog-close {
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--md-on-surface);
+    cursor: pointer;
+}
+
+.theme-tip {
+    margin: 8px 0 4px;
+    font-size: var(--md-font-size-sm);
+    color: var(--md-on-surface-dim);
+}
+
+.theme-list {
+    flex: 1;
+    margin: 12px 0 4px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 主题卡片：默认 1px 透明描边，选中态描边变主色（宽度/线型走全局描边令牌） */
+.theme-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: var(--md-outline-width) var(--md-outline-style) transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.theme-card:hover {
+    background: var(--md-surface-hover);
+}
+
+.theme-card.selected {
+    border-color: var(--md-primary);
+    background: var(--md-primary-container);
+}
+
+.theme-card .theme-swatch {
+    display: flex;
+    flex-shrink: 0;
+    width: 48px;
+    height: 34px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.theme-card .theme-swatch .swatch-cell {
+    flex: 1;
+    height: 100%;
+}
+
+/* 预览色块（other.js 注入 --sw-* 临时变量） */
+.theme-card .theme-swatch .swatch-cell.bg {
+    background: var(--sw-bg);
+}
+
+.theme-card .theme-swatch .swatch-cell.surface {
+    background: var(--sw-surface);
+}
+
+.theme-card .theme-swatch .swatch-cell.primary {
+    background: var(--sw-primary);
+}
+
+.theme-card .theme-swatch .swatch-cell.on-surface {
+    background: var(--sw-on-surface);
+}
+
+/* 字体卡片预览块（其他.js 按字体族内联设置 font-family） */
+.font-card .font-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 34px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    color: var(--md-dialog-text);
+}
+
+/* 字号卡片预览块（按缩放比例内联设置 font-size） */
+.size-card .size-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 34px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    border-radius: var(--radius-sm);
+    color: var(--md-dialog-text);
+}
+
+/* 字重卡片预览块（按字重内联设置 font-weight） */
+.weight-card .weight-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 34px;
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    color: var(--md-dialog-text);
+}
+
+.theme-card .theme-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.theme-card .theme-card-name {
+    font-size: var(--md-font-size-md);
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
+    color: var(--md-on-surface);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.theme-card .theme-card-base {
+    margin-top: 2px;
+    font-size: var(--md-font-size-xs);
+    color: var(--md-on-surface-dim);
+}
+
+/* 删除按钮：悬停/选中卡片时显示 */
+.theme-card .theme-card-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--md-on-surface-dim);
+    cursor: pointer;
+    visibility: hidden;
+    transition: background 0.15s, color 0.15s;
+}
+
+.theme-card:hover .theme-card-delete,
+.theme-card.selected .theme-card-delete {
+    visibility: visible;
+}
+
+.theme-card .theme-card-delete:hover {
+    background: var(--md-error-container);
+    color: var(--md-error);
+}
+
+.theme-card .theme-card-delete svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.theme-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.theme-actions .md-button {
+    flex: 1;
+}
