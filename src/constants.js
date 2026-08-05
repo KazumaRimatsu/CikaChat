@@ -10,10 +10,11 @@
         const TABLE_AGENTS = 'chat_agents';
         const TABLE_LOGIN_HISTORY = 'login_history';
         const STORAGE_BUCKET = 'chat-images';
+        const FILES_BUCKET = 'chat-files';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 59;
-        const VERSION = '26.8.401';
+        const APP_VERSION = 64;
+        const VERSION = '26.8.501';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护，暂时无法登录。';
         const SALT = 'mjchat_2026_salt_v1';

@@ -6,6 +6,48 @@
 
         function escapeAttr(t) { if (t == null) return ''; return String(t).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
+        // ============ mjv064 消息协议（对齐 MJChat v1.6.1） ============
+        // 封装一段 mjv064 标签：<mjv064 type="file" name="..." size="..." url="...">fallback</mjv064>
+        function _wrapMjV064(type, attrs, fallbackText) {
+            var parts = ['type="' + type + '"'];
+            for (var k in attrs) {
+                if (attrs.hasOwnProperty(k)) {
+                    parts.push(k + '="' + escapeHtml(String(attrs[k])) + '"');
+                }
+            }
+            return '<mjv064 ' + parts.join(' ') + '>' + (fallbackText || '') + '</mjv064>';
+        }
+
+        // 解析 mjv064 标签开头的属性（[1] 为属性串，[2] 为标签内容）
+        function _parseMjV064(matchResult) {
+            var attrs = {};
+            if (!matchResult) return attrs;
+            matchResult[1].replace(/(\w+)="([^"]*)"/g, function(m, k, v) { attrs[k] = v; });
+            return attrs;
+        }
+
+        // 取 mjv064 消息的会话/回复预览文案（非 mjv064 返回空串）
+        function getMjV064Preview(text) {
+            if (!text) return '';
+            var m = String(text).match(/<mjv064\s+([^>]*)>/);
+            if (!m) return '';
+            var a = _parseMjV064(m);
+            if (a.type === 'voice') return '[语音]';
+            if (a.type === 'link') return '[链接] ' + (a.text || a.url || '');
+            if (a.type === 'file') return '[文件] ' + (a.name || '');
+            return '[消息]';
+        }
+
+        // 旧 CQ 码（[CQ:type,param=value,...]）替换为版本升级提示
+        function _replaceCQCodes(text) {
+            if (!text) return text;
+            var cqPattern = /\[CQ:[\w]+(?:,[\w]+=[^\]]+)*\]/g;
+            if (cqPattern.test(text)) {
+                return text.replace(cqPattern, '<span style="color:var(--md-on-surface-dim);font-size:0.8rem;font-style:italic;">[当前版本不支持查看，请更新MJChat版本]</span>');
+            }
+            return text;
+        }
+
         // 秒数 → mm:ss（语音消息时长多处共用）
         function formatDuration(seconds) {
             seconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -82,6 +124,8 @@
                 const m = text.match(/^__RPL__.*?__ENDRPL__/);
                 if (m) text = text.substring(m[0].length);
             }
+            const mjPreview = getMjV064Preview(text);
+            if (mjPreview) return mjPreview;
             if (text.startsWith('🎤 ')) return text.replace(/ → .*$/, '');
             if (text.startsWith('🔗 ')) return '[链接]';
             if (text.startsWith('📎 ')) {
@@ -218,6 +262,8 @@
 
         function cleanHtml(html) {
             if (!html) return '';
+            // 旧 CQ 码先替换为升级提示（与 MJChat v1.6.1 一致）
+            html = _replaceCQCodes(html);
             const doc = new DOMParser().parseFromString(html, 'text/html');
             const body = doc.body;
             const allowedTags = ['b', 'i', 'u', 's', 'a', 'img', 'span', 'div', 'br', 'svg', 'path', 'audio', 'source',
@@ -363,24 +409,34 @@
                 if (v) v.textContent = 'v' + VERSION;
                 const mjchatVersion = document.getElementById('aboutMjchatVersion');
                 if (mjchatVersion) mjchatVersion.textContent = 'MJChat内核版本  ' + APP_VERSION;
+            } else if (page === 'groupFiles') {
+                pushPageHistory('groupFiles');
+                switchPage('groupFilesPage', true);
+                _loadGroupFiles();
             }
             updateBackBadge();
         }
 
         let isHandlingPopstate = false;
         function navigateBack() {
+            const currentPage = pageHistory[pageHistory.length - 1];
+            // 媒体查看器页：交给 closeMediaViewer 统一清理并返回（优先于私聊判断，避免从私聊打开预览时误退私聊）
+            if (currentPage === 'media') {
+                closeMediaViewer();
+                return;
+            }
             if (privateChatActive) {
                 leavePrivateChatAnimated();
                 return;
             }
-            const currentPage = pageHistory[pageHistory.length - 1];
             if (currentPage !== 'home' && pageHistory.length > 1) {
                 popPageHistory();
                 const prevPage = pageHistory[pageHistory.length - 1];
                 const targetId = prevPage === 'public' ? 'publicPage' :
                                  prevPage === 'search' ? 'searchPage' :
                                  prevPage === 'settings' ? 'settingsPage' :
-                                 prevPage === 'about' ? 'aboutPage' : 'homePage';
+                                 prevPage === 'about' ? 'aboutPage' :
+                                 prevPage === 'groupFiles' ? 'groupFilesPage' : 'homePage';
                 switchPage(targetId, false);
                 updateBackBadge();
             } else {
@@ -812,26 +868,40 @@
         function showFontDialog() {
             const dialog = document.getElementById('fontDialog');
             if (!dialog) return;
-            if (!window.FontManager) {
+            if (!window.FontManager || !window.TypographyManager) {
                 showSnackbar('字体功能未初始化，请刷新页面重试');
                 return;
             }
             _fontDialogOriginalId = FontManager.getActiveFontId();
             _fontDialogPendingId = _fontDialogOriginalId;
+            _fontSizeDialogOriginalId = TypographyManager.getActiveScaleId();
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            _fontWeightDialogOriginalId = TypographyManager.getActiveWeightId();
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
             renderFontList();
+            renderFontSizeList();
+            renderFontWeightList();
             dialog.classList.remove('hidden');
         }
 
         function closeFontDialog() {
             const dialog = document.getElementById('fontDialog');
             if (!dialog) return;
-            // 取消/关闭：回退到打开对话框前的字体（预览不持久化）
+            // 取消/关闭：回退到打开对话框前的字体/字号/字重（预览不持久化）
             if (_fontDialogPendingId && _fontDialogPendingId !== _fontDialogOriginalId) {
                 FontManager.preview(_fontDialogOriginalId);
-                updateFontLabel();
+            }
+            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== _fontSizeDialogOriginalId) {
+                TypographyManager.previewScale(_fontSizeDialogOriginalId);
+            }
+            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== _fontWeightDialogOriginalId) {
+                TypographyManager.previewWeight(_fontWeightDialogOriginalId);
             }
             _fontDialogPendingId = _fontDialogOriginalId;
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
             dialog.classList.add('hidden');
+            updateFontLabel();
         }
 
         function renderFontList() {
@@ -882,49 +952,47 @@
                     syncSettingsToEncryptedStore();
                 }
             }
+            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== TypographyManager.getActiveScaleId()) {
+                TypographyManager.activateScale(_fontSizeDialogPendingId);
+                // 同步到加密本地设置（字号仅本地生效）
+                if (_userSettingsCache) {
+                    _userSettingsCache.fontScaleId = _fontSizeDialogPendingId;
+                    syncSettingsToEncryptedStore();
+                }
+            }
+            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== TypographyManager.getActiveWeightId()) {
+                TypographyManager.activateWeight(_fontWeightDialogPendingId);
+                // 同步到加密本地设置（字重仅本地生效）
+                if (_userSettingsCache) {
+                    _userSettingsCache.fontWeightId = _fontWeightDialogPendingId;
+                    syncSettingsToEncryptedStore();
+                }
+            }
             // 标记已提交，避免 closeFontDialog 回退预览
             _fontDialogPendingId = _fontDialogOriginalId;
+            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
+            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
             closeFontDialog();
             updateFontLabel();
         }
 
         function updateFontLabel() {
             const settingsValue = document.getElementById('settingsFontValue');
-            if (!window.FontManager) return;
+            if (!window.FontManager || !window.TypographyManager) return;
             const font = FontManager.getFont(FontManager.getActiveFontId());
-            if (settingsValue) settingsValue.textContent = font ? font.name : '系统默认';
+            const scale = TypographyManager.getScale(TypographyManager.getActiveScaleId());
+            const weight = TypographyManager.getWeight(TypographyManager.getActiveWeightId());
+            if (settingsValue) {
+                const parts = [font ? font.name : '系统默认', scale ? scale.name : '', weight ? weight.name : ''];
+                settingsValue.textContent = parts.filter(Boolean).join(' · ');
+            }
         }
 
         // ============================================================
-        // 字号选择对话框（应用级设置，独立于主题文件）
+        // 字号选择列表（合并进「字体」对话框）
         // ============================================================
         var _fontSizeDialogOriginalId = null; // 打开对话框时正在使用的字号
         var _fontSizeDialogPendingId = null;  // 当前预览中的字号
-
-        function showFontSizeDialog() {
-            const dialog = document.getElementById('fontSizeDialog');
-            if (!dialog) return;
-            if (!window.TypographyManager) {
-                showSnackbar('字号功能未初始化，请刷新页面重试');
-                return;
-            }
-            _fontSizeDialogOriginalId = TypographyManager.getActiveScaleId();
-            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
-            renderFontSizeList();
-            dialog.classList.remove('hidden');
-        }
-
-        function closeFontSizeDialog() {
-            const dialog = document.getElementById('fontSizeDialog');
-            if (!dialog) return;
-            // 取消/关闭：回退到打开对话框前的字号（预览不持久化）
-            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== _fontSizeDialogOriginalId) {
-                TypographyManager.previewScale(_fontSizeDialogOriginalId);
-                updateFontSizeLabel();
-            }
-            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
-            dialog.classList.add('hidden');
-        }
 
         function renderFontSizeList() {
             const container = document.getElementById('fontSizeList');
@@ -962,61 +1030,14 @@
             _fontSizeDialogPendingId = id;
             TypographyManager.previewScale(id); // 实时预览，不持久化
             renderFontSizeList();
-            updateFontSizeLabel();
-        }
-
-        function applyFontSizeDialog() {
-            if (_fontSizeDialogPendingId && _fontSizeDialogPendingId !== TypographyManager.getActiveScaleId()) {
-                TypographyManager.activateScale(_fontSizeDialogPendingId);
-                // 同步到加密本地设置（字号仅本地生效）
-                if (_userSettingsCache) {
-                    _userSettingsCache.fontScaleId = _fontSizeDialogPendingId;
-                    syncSettingsToEncryptedStore();
-                }
-            }
-            // 标记已提交，避免 closeFontSizeDialog 回退预览
-            _fontSizeDialogPendingId = _fontSizeDialogOriginalId;
-            closeFontSizeDialog();
-            updateFontSizeLabel();
-        }
-
-        function updateFontSizeLabel() {
-            const settingsValue = document.getElementById('settingsFontSizeValue');
-            if (!window.TypographyManager) return;
-            const scale = TypographyManager.getScale(TypographyManager.getActiveScaleId());
-            if (settingsValue) settingsValue.textContent = scale ? scale.name : '默认';
+            updateFontLabel();
         }
 
         // ============================================================
-        // 字重选择对话框（应用级设置，独立于主题文件）
+        // 字重选择列表（合并进「字体」对话框）
         // ============================================================
         var _fontWeightDialogOriginalId = null; // 打开对话框时正在使用的字重
         var _fontWeightDialogPendingId = null;  // 当前预览中的字重
-
-        function showFontWeightDialog() {
-            const dialog = document.getElementById('fontWeightDialog');
-            if (!dialog) return;
-            if (!window.TypographyManager) {
-                showSnackbar('字重功能未初始化，请刷新页面重试');
-                return;
-            }
-            _fontWeightDialogOriginalId = TypographyManager.getActiveWeightId();
-            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
-            renderFontWeightList();
-            dialog.classList.remove('hidden');
-        }
-
-        function closeFontWeightDialog() {
-            const dialog = document.getElementById('fontWeightDialog');
-            if (!dialog) return;
-            // 取消/关闭：回退到打开对话框前的字重（预览不持久化）
-            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== _fontWeightDialogOriginalId) {
-                TypographyManager.previewWeight(_fontWeightDialogOriginalId);
-                updateFontWeightLabel();
-            }
-            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
-            dialog.classList.add('hidden');
-        }
 
         function renderFontWeightList() {
             const container = document.getElementById('fontWeightList');
@@ -1054,29 +1075,7 @@
             _fontWeightDialogPendingId = id;
             TypographyManager.previewWeight(id); // 实时预览，不持久化
             renderFontWeightList();
-            updateFontWeightLabel();
-        }
-
-        function applyFontWeightDialog() {
-            if (_fontWeightDialogPendingId && _fontWeightDialogPendingId !== TypographyManager.getActiveWeightId()) {
-                TypographyManager.activateWeight(_fontWeightDialogPendingId);
-                // 同步到加密本地设置（字重仅本地生效）
-                if (_userSettingsCache) {
-                    _userSettingsCache.fontWeightId = _fontWeightDialogPendingId;
-                    syncSettingsToEncryptedStore();
-                }
-            }
-            // 标记已提交，避免 closeFontWeightDialog 回退预览
-            _fontWeightDialogPendingId = _fontWeightDialogOriginalId;
-            closeFontWeightDialog();
-            updateFontWeightLabel();
-        }
-
-        function updateFontWeightLabel() {
-            const settingsValue = document.getElementById('settingsFontWeightValue');
-            if (!window.TypographyManager) return;
-            const weight = TypographyManager.getWeight(TypographyManager.getActiveWeightId());
-            if (settingsValue) settingsValue.textContent = weight ? weight.name : '默认';
+            updateFontLabel();
         }
 
         function init() {
@@ -1098,8 +1097,6 @@
             loadTheme();
             loadCustomColor();
             updateFontLabel();
-            updateFontSizeLabel();
-            updateFontWeightLabel();
 
             // 主题变更回调：同步设置页 UI，并清除主题色内联覆盖（避免覆盖自定义主题颜色）
             if (window.ThemeManager) {
@@ -1112,18 +1109,15 @@
                 };
             }
 
-            // 字体变更回调：同步设置页「字体」入口的当前值
+            // 字体/字号/字重变更回调：同步设置页「字体」入口的当前值
             if (window.FontManager) {
                 FontManager.onChange = function() {
                     updateFontLabel();
                 };
             }
-
-            // 字号/字重变更回调：同步设置页「字号」「字重」入口的当前值
             if (window.TypographyManager) {
                 TypographyManager.onChange = function() {
-                    updateFontSizeLabel();
-                    updateFontWeightLabel();
+                    updateFontLabel();
                 };
             }
 

@@ -146,7 +146,7 @@
                     p_reply_to_id: payload.reply_to_id || null,
                     p_reply_content: payload.reply_content || null,
                     p_is_system: payload.is_system || false,
-                    p_msg_version: payload.msg_version || APP_VERSION
+                    p_msg_version: payload.msg_version || null
                 });
                 if (error) return { success: false, message: error.message };
                 return data || { success: false, message: '发送失败' };

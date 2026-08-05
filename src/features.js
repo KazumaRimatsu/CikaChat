@@ -1,16 +1,17 @@
 /* CikaChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
 
         // 通用上传：返回公网 URL，失败时提示并返回 null（bucket 未创建给出引导）
-        async function uploadToBucket(filePath, blob, contentType) {
-            const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: contentType,
+        async function uploadToBucket(filePath, blob, contentType, bucket) {
+            const bk = bucket || STORAGE_BUCKET;
+            const { error } = await sb.storage.from(bk).upload(filePath, blob, { contentType: contentType,
                 cacheControl: '3600' });
             if (error) {
                 if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                    '上传失败: 请先在 Storage 创建 chat-images Bucket');
+                    '上传失败: 请先在 Storage 创建 ' + bk + ' Bucket');
                 else showSnackbar('上传失败: ' + error.message);
                 return null;
             }
-            const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+            const { data: urlData } = sb.storage.from(bk).getPublicUrl(filePath);
             return urlData.publicUrl;
         }
 
@@ -78,7 +79,7 @@
                 const filePath = config.makePath(ext);
                 showSnackbar('正在上传语音...');
                 try {
-                    const url = await uploadToBucket(filePath, blob, mimeType);
+                    const url = await uploadToBucket(filePath, blob, mimeType, config.bucket);
                     if (!url) return;
                     const duration = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0;
                     await config.onUploaded(duration, url);
@@ -91,21 +92,20 @@
         const publicRecorder = createVoiceRecorder({
             ids: { btn: 'recordBtn', timer: 'recordTimer', hint: 'recordHint', stopBtn: 'recordStopBtn' },
             tooShortMsg: '录音太短',
-            makePath: (ext) => `audio/${Date.now()}-${generateId()}.${ext}`,
+            bucket: FILES_BUCKET,
+            makePath: (ext) => `Public/${Date.now()}-${generateId()}.${ext}`,
             onUploaded: async (duration, url) => {
                 const fallbackText = buildVoiceFallback(duration);
                 let audioResult = await sendPublicMessageSecure({
                     text: fallbackText,
                     audio_url: url,
                     audio_dur: duration,
-                    is_system: false,
-                    msg_version: APP_VERSION
+                    is_system: false
                 });
                 if (!audioResult.success && audioResult.message && (audioResult.message.includes('audio_dur') || audioResult.message.includes('audio_url'))) {
                     audioResult = await sendPublicMessageSecure({
                         text: buildVoiceFallback(duration, url),
-                        is_system: false,
-                        msg_version: APP_VERSION
+                        is_system: false
                     });
                 }
                 if (!audioResult.success) showSnackbar('发送语音失败: ' + (audioResult.message || ''));
@@ -116,9 +116,10 @@
         const privateRecorder = createVoiceRecorder({
             ids: { btn: 'privateRecordBtn', timer: 'privateRecordTimer', hint: 'privateRecordHint', stopBtn: 'privateRecordStopBtn' },
             tooShortMsg: '录音时间太短',
-            makePath: (ext) => `private/${privateSessionId}/audio/${Date.now()}-${generateId()}.${ext}`,
+            bucket: FILES_BUCKET,
+            makePath: (ext) => `Private/${currentUser}/${Date.now()}-${generateId()}.${ext}`,
             onUploaded: async (duration, url) => {
-                const content = `🎤 语音 ${formatDuration(duration)} → ${url}`;
+                const content = _wrapMjV064('voice', { dur: duration, url: url }, '当前版本不支持查看，请更新MJChat版本');
                 try {
                     const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
                     appendPrivateMsgLocally(newMsg, false);
@@ -481,100 +482,6 @@
             });
         }
 
-        let previewScale = 1;
-        let previewTranslateX = 0,
-            previewTranslateY = 0;
-        let previewLastDist = 0;
-        let previewLastX = 0,
-            previewLastY = 0;
-
-        function previewImage(url) {
-            if (!url) return;
-            const overlay = document.getElementById('imagePreview');
-            const img = document.getElementById('previewImg');
-            img.src = url;
-            previewScale = 1;
-            previewTranslateX = 0;
-            previewTranslateY = 0;
-            updatePreviewTransform();
-            overlay.classList.remove('hidden');
-        }
-
-        // 文件型图片消息点击时复用图片预览
-        function viewImage(url) {
-            previewImage(url);
-        }
-
-        function updatePreviewTransform() {
-            const img = document.getElementById('previewImg');
-            img.style.transform = `scale(${previewScale}) translate(${previewTranslateX}px, ${previewTranslateY}px)`;
-        }
-
-        function closeImagePreview(e) {
-            if (e && e.target !== e.currentTarget) return;
-            document.getElementById('imagePreview').classList.add('hidden');
-            document.getElementById('previewImg').src = '';
-            previewScale = 1;
-            previewTranslateX = 0;
-            previewTranslateY = 0;
-        }
-
-        let previewTouchStart = false;
-        document.getElementById('imagePreview').addEventListener('touchstart', function(e) {
-            if (e.target.tagName !== 'IMG') return;
-            const touches = e.touches;
-            if (touches.length === 1) {
-                previewTouchStart = true;
-                previewLastX = touches[0].clientX;
-                previewLastY = touches[0].clientY;
-            } else if (touches.length === 2) {
-                previewLastDist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1]
-                    .clientY);
-            }
-        }, { passive: true });
-
-        document.getElementById('imagePreview').addEventListener('touchmove', function(e) {
-            if (e.target.tagName !== 'IMG') return;
-            const touches = e.touches;
-            if (touches.length === 1 && previewTouchStart) {
-                const dx = touches[0].clientX - previewLastX;
-                const dy = touches[0].clientY - previewLastY;
-                previewTranslateX += dx;
-                previewTranslateY += dy;
-                previewLastX = touches[0].clientX;
-                previewLastY = touches[0].clientY;
-                updatePreviewTransform();
-            } else if (touches.length === 2) {
-                const dist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
-                const scaleFactor = dist / previewLastDist;
-                previewScale = Math.min(Math.max(previewScale * scaleFactor, 0.5), 5);
-                previewLastDist = dist;
-                updatePreviewTransform();
-            }
-        }, { passive: true });
-
-        document.getElementById('imagePreview').addEventListener('touchend', function(e) {
-            previewTouchStart = false;
-        }, { passive: true });
-
-        document.getElementById('imagePreview').addEventListener('contextmenu', function(e) { e.preventDefault(); });
-
-        function openVideoPreview(url) {
-            if (!url) return;
-            const overlay = document.getElementById('videoPreview');
-            const video = document.getElementById('previewVideo');
-            video.src = url;
-            overlay.classList.remove('hidden');
-        }
-
-        function closeVideoPreview() {
-            const overlay = document.getElementById('videoPreview');
-            const video = document.getElementById('previewVideo');
-            video.pause();
-            video.src = '';
-            overlay.classList.add('hidden');
-        }
-
         function openFilePicker() {
             closeFeaturePanel();
             document.getElementById('fileInput').click();
@@ -587,19 +494,32 @@
             if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
-            const filePath = `files/${Date.now()}-${generateId()}.${ext}`;
+            const filePath = `Public/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream', FILES_BUCKET);
                 if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
                 const fileText = buildFileText(file.name, fileSize, url);
-                const ieResult = await sendPublicMessageSecure({ text: fileText, is_system: false, msg_version: APP_VERSION });
+                const ieResult = await sendPublicMessageSecure({ text: fileText, is_system: false });
                 if (!ieResult.success) showSnackbar('发送文件失败: ' + (ieResult.message || ''));
             } catch (e) { showSnackbar('上传失败'); }
         }
 
         function buildFileText(filename, fileSize, url) {
-            return '📎 ' + filename + ' (' + fileSize + ' KB) → ' + url;
+            return _wrapMjV064('file', { name: filename, size: fileSize, url: url }, '当前版本不支持查看，请更新MJChat版本');
+        }
+
+        // 发送前自动识别文本中的 http(s) 链接并转换为 mjv064 链接（已有链接/文件/mjv064 格式则跳过）
+        function autoConvertUrls(text) {
+            if (!text) return text;
+            if (/\[链接\]/.test(text) || /\[文件\]/.test(text) || /<mjv064/.test(text)) return text;
+            var httpRegex = /(https?:\/\/[^\s]+)/gi;
+            var httpMatches = text.match(httpRegex);
+            if (httpMatches && httpMatches.length > 0) {
+                var url = httpMatches[0];
+                return _wrapMjV064('link', { url: url, text: url }, '当前版本不支持查看，请更新MJChat版本');
+            }
+            return text;
         }
 
         function openLinkDialog(mode) {
@@ -629,7 +549,7 @@
             if (!url) { showSnackbar('请输入链接地址'); return; }
             if (!isSafeUrl(url)) { showSnackbar('链接地址无效，仅支持 http/https/mailto/tel'); return; }
             const displayText = text || url;
-            const linkText = '🔗 ' + displayText + ' → ' + url;
+            const linkText = _wrapMjV064('link', { url: url, text: displayText }, '当前版本不支持查看，请更新MJChat版本');
             hideLinkDialog();
 
             if (linkMode === 'private') {
@@ -718,8 +638,9 @@
         }
 
         function buildVoiceFallback(duration, audioUrl) {
-            var tail = audioUrl || '请升级 MJChat 到最新版本查看此消息';
-            return '🎤 语音 ' + formatDuration(duration) + ' → ' + tail;
+            var attrs = { dur: duration };
+            if (audioUrl) attrs.url = audioUrl;
+            return _wrapMjV064('voice', attrs, '当前版本不支持查看，请更新MJChat版本');
         }
 
         function toggleVoicePlay(wrap, event) {
@@ -894,12 +815,12 @@
             if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
-            const filePath = `private/${privateSessionId}/files/${Date.now()}-${generateId()}.${ext}`;
+            const filePath = `Private/${currentUser}/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream', FILES_BUCKET);
                 if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
-                const content = `📎 ${file.name} (${fileSize} KB) → ${url}`;
+                const content = _wrapMjV064('file', { name: file.name, size: fileSize, url: url }, '当前版本不支持查看，请更新MJChat版本');
                 try {
                     const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, content);
                     appendPrivateMsgLocally(newMsg, true);
@@ -983,6 +904,99 @@
         function showAgentList() {
             document.getElementById('agentListModal').classList.remove('hidden');
             loadAgentList();
+        }
+
+        // ============================================================
+        // 群文件：浏览 chat-images 桶中的公共文件（排除 private/ 私聊内容）
+        // ============================================================
+        const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+        const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'm3u8'];
+
+        function showGroupFiles() {
+            pushPageHistory('groupFiles');
+            switchPage('groupFilesPage', true);
+            _loadGroupFiles();
+        }
+
+        async function _loadGroupFiles() {
+            const container = document.getElementById('groupFilesContainer');
+            if (!container) return;
+            container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px;"><span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span></div>';
+            try {
+                const allFiles = [];
+                // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶
+                const buckets = [STORAGE_BUCKET, FILES_BUCKET];
+                const prefixes = ['', 'chat/', 'files/', 'audio/', 'avatars/', 'Public/', 'Public/avatars/'];
+                for (let bi = 0; bi < buckets.length; bi++) {
+                    for (let pi = 0; pi < prefixes.length; pi++) {
+                        const bk = buckets[bi];
+                        const prefix = prefixes[pi];
+                        try {
+                            const { data: files, error } = await sb.storage.from(bk).list(prefix, {
+                                limit: 100,
+                                offset: 0,
+                                sortBy: { column: 'created_at', order: 'desc' }
+                            });
+                            if (!error && files) {
+                                for (let fi = 0; fi < files.length; fi++) {
+                                    const f = files[fi];
+                                    if (f.name === '.emptyFolderPlaceholder') continue;
+                                    // 文件夹无 metadata，跳过
+                                    if (!f.metadata) continue;
+                                    f._bucket = bk;
+                                    f._prefix = prefix;
+                                    allFiles.push(f);
+                                }
+                            }
+                        } catch (eb) { /* 单个桶/前缀失败不影响整体 */ }
+                    }
+                }
+                allFiles.sort(function(a, b) {
+                    return new Date(b.created_at) - new Date(a.created_at);
+                });
+                if (allFiles.length === 0) {
+                    container.innerHTML = '<div class="gf-empty">暂无群文件</div>';
+                    return;
+                }
+                let html = '';
+                for (let idx = 0; idx < allFiles.length; idx++) {
+                    const file = allFiles[idx];
+                    const sizeStr = file.metadata && file.metadata.size
+                        ? (file.metadata.size > 1048576
+                            ? (file.metadata.size / 1048576).toFixed(1) + ' MB'
+                            : (file.metadata.size / 1024).toFixed(1) + ' KB')
+                        : '';
+                    const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString('zh-CN') : '';
+                    const pf = file._prefix || '';
+                    const bk = file._bucket || STORAGE_BUCKET;
+                    // 图片/视频：点击在预览器直接预览；其余文件：点击进入文件预览器（Office/代码/不支持）
+                    const ext = (file.name.split('.').pop() || '').toLowerCase();
+                    const isImage = IMAGE_EXTS.includes(ext);
+                    const isVideo = VIDEO_EXTS.includes(ext);
+                    if (isImage || isVideo) {
+                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
+                        const fileUrl = urlData ? urlData.publicUrl : '';
+                        if (isImage) {
+                            html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeAttr(fileUrl) + '\')">';
+                            html += '<div class="gf-file-icon"><img src="' + escapeAttr(fileUrl) + '" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                        } else {
+                            html += '<div class="gf-file-item" onclick="openVideoPreview(\'' + escapeAttr(fileUrl) + '\')">';
+                            html += '<div class="gf-file-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 8.5v7l6-3.5-6-3.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></div>';
+                        }
+                    } else {
+                        const iconHtml = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' + getFileIconSvg(file.name) + '</svg>';
+                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
+                        const fileUrl = urlData ? urlData.publicUrl : '';
+                        html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeAttr(fileUrl) + '\', \'' + escapeAttr(file.name) + '\')">';
+                        html += '<div class="gf-file-icon">' + iconHtml + '</div>';
+                    }
+                    html += '<div class="gf-file-info"><div class="gf-file-name">' + escapeHtml(file.name) + '</div>';
+                    html += '<div class="gf-file-meta">' + (sizeStr ? sizeStr + ' · ' : '') + dateStr + '</div></div></div>';
+                }
+                container.innerHTML = html || '<div class="gf-empty">暂无群文件</div>';
+            } catch (e) {
+                container.innerHTML = '<div class="gf-empty">加载失败: ' + (e.message || '未知错误') + '</div>';
+            }
         }
 
         function closeAgentList() {

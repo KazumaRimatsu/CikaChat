@@ -34,80 +34,193 @@
     }
 }
 
-/* --- 图片预览（全屏遮罩，禁止选中/滚动穿透） --- */
-.image-preview-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 300;
+/* --- 媒体查看器独立页面（图片/视频浏览） ---
+   注意：display 由 base.css 的 .page / .page.active 控制，这里不能写 display，
+   否则会覆盖 .page { display:none } 导致页面常驻显示、盖住其他页面 */
+.media-viewer-page {
+    background: #000;
+}
+
+.media-viewer-bar {
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.media-viewer-bar .back-btn {
+    color: #fff;
+}
+
+.media-viewer-bar .title {
+    color: #fff;
+}
+
+.media-zoom-controls {
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: var(--md-scrim-high);
-    cursor: pointer;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
+    gap: 8px;
+    margin-left: auto;
+    padding-right: 12px;
 }
 
-.image-preview-overlay img {
-    max-width: 95vw;
-    max-height: 95vh;
-    border-radius: 8px;
-    transform-origin: center;
-    touch-action: none;
-    will-change: transform;
-    transition: transform 0.05s ease-out;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-/* --- 预览关闭按钮（图片/视频共用） --- */
-.preview-close-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 310;
-    width: 44px;
-    height: 44px;
+.media-zoom-btn {
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
     cursor: pointer;
     transition: background 0.2s, transform 0.2s;
     -webkit-tap-highlight-color: transparent;
 }
 
-.preview-close-btn:hover {
-    background: rgba(0, 0, 0, 0.85);
-    transform: scale(1.1);
+.media-zoom-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
-.preview-close-btn:active {
-    transform: scale(0.95);
+.media-zoom-btn:active {
+    transform: scale(0.92);
 }
 
-/* --- 视频预览（全屏遮罩） --- */
-.video-preview-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 300;
+.media-zoom-reset {
+    min-width: 48px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--md-scrim-high);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.media-zoom-reset:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.media-viewer-body {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+    touch-action: none;
     -webkit-user-select: none;
     user-select: none;
 }
 
-.video-preview-overlay video {
-    max-width: 95vw;
-    max-height: 90vh;
-    border-radius: 8px;
+/* 视频缓冲完成前的加载指示 */
+.media-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: #000;
+}
+
+.media-loading-text {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+#previewImg {
+    max-width: 100%;
+    max-height: 100%;
+    transform-origin: center;
+    touch-action: none;
+    will-change: transform;
+    transition: transform 0.05s ease-out;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: grab;
+}
+
+.media-viewer-body.dragging #previewImg {
+    cursor: grabbing;
+}
+
+/* 文件类预览（office/code/不支持）允许滚动与触摸平移 */
+.media-viewer-body.file-mode {
+    overflow: auto;
+    touch-action: auto;
+}
+
+/* Office 文档：Office Web Viewer 内嵌页面铺满 */
+#previewOffice {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+}
+
+#previewOffice.hidden {
+    display: none;
+}
+
+/* 代码文件：highlight.js 高亮，黑底可滚动、可选中 */
+#previewCode {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+    overflow: auto;
+    background: #0d1117;
+    touch-action: auto;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+#previewCode.hidden {
+    display: none;
+}
+
+#previewCode code.hljs {
+    font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    background: transparent;
+    padding: 0;
+}
+
+/* 不支持的格式：空白页居中提示 */
+#previewUnsupported {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+}
+
+#previewUnsupported.hidden {
+    display: none;
+}
+
+#previewImg.hidden {
+    display: none;
+}
+
+#previewVideo {
+    max-width: 100%;
+    max-height: 100%;
     outline: none;
+    background: #000;
+}
+
+#previewVideo.hidden {
+    display: none;
 }
 
 /* --- 视频消息气泡 --- */

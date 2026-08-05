@@ -277,7 +277,10 @@
                 if (repliedMsg) {
                     const senderDisplay = repliedMsg.sender_deleted ? `[用户已注销] ${repliedMsg.sender}` : repliedMsg.sender;
                     let contentPreview = '';
-                    if (repliedMsg.image_url) {
+                    const repliedMjPreview = getMjV064Preview(repliedMsg.text);
+                    if (repliedMjPreview) {
+                        contentPreview = escapeHtml(repliedMjPreview);
+                    } else if (repliedMsg.image_url) {
                         contentPreview = _wrapImgWithLoader(repliedMsg.image_url, '', 'max-width:100px;max-height:100px;border-radius:4px;');
                     } else if (repliedMsg.audio_url) {
                         contentPreview = `[语音] ${formatDuration(repliedMsg.audio_dur || 0)}`;
@@ -302,7 +305,42 @@
                 }
             }
 
-            if (msg.image_url) {
+            // mjv064 协议消息优先解析（文件/链接/语音，兼容 MJChat v1.6.1 服务端消息）
+            const mjMatch = msg.text && msg.text.match(/<mjv064\s+([^>]*)>([\s\S]*?)<\/mjv064>/);
+            if (mjMatch) {
+                const mjAttrs = _parseMjV064(mjMatch);
+                const mjType = mjAttrs.type;
+                if (mjType === 'voice') {
+                    bubbleContent = buildVoiceBubbleHtml(mjAttrs.url || '', parseInt(mjAttrs.dur) || 0, '请升级到最新版本播放');
+                    msgType = 'voice';
+                } else if (mjType === 'link') {
+                    linkUrl = mjAttrs.url || '';
+                    bubbleContent =
+                        `<a href="${escapeAttr(linkUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(mjAttrs.text || linkUrl)}</a>`;
+                    msgType = 'link';
+                } else if (mjType === 'file') {
+                    const mjFname = mjAttrs.name || 'file';
+                    const mjFsize = mjAttrs.size || '';
+                    const mjFurl = mjAttrs.url || '';
+                    linkUrl = mjFurl;
+                    if (isImageFile(mjFname)) {
+                        bubbleContent = _wrapImgWithLoader(mjFurl, `onclick="previewImage('${escapeAttr(mjFurl)}')" alt="${escapeAttr(mjFname)}"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        msgType = 'image';
+                        imageUrl = mjFurl;
+                    } else if (isVideoFile(mjFname)) {
+                        bubbleContent = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(mjFurl)}')"><video src="${escapeAttr(mjFurl)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(mjFname)}</div></div>`;
+                        msgType = 'video';
+                    } else {
+                        const mjIconPath = getFileIconSvg(mjFname);
+                        bubbleContent =
+                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(mjFurl)}', '${escapeAttr(mjFname)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${mjIconPath}</svg><span>${escapeHtml(mjFname)}${mjFsize ? ` (${escapeHtml(mjFsize)} KB)` : ''}</span></div>`;
+                        msgType = 'file';
+                    }
+                } else {
+                    bubbleContent = escapeHtml(mjMatch[2]);
+                    msgType = 'text';
+                }
+            } else if (msg.image_url) {
                 imageUrl = msg.image_url;
                 let imageUrls = [];
                 if (msg.text && msg.text.startsWith('🖼️ ')) {
@@ -352,7 +390,7 @@
                     } else {
                         const iconPath = getFileIconSvg(fileName);
                         bubbleContent =
-                            `<a href="${escapeAttr(marked.url)}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)} KB)` : ''}</span></a>`;
+                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(marked.url)}', '${escapeAttr(fileName)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)} KB)` : ''}</span></div>`;
                         msgType = 'file';
                         linkUrl = marked.url;
                     }
@@ -501,6 +539,8 @@
                     showSnackbar('消息包含不安全内容');
                     return;
                 }
+                // 自动检测并转换 URL 为 mjv064 链接格式
+                text = autoConvertUrls(text);
             }
             document.getElementById('publicSendBtn').disabled = true;
             const payload = { sender: currentUser, text: text || '', msg_version: APP_VERSION, is_system: false };
@@ -508,7 +548,10 @@
                 const replied = publicMessages.find(m => m.id === replyTarget.id);
                 if (replied) {
                     let previewText = '';
-                    if (replied.image_url) {
+                    const rplMjPreview = getMjV064Preview(replied.text);
+                    if (rplMjPreview) {
+                        previewText = rplMjPreview;
+                    } else if (replied.image_url) {
                         previewText = '[图片]';
                     } else if (replied.audio_url) {
                         previewText = `[语音] ${formatDuration(replied.audio_dur || 0)}`;
@@ -1338,44 +1381,76 @@
                     replyContentStr = rpl.c || '';
                     actualContent = msg.content.substring(rplMatch[0].length);
                     const senderDisplay = rpl.s || '';
-                    replyHtml = `<div class="reply-preview-block" onclick="jumpToMessage('${escapeAttr(replyToId)}', 'private')">↩ <span class="reply-sender">${escapeHtml(senderDisplay)}</span><br><span class="reply-content">${escapeHtml(replyContentStr)}</span></div>`;
+                    const rplPreviewStr = getMjV064Preview(replyContentStr) || replyContentStr;
+                    replyHtml = `<div class="reply-preview-block" onclick="jumpToMessage('${escapeAttr(replyToId)}', 'private')">↩ <span class="reply-sender">${escapeHtml(senderDisplay)}</span><br><span class="reply-content">${escapeHtml(rplPreviewStr)}</span></div>`;
                 } catch (e) { actualContent = msg.content; }
             }
 
-            let contentHtml = cleanHtml(actualContent);
-
-            const linkMatch = actualContent.match(/🔗 (.*?) → (.*)/);
-            const fileMatch = actualContent.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
-            const imgMatch = actualContent.match(/!\[.*?\]\((.*?)\)/);
-            const voiceMatch = actualContent.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
-
-            if (voiceMatch) {
-                const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
-                const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
-                contentHtml = buildVoiceBubbleHtml(audioUrl, duration, '语音消息');
-            } else if (imgMatch) {
-                contentHtml = _wrapImgWithLoader(imgMatch[1], `onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片"`, 'max-width:180px;max-height:180px;border-radius:2px;display:block;');
-                const extraText = actualContent.replace(/!\[.*?\]\(.*?\)/, '').trim();
-                if (extraText) {
-                    contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
-                }
-            } else if (linkMatch && isSafeUrl(linkMatch[2])) {
-                contentHtml =
-                    `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
-            } else if (fileMatch && isSafeUrl(fileMatch[3])) {
-                if (isImageFile(fileMatch[1])) {
-                    contentHtml = _wrapImgWithLoader(fileMatch[3], `alt="${escapeAttr(fileMatch[1])}" onclick="viewImage('${escapeAttr(fileMatch[3])}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
-                    fileIsImage = true;
-                } else if (isVideoFile(fileMatch[1])) {
-                    contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(fileMatch[3])}')"><video src="${escapeAttr(fileMatch[3])}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileMatch[1])}</div></div>`;
-                } else {
-                    const iconPath = getFileIconSvg(fileMatch[1]);
+            let contentHtml = '';
+            let mjMatched = false;
+            let mjType = '';
+            let mjUrl = '';
+            let mjFname = '';
+            const mjMatch = actualContent.match(/<mjv064\s+([^>]*)>([\s\S]*?)<\/mjv064>/);
+            if (mjMatch) {
+                mjMatched = true;
+                const mjAttrs = _parseMjV064(mjMatch);
+                mjType = mjAttrs.type;
+                mjUrl = mjAttrs.url || '';
+                mjFname = mjAttrs.name || '';
+                if (mjType === 'voice') {
+                    contentHtml = buildVoiceBubbleHtml(mjUrl, parseInt(mjAttrs.dur) || 0, '语音消息');
+                } else if (mjType === 'link') {
                     contentHtml =
-                        `<a href="${escapeAttr(fileMatch[3])}" target="_blank" rel="noopener noreferrer" class="file-msg"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></a>`;
+                        `<a href="${escapeAttr(mjUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(mjAttrs.text || mjUrl)}</a>`;
+                } else if (mjType === 'file') {
+                    const fsize = mjAttrs.size || '';
+                    if (isImageFile(mjFname)) {
+                        contentHtml = _wrapImgWithLoader(mjUrl, `alt="${escapeAttr(mjFname)}" onclick="viewImage('${escapeAttr(mjUrl)}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        fileIsImage = true;
+                    } else if (isVideoFile(mjFname)) {
+                        contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(mjUrl)}')"><video src="${escapeAttr(mjUrl)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(mjFname)}</div></div>`;
+                    } else {
+                        const iconPath = getFileIconSvg(mjFname);
+                        contentHtml =
+                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(mjUrl)}', '${escapeAttr(mjFname)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(mjFname)}${fsize ? ` (${escapeHtml(fsize)} KB)` : ''}</span></div>`;
+                    }
+                } else {
+                    contentHtml = cleanHtml(actualContent);
                 }
             } else {
                 contentHtml = cleanHtml(actualContent);
-                contentHtml = contentHtml.replace(/@([\w\u4e00-\u9fa5]+)/g, '<b>@$1</b>');
+                const linkMatch = actualContent.match(/🔗 (.*?) → (.*)/);
+                const fileMatch = actualContent.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
+                const imgMatch = actualContent.match(/!\[.*?\]\((.*?)\)/);
+                const voiceMatch = actualContent.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
+                if (voiceMatch) {
+                    const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
+                    const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
+                    contentHtml = buildVoiceBubbleHtml(audioUrl, duration, '语音消息');
+                } else if (imgMatch) {
+                    contentHtml = _wrapImgWithLoader(imgMatch[1], `onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片"`, 'max-width:180px;max-height:180px;border-radius:2px;display:block;');
+                    const extraText = actualContent.replace(/!\[.*?\]\(.*?\)/, '').trim();
+                    if (extraText) {
+                        contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
+                    }
+                } else if (linkMatch && isSafeUrl(linkMatch[2])) {
+                    contentHtml =
+                        `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
+                } else if (fileMatch && isSafeUrl(fileMatch[3])) {
+                    if (isImageFile(fileMatch[1])) {
+                        contentHtml = _wrapImgWithLoader(fileMatch[3], `alt="${escapeAttr(fileMatch[1])}" onclick="viewImage('${escapeAttr(fileMatch[3])}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        fileIsImage = true;
+                    } else if (isVideoFile(fileMatch[1])) {
+                        contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(fileMatch[3])}')"><video src="${escapeAttr(fileMatch[3])}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileMatch[1])}</div></div>`;
+                    } else {
+                        const iconPath = getFileIconSvg(fileMatch[1]);
+                        contentHtml =
+                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(fileMatch[3])}', '${escapeAttr(fileMatch[1])}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></div>`;
+                    }
+                } else {
+                    contentHtml = contentHtml.replace(/@([\w\u4e00-\u9fa5]+)/g, '<b>@$1</b>');
+                }
             }
 
             const row = document.createElement('div');
@@ -1387,11 +1462,18 @@
                 row.dataset.replyToId = replyToId;
                 row.dataset.replyContent = replyContentStr;
             }
-            if (voiceMatch) row.dataset.msgType = 'voice';
-            else if (imgMatch) { row.dataset.msgType = 'image'; row.dataset.imageUrl = imgMatch[1] || ''; }
-            else if (linkMatch && isSafeUrl(linkMatch[2])) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
-            else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; if (fileIsImage) row.dataset.imageUrl = fileMatch[3] || ''; }
-            else row.dataset.msgType = 'text';
+            if (mjMatched) {
+                if (mjType === 'voice') { row.dataset.msgType = 'voice'; }
+                else if (mjType === 'link') { row.dataset.msgType = 'link'; row.dataset.linkUrl = mjUrl; }
+                else if (mjType === 'file') { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(mjFname) ? 'video' : 'file'); row.dataset.linkUrl = mjUrl; if (fileIsImage) row.dataset.imageUrl = mjUrl; }
+                else { row.dataset.msgType = 'text'; }
+            } else {
+                if (voiceMatch) row.dataset.msgType = 'voice';
+                else if (imgMatch) { row.dataset.msgType = 'image'; row.dataset.imageUrl = imgMatch[1] || ''; }
+                else if (linkMatch && isSafeUrl(linkMatch[2])) { row.dataset.msgType = 'link'; row.dataset.linkUrl = linkMatch[2] || ''; }
+                else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; if (fileIsImage) row.dataset.imageUrl = fileMatch[3] || ''; }
+                else row.dataset.msgType = 'text';
+            }
             row.innerHTML = `
                 <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
@@ -1451,6 +1533,8 @@
             if (!text && !privateReplyTarget) return;
             text = cleanHtml(text || '');
             if (!text && !privateReplyTarget) { showSnackbar('消息包含不安全内容'); return; }
+            // 自动检测并转换 URL 为 mjv064 链接格式
+            text = autoConvertUrls(text);
             document.getElementById('privateSendBtn').disabled = true;
 
             let replyPrefix = '';
@@ -1535,7 +1619,8 @@
         function setPrivateReplyTarget(msgId, sender, content) {
             privateReplyTarget = { id: msgId, sender, content };
             const preview = document.getElementById('privateReplyPreview');
-            document.getElementById('privateReplyContent').textContent = `回复 @${sender}：${content}`;
+            const displayContent = getMjV064Preview(content) || content;
+            document.getElementById('privateReplyContent').textContent = `回复 @${sender}：${displayContent}`;
             preview.style.display = 'flex';
             document.getElementById('privateMsgInput').focus();
             togglePrivateSendBtn();

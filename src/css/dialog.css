@@ -579,6 +579,21 @@
     -webkit-overflow-scrolling: touch;
 }
 
+/* 合并后的字体对话框：字体/字号/字重三个列表分区展示，各自限高独立滚动 */
+.typography-section-title {
+    margin: 14px 4px 0;
+    font-size: var(--md-font-size-sm);
+    font-weight: var(--md-font-weight-medium);
+    color: var(--md-on-surface-dim);
+    letter-spacing: 0.3px;
+}
+
+#fontDialog .theme-list {
+    flex: none;
+    max-height: 150px;
+    margin-top: 6px;
+}
+
 /* 主题卡片：默认 1px 透明描边，选中态描边变主色（宽度/线型走全局描边令牌） */
 .theme-card {
     position: relative;
