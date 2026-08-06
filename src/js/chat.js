@@ -32,6 +32,159 @@
         let publicLoadingMore = false;
         let privateHasMore = true;
         let privateLoadingMore = false;
+
+        // ============ v071: 屏蔽词检测（src/stpwords/*.stpw 为 base64 编码、每行一个词，应用运行时解码加载） ============
+        const STPWORD_SOURCES = [
+            { file: 'stpwords/stpword.sex.stpw', label: '黄色内容' },
+            { file: 'stpwords/stpword.baokong.stpw', label: '暴力恐怖A' },
+            { file: 'stpwords/stpword.fandong.stpw', label: '反动内容' },
+            { file: 'stpwords/stpword.gfw.stpw', label: '其他不良内容' },
+            { file: 'stpwords/stpword.gun.stpw', label: '暴力恐怖B' },
+            { file: 'stpwords/stpword.zz.stpw', label: '政治敏感' }
+        ];
+        let blockedWordsByLabel = null;
+
+        async function loadBlockedWords() {
+            const lists = {};
+            await Promise.all(STPWORD_SOURCES.map(async function(src) {
+                let b64 = '';
+                try {
+                    const res = await fetch(src.file);
+                    if (res.ok) b64 = await res.text();
+                } catch (e) {
+                    // file:// 直开页面等无 CORS 环境：fetch 被拦截，改用内嵌副本兜底
+                }
+                // v073: 内嵌副本兜底（stpwords-data.js 提供，与 .stpw 的 base64 内容一致）
+                if (!b64 && window.STPWORD_EMBEDDED && window.STPWORD_EMBEDDED[src.file]) {
+                    b64 = window.STPWORD_EMBEDDED[src.file];
+                }
+                if (!b64) return;
+                try {
+                    const bin = atob(b64.replace(/\s+/g, ''));
+                    const decoded = new TextDecoder('utf-8').decode(Uint8Array.from(bin, function(c) { return c.charCodeAt(0); }));
+                    const words = decoded.split(/\r?\n/).map(function(w) { return w.trim(); }).filter(Boolean);
+                    if (words.length) {
+                        lists[src.label] = (lists[src.label] || []).concat(words);
+                    }
+                } catch (e) { /* 单个词表加载失败不影响其他词表 */ }
+            }));
+            blockedWordsByLabel = lists;
+        }
+
+        // 命中返回对应提示文案（广告/危险网页/黄色 优先于通用不良内容），未命中返回 null
+        function checkBlockedWords(text) {
+            if (!blockedWordsByLabel || !text) return null;
+            for (var label in blockedWordsByLabel) {
+                var words = blockedWordsByLabel[label];
+                for (var i = 0; i < words.length; i++) {
+                    if (text.indexOf(words[i]) !== -1) return label;
+                }
+            }
+            return null;
+        }
+
+        // 启动即加载（异步，不阻塞消息渲染；词表就绪前不显示提示）
+        loadBlockedWords();
+
+        // ============ v072: 屏蔽词检测设置（仅公聊生效；类型与方式可配置） ============
+        const BLOCKWORD_TYPES = ['黄色内容', '其他不良内容', '暴力恐怖A', '反动内容', '暴力恐怖B', '政治敏感'];
+        const BLOCKWORD_TIPS = ['包含不适宜展示的成人内容', '包含其他不良内容', '包含诱导药物滥用等不良内容', '包含敏感内容', '包含暴力及恐怖内容', '包含敏感内容'];
+        const BLOCKWORD_SETTINGS_KEY = 'mjchat_blockword_settings';
+        const DEFAULT_BLOCKWORD_SETTINGS = { enabled: true, types: BLOCKWORD_TYPES.slice(), method: 'hint' };
+
+        function loadBlockwordSettings() {
+            try {
+                const raw = localStorage.getItem(BLOCKWORD_SETTINGS_KEY);
+                if (raw) {
+                    // v073: 屏蔽词类型与提示信息可配置
+                    const s = JSON.parse(raw);
+                    const types = Array.isArray(s.types) ? s.types.filter(function(t) { return BLOCKWORD_TYPES.indexOf(t) !== -1; }) : null;
+                    return {
+                        enabled: s.enabled !== false,
+                        types: types && types.length ? types : BLOCKWORD_TYPES.slice(),
+                        method: s.method === 'hide' ? 'hide' : 'hint'
+                    };
+                }
+            } catch (e) { }
+            return Object.assign({}, DEFAULT_BLOCKWORD_SETTINGS, { types: DEFAULT_BLOCKWORD_SETTINGS.types.slice() });
+        }
+
+        function saveBlockwordSettings(settings) {
+            try {
+                // 保存时过滤无效类型
+                // 保存时过滤无效提示信息
+                localStorage.setItem(BLOCKWORD_SETTINGS_KEY, JSON.stringify({
+                    enabled: !!settings.enabled,
+                    types: Array.isArray(settings.types) ? settings.types.filter(function(t) { return BLOCKWORD_TYPES.indexOf(t) !== -1; }) : BLOCKWORD_TYPES.slice(),
+                    method: settings.method === 'hide' ? 'hide' : 'hint'
+                }));
+            } catch (e) { }
+        }
+
+        // 设置页入口值显示
+        function updateBlockwordSettingsUI() {
+            const el = document.getElementById('settingsBlockwordValue');
+            if (!el) return;
+            const s = loadBlockwordSettings();
+            el.textContent = !s.enabled ? '关闭' : (s.method === 'hide' ? '隐藏消息' : '气泡提示');
+        }
+
+        function showBlockwordSettings() {
+            const dialog = document.getElementById('blockwordSettingsDialog');
+            if (dialog) dialog.classList.remove('hidden');
+            const s = loadBlockwordSettings();
+            const enabledEl = document.getElementById('bwEnabled');
+            if (enabledEl) enabledEl.checked = s.enabled;
+            document.querySelectorAll('#bwTypeOptions input[type="checkbox"]').forEach(function(cb) {
+                cb.checked = s.types.indexOf(cb.value) !== -1;
+            });
+            document.querySelectorAll('#bwMethodOptions input[type="radio"]').forEach(function(rb) {
+                rb.checked = rb.value === s.method;
+            });
+        }
+
+        function closeBlockwordSettings() {
+            const dialog = document.getElementById('blockwordSettingsDialog');
+            if (dialog) dialog.classList.add('hidden');
+        }
+
+        function saveBlockwordSettingsDialog() {
+            const enabledEl = document.getElementById('bwEnabled');
+            const enabled = !!enabledEl && enabledEl.checked;
+            const types = [];
+            document.querySelectorAll('#bwTypeOptions input[type="checkbox"]').forEach(function(cb) {
+                if (cb.checked) types.push(cb.value);
+            });
+            let method = 'hint';
+            document.querySelectorAll('#bwMethodOptions input[type="radio"]').forEach(function(rb) {
+                if (rb.checked) method = rb.value;
+            });
+            saveBlockwordSettings({ enabled: enabled, types: types, method: method });
+            updateBlockwordSettingsUI();
+            closeBlockwordSettings();
+            showSnackbar('屏蔽词检测设置已保存');
+            // 立即按新设置重渲染公聊列表（当前页面不可见，无视觉跳动）
+            refreshPublicMessages();
+        }
+
+        // v072: 隐藏消息模式——点击占位条在折叠/展开间切换
+        function toggleBlockedMessage(row, warnLabel) {
+            if (!row) return;
+            const bubble = row.querySelector('.bubble');
+            const ph = row.querySelector('.msg-blocked-placeholder');
+            if (!bubble || !ph) return;
+            const hidden = bubble.style.display === 'none';
+            bubble.style.display = hidden ? '' : 'none';
+            ph.style.display = hidden ? 'none' : '';
+            if (hidden && warnLabel && !bubble.querySelector('.msg-warning')) {
+                // 展开时在气泡下方附带屏蔽提示
+                const warnEl = document.createElement('div');
+                warnEl.className = 'msg-warning';
+                warnEl.innerHTML = '<span class="msg-warning-label">' + warnLabel + '</span>';
+                bubble.appendChild(warnEl);
+            }
+        }
+
         function updateAllAvatars() {
             loadUserAvatars(Object.keys(userAvatarCache).concat([currentUser])).then(() => {
                 renderPrivateList();
@@ -226,6 +379,8 @@
                     }
                 }
             }
+            // v070: 本地加密缓存——新消息到达即防抖落盘
+            scheduleMessageCacheSave();
         }
 
         // v058: 图片加载占位动画——图片加载完成前显示 MD 圆圈动画（对齐新版 MJChat v055/v056）
@@ -453,6 +608,41 @@
                 avatarElem.textContent = '';
             }
             row.dataset.elementId = msg.id;
+            // v072: 屏蔽词检测（仅公聊）——按设置选择命中的类型与处理方式；判断结果写入消息对象随缓存落盘
+            if (typeof msg.blocked_warn !== 'string') msg.blocked_warn = checkBlockedWords(msg.text || '');
+            if (msg.blocked_warn) {
+                const bwSettings = loadBlockwordSettings();
+                if (bwSettings.enabled && bwSettings.types.indexOf(msg.blocked_warn) !== -1) {
+                    const bubbleEl = row.querySelector('.bubble');
+                    if (bubbleEl) {
+                        if (bwSettings.method === 'hide') {
+                            // 隐藏消息：折叠原文，点击占位条展开查看
+                            bubbleEl.style.display = 'none';
+                            const phEl = document.createElement('div');
+                            phEl.className = 'msg-blocked-placeholder';
+                            phEl.textContent = BLOCKWORD_TIPS[BLOCKWORD_TYPES.indexOf(msg.blocked_warn)];
+                            const contentEl = row.querySelector('.content');
+                            if (contentEl) {
+                                contentEl.insertBefore(phEl, bubbleEl);
+                                phEl.addEventListener('click', function(ev) {
+                                    ev.stopPropagation();
+                                    toggleBlockedMessage(row, msg.blocked_warn);
+                                });
+                            }
+                        } else {
+                            // 气泡提示：消息下方显示提示（样式与翻译文本一致）
+                            const warnEl = document.createElement('div');
+                            warnEl.className = 'msg-warning';
+                            warnEl.innerHTML = '<span class="msg-warning-label">' + BLOCKWORD_TIPS[BLOCKWORD_TYPES.indexOf(msg.blocked_warn)] + '</span>';
+                            bubbleEl.appendChild(warnEl);
+                        }
+                    }
+                }
+            }
+            // v071: 恢复已缓存译文（若有）
+            if (typeof msg.translation === 'string' && msg.translation && typeof window.CikaAI_renderStoredTranslation === 'function') {
+                window.CikaAI_renderStoredTranslation(row, msg.translation);
+            }
             c.appendChild(row);
         }
 
@@ -727,6 +917,8 @@
             publicMessages.forEach(m => renderPublicMessage(m));
             addPublicSystemMsg('聊天记录已被清空');
             updatePublicEntry();
+            // v070: 服务端已清空，同步刷新本地缓存
+            scheduleMessageCacheSave();
         }
 
         function handlePublicDeleted(msgId) {
@@ -1548,6 +1740,10 @@
                 avEl.style.backgroundImage = `url(${userAvatarCache[msg.sender]})`;
                 avEl.textContent = '';
             }
+            // v071: 恢复已缓存译文（若有）
+            if (typeof msg.translation === 'string' && msg.translation && typeof window.CikaAI_renderStoredTranslation === 'function') {
+                window.CikaAI_renderStoredTranslation(row, msg.translation);
+            }
             c.appendChild(row);
         }
 
@@ -1574,6 +1770,7 @@
                 privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
             }
             privateMessages.push(newMsg);
+            appendPrivateMsgCache(privateSessionId, newMsg);
             if (document.getElementById('privatePage').classList.contains('active')) {
                 renderPrivateMessage(newMsg);
                 if (withBannerCheck) checkPrivacyBanner();

@@ -302,6 +302,11 @@
             _encryptionKey = null;
             _userSettingsCache = null;
             _aiSettingsCache = null;
+            // 清空聊天记录缓存的内存态（localStorage 中的加密数据保留，重新登录可恢复）
+            _privateMsgCacheMap = {};
+            _privateMsgCacheOrder = [];
+            _cachedSessions = null;
+            if (_msgCacheTimer) { clearTimeout(_msgCacheTimer); _msgCacheTimer = null; }
         }
 
         // ============================================
@@ -379,6 +384,203 @@
         }
 
         // ============================================
+        // 聊天记录本地加密缓存（AES-GCM，与用户设置同密钥）
+        // 缓存公聊最近 200 条与私聊各会话最近 200 条，用于离线查看与加速首屏；
+        // 仅缓存消息文本与媒体 URL，媒体文件本身不缓存。
+        // 数据按用户隔离（mjchat_msgcache_<username>）；登出保留（加密保存，同密码重新登录可恢复），注销账号时清除。
+        // ============================================
+        const MSG_CACHE_PREFIX = 'mjchat_msgcache_';
+        const MSG_CACHE_PUBLIC_LIMIT = 200;
+        const MSG_CACHE_PRIVATE_LIMIT = 200;
+        const MSG_CACHE_MAX_SESSIONS = 20;
+        let _msgCacheTimer = null;
+        let _privateMsgCacheMap = {};   // sessionId -> 消息数组（时间正序）
+        let _privateMsgCacheOrder = []; // 最近更新的会话 id（头部最新，用于裁剪会话数）
+        let _cachedSessions = null;     // 私聊会话列表缓存（离线时恢复列表）
+
+        // 只保留渲染所需字段，避免缓存体积膨胀与易变字段污染
+        function _trimMsg(m) {
+            if (!m || typeof m !== 'object') return null;
+            const out = { id: m.id, sender: m.sender, created_at: m.created_at };
+            if (typeof m.text === 'string') out.text = m.text;
+            if (typeof m.content === 'string') out.content = m.content;
+            if (m.image_url) out.image_url = m.image_url;
+            if (m.audio_url) out.audio_url = m.audio_url;
+            if (m.audio_dur) out.audio_dur = m.audio_dur;
+            if (m.msg_version) out.msg_version = m.msg_version;
+            if (m.reply_to_id) out.reply_to_id = m.reply_to_id;
+            if (m.reply_content) out.reply_content = m.reply_content;
+            if (m.sender_deleted) out.sender_deleted = m.sender_deleted;
+            if (m.is_system) out.is_system = m.is_system;
+            // v071: 一并缓存译文与屏蔽词判断，离线/重渲染时可恢复
+            if (typeof m.translation === 'string') out.translation = m.translation;
+            if (typeof m.blocked_warn === 'string') out.blocked_warn = m.blocked_warn;
+            return out;
+        }
+
+        function _msgCacheKey() {
+            return MSG_CACHE_PREFIX + (currentUser || '');
+        }
+
+        // 读取并解密当前用户的聊天记录缓存；返回 { public, private, sessions } 或 null
+        async function loadChatMessageCache() {
+            if (!_encryptionKey || !currentUser) return null;
+            try {
+                const raw = localStorage.getItem(_msgCacheKey());
+                if (!raw) return null;
+                const obj = JSON.parse(raw);
+                if (!obj || !obj.iv || !obj.data) return null;
+                const plain = await decryptData(_encryptionKey, obj.iv, obj.data);
+                const cache = JSON.parse(plain);
+                if (!cache || typeof cache !== 'object') return null;
+                _privateMsgCacheMap = {};
+                _privateMsgCacheOrder = [];
+                if (cache.private && typeof cache.private === 'object') {
+                    Object.keys(cache.private).forEach(sid => {
+                        _privateMsgCacheMap[sid] = (Array.isArray(cache.private[sid]) ? cache.private[sid] : [])
+                            .map(_trimMsg).filter(Boolean);
+                        _privateMsgCacheOrder.push(sid);
+                    });
+                }
+                _cachedSessions = Array.isArray(cache.sessions) ? cache.sessions : null;
+                return {
+                    public: (Array.isArray(cache.public) ? cache.public : []).map(_trimMsg).filter(Boolean),
+                    private: _privateMsgCacheMap,
+                    sessions: _cachedSessions
+                };
+            } catch (e) {
+                console.warn('聊天记录缓存读取失败（密钥不匹配或数据损坏）:', e);
+                return null;
+            }
+        }
+
+        // 加密写入当前用户的聊天记录缓存
+        async function saveChatMessageCache() {
+            if (!_encryptionKey || !currentUser) return;
+            try {
+                const pub = (typeof publicMessages !== 'undefined' && Array.isArray(publicMessages))
+                    ? publicMessages.slice(-MSG_CACHE_PUBLIC_LIMIT).map(_trimMsg).filter(Boolean) : [];
+                const priv = {};
+                _privateMsgCacheOrder.slice(0, MSG_CACHE_MAX_SESSIONS).forEach(sid => {
+                    const list = _privateMsgCacheMap[sid];
+                    if (list && list.length) priv[sid] = list.slice(-MSG_CACHE_PRIVATE_LIMIT);
+                });
+                const payload = {
+                    savedAt: new Date().toISOString(),
+                    public: pub,
+                    private: priv,
+                    sessions: _cachedSessions || undefined
+                };
+                const encrypted = await encryptData(_encryptionKey, JSON.stringify(payload));
+                localStorage.setItem(_msgCacheKey(), JSON.stringify(encrypted));
+            } catch (e) {
+                // 配额不足或密钥缺失时静默失败（缓存非关键功能）
+                console.warn('聊天记录缓存保存失败:', e);
+            }
+        }
+
+        // 防抖保存（消息频繁到达时合并写入）
+        function scheduleMessageCacheSave() {
+            if (!_encryptionKey || !currentUser) return;
+            if (_msgCacheTimer) clearTimeout(_msgCacheTimer);
+            _msgCacheTimer = setTimeout(function() {
+                _msgCacheTimer = null;
+                saveChatMessageCache();
+            }, 800);
+        }
+
+        // 页面隐藏/关闭前立即落盘，补上防抖间隙
+        function flushMessageCacheSave() {
+            if (_msgCacheTimer) { clearTimeout(_msgCacheTimer); _msgCacheTimer = null; }
+            if (_encryptionKey && currentUser) {
+                saveChatMessageCache();
+            }
+        }
+
+        // 覆盖某个私聊会话的缓存（参数为时间正序消息数组）
+        function upsertPrivateMsgCache(sessionId, msgs) {
+            if (!sessionId) return;
+            const list = (Array.isArray(msgs) ? msgs : []).map(_trimMsg).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
+            if (!list.length && !_privateMsgCacheMap[sessionId]) return;
+            _privateMsgCacheMap[sessionId] = list;
+            const i = _privateMsgCacheOrder.indexOf(sessionId);
+            if (i >= 0) _privateMsgCacheOrder.splice(i, 1);
+            _privateMsgCacheOrder.unshift(sessionId);
+            scheduleMessageCacheSave();
+        }
+
+        // 追加一条私聊消息到缓存（按 id 去重）
+        function appendPrivateMsgCache(sessionId, msg) {
+            if (!sessionId || !msg || !msg.id) return;
+            let list = _privateMsgCacheMap[sessionId] || [];
+            if (list.some(function(m) { return m.id === msg.id; })) return;
+            list = list.concat([_trimMsg(msg)]).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
+            _privateMsgCacheMap[sessionId] = list;
+            const i = _privateMsgCacheOrder.indexOf(sessionId);
+            if (i >= 0) _privateMsgCacheOrder.splice(i, 1);
+            _privateMsgCacheOrder.unshift(sessionId);
+            scheduleMessageCacheSave();
+        }
+
+        // 读取某个私聊会话的缓存消息（时间正序）
+        function getPrivateMsgCache(sessionId) {
+            return _privateMsgCacheMap[sessionId] || null;
+        }
+
+        // v072: 就地同步某条私聊消息的易变字段（译文/屏蔽词判断）到缓存，
+        // 供渲染后补充写回，避免"先渲染再入缓存"导致的重排
+        function updateCachedMessageFields(sessionId, msg) {
+            if (!sessionId || !msg || !msg.id) return;
+            const list = _privateMsgCacheMap[sessionId];
+            if (!Array.isArray(list)) return;
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].id === msg.id) {
+                    if (typeof msg.translation === 'string') list[i].translation = msg.translation;
+                    else if (list[i].translation) delete list[i].translation;
+                    if (typeof msg.blocked_warn === 'string') list[i].blocked_warn = msg.blocked_warn;
+                    else if (list[i].blocked_warn) delete list[i].blocked_warn;
+                    scheduleMessageCacheSave();
+                    return;
+                }
+            }
+        }
+
+        // 记录私聊会话列表缓存（离线时恢复私聊入口）
+        function setCachedSessions(sessions) {
+            const trimmed = Array.isArray(sessions) && sessions.length
+                ? sessions.map(function(s) {
+                    return {
+                        id: s.id, user1: s.user1, user2: s.user2, updated_at: s.updated_at,
+                        last_message: s.last_message, deleted_by_user1: s.deleted_by_user1, deleted_by_user2: s.deleted_by_user2
+                    };
+                }) : null;
+            const prev = JSON.stringify(_cachedSessions);
+            _cachedSessions = trimmed;
+            // 会话列表未变化时（如轮询）不触发落盘
+            if (prev !== JSON.stringify(_cachedSessions)) scheduleMessageCacheSave();
+        }
+
+        function getCachedSessions() {
+            return _cachedSessions;
+        }
+
+        // 清空当前用户的聊天记录缓存（注销账号时调用）
+        function clearChatMessageCache() {
+            _privateMsgCacheMap = {};
+            _privateMsgCacheOrder = [];
+            _cachedSessions = null;
+            if (_msgCacheTimer) { clearTimeout(_msgCacheTimer); _msgCacheTimer = null; }
+            if (currentUser) {
+                try { localStorage.removeItem(_msgCacheKey()); } catch (e) {}
+            }
+        }
+
+        // 页面关闭/隐藏前立即落盘防抖中的缓存
+        if (typeof window !== 'undefined') {
+            window.addEventListener('pagehide', function() { flushMessageCacheSave(); });
+        }
+
+        // ============================================
         // 设置导入导出
         // ============================================
 
@@ -390,7 +592,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "26.8.601",
+                version: "26.8.603",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

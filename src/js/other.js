@@ -414,6 +414,8 @@
                 switchPage('settingsPage', true);
                 updateThemeLabel();
                 refreshNotifySettingsUI();
+                // v072: 刷新屏蔽词检测设置入口显示值
+                updateBlockwordSettingsUI();
             } else if (page === 'about') {
                 pushPageHistory('about');
                 switchPage('aboutPage', true);

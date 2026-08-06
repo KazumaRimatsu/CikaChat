@@ -392,6 +392,12 @@
                             <span class="settings-item-label">黑名单管理</span>
                             <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
+                        <div class="settings-item" onclick="showBlockwordSettings();">
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><use href="#icon-dnd" xlink:href="#icon-dnd"/></svg></div>
+                            <span class="settings-item-label">消息过滤选项</span>
+                            <span class="settings-item-value" id="settingsBlockwordValue">气泡提示</span>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
+                        </div>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-title">通知</div>
@@ -804,6 +810,38 @@
             </div>
         </div>
 
+        <div class="dialog-overlay hidden" id="blockwordSettingsDialog" onclick="if(event.target===this)closeBlockwordSettings()">
+            <div class="md-dialog">
+                <div class="dialog-header">
+                    <h2>消息过滤选项</h2>
+                    <button onclick="closeBlockwordSettings()" class="theme-dialog-close">✕</button>
+                </div>
+                <div class="blockword-form">
+                    <div class="blockword-row">
+                        <span class="blockword-row-label">启用消息过滤</span>
+                        <label class="blockword-switch"><input type="checkbox" id="bwEnabled"><span class="blockword-switch-track"></span></label>
+                    </div>
+                    <div class="blockword-hint">仅对公共聊天生效</div>
+                    <div class="blockword-section-label">过滤类型</div>
+                    <div class="blockword-type-options" id="bwTypeOptions">
+                        <label class="blockword-check"><input type="checkbox" value="黄色内容"><span>成人内容</span></label>
+                        <label class="blockword-check"><input type="checkbox" value="暴力恐怖A"><span>药物滥用、毒品</span></label>
+                        <label class="blockword-check"><input type="checkbox" value="反动内容"><span>政治敏感言论</span></label>
+                        <label class="blockword-check"><input type="checkbox" value="暴力恐怖B"><span>暴力及恐怖内容</span></label>
+                        <label class="blockword-check"><input type="checkbox" value="政治敏感"><span>政治敏感内容</span></label>
+                        <label class="blockword-check"><input type="checkbox" value="其他不良内容"><span>其他不良内容</span></label>
+
+                    </div>
+                    <div class="blockword-section-label">提示方式</div>
+                    <div class="blockword-method-options" id="bwMethodOptions">
+                        <label class="blockword-radio"><input type="radio" name="bwMethod" value="hint"><span>消息下气泡提示</span></label>
+                        <label class="blockword-radio"><input type="radio" name="bwMethod" value="hide"><span>隐藏消息，手动点击查看</span></label>
+                    </div>
+                </div>
+                <div class="dialog-actions"><button class="md-button text" onclick="closeBlockwordSettings()">取消</button><button class="md-button text" onclick="saveBlockwordSettingsDialog()">保存</button></div>
+            </div>
+        </div>
+
         <div class="dialog-overlay hidden" id="confirmDialog" onclick="if(event.target===this)closeConfirmDialog()">
             <div class="md-dialog">
                 <h2 id="confirmTitle">确认</h2>
@@ -967,6 +1005,7 @@
     <script src="js/fonts.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/stpwords-data.js"></script>
     <script src="js/chat.js"></script>
     <script src="js/features.js"></script>
     <script src="js/other.js"></script>

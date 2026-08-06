@@ -683,6 +683,22 @@
             document.getElementById('authContainer').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
 
+            // v070: 本地加密缓存——等待密钥就绪后恢复已缓存记录（加速首屏，离线可用）
+            for (let _kw = 0; _kw < 40 && !_encryptionKey; _kw++) {
+                await new Promise(r => setTimeout(r, 50));
+            }
+            try {
+                const msgCache = await loadChatMessageCache();
+                if (msgCache && msgCache.public && msgCache.public.length && publicMessages.length === 0) {
+                    msgCache.public.forEach(m => {
+                        publicMessages.push(m);
+                        publicMessageById.set(m.id, m);
+                    });
+                }
+            } catch (e) {
+                console.warn('聊天记录缓存恢复失败:', e);
+            }
+
             try {
                 // v040: Make connectPublic non-blocking - if it fails or takes too long,
                 // still enter app and retry public chat connection in background
@@ -1242,7 +1258,13 @@
                 if (el) el.remove();
                 if (error) {
                     console.error('loadPublicHistory error:', error);
-                    addPublicSystemMsg('加载历史消息失败');
+                    if (publicMessages.length === 0) {
+                        addPublicSystemMsg('加载历史消息失败');
+                    } else {
+                        // v070: 已有本地缓存时保留展示，不显示失败提示
+                        publicHasMore = false;
+                        if (typeof showSnackbar === 'function') showSnackbar('网络异常，正在显示本地缓存记录');
+                    }
                     return;
                 }
                 if (!data || data.length === 0) {
@@ -1385,6 +1407,13 @@
                         .order('updated_at', { ascending: false });
                     if (error) {
                         console.error('loadPrivateSessions error:', error);
+                        // v070: 离线回退——用本地加密缓存恢复会话列表
+                        const cachedSessions = getCachedSessions();
+                        if (cachedSessions && cachedSessions.length) {
+                            window.privateSessions = cachedSessions;
+                            renderPrivateList();
+                            return window.privateSessions;
+                        }
                         return;
                     }
                     sessions = data || [];
@@ -1395,6 +1424,8 @@
                     return true;
                 });
                 window.privateSessions = filtered;
+                // v070: 缓存会话列表，供离线时恢复私聊入口
+                setCachedSessions(filtered);
                 const otherUsers = filtered.map(s => s.user1 === currentUser ? s.user2 : s.user1);
                 await loadUserAvatars(otherUsers);
                 renderPrivateList();
@@ -1471,13 +1502,36 @@
                         }
                     }
                 } catch (e) { /* RPC error */ }
+                let usedCache = false;
                 if (!messages) {
-                    console.error('loadPrivateMessages: RPC unavailable or failed');
-                    return;
+                    // v070: 离线回退——使用本地加密缓存
+                    const cached = getPrivateMsgCache(sessionId);
+                    if (cached && cached.length) {
+                        messages = cached;
+                        usedCache = true;
+                    } else {
+                        console.error('loadPrivateMessages: RPC unavailable or failed');
+                        return;
+                    }
                 }
                 const prevIds = notifyNew ? new Set(privateMessages.map(m => m.id)) : null;
-                privateMessages = messages.reverse();
-                privateHasMore = messages.length === PAGE_SIZE;
+                // v071: 服务端重拉后，合并上次缓存中的译文，避免重新渲染时丢失（屏蔽词仅公聊，不涉及私聊）
+                if (!usedCache) {
+                    const cached = getPrivateMsgCache(sessionId);
+                    if (cached && cached.length) {
+                        const cachedById = {};
+                        cached.forEach(function(cm) { if (cm && cm.id) cachedById[cm.id] = cm; });
+                        messages.forEach(function(m) {
+                            const cm = cachedById[m.id];
+                            if (cm) {
+                                if (typeof cm.translation === 'string') m.translation = cm.translation;
+                            }
+                        });
+                    }
+                }
+                // RPC 返回倒序，本地缓存为正序，统一转换为正序
+                privateMessages = usedCache ? messages.slice() : messages.reverse();
+                privateHasMore = usedCache ? false : privateMessages.length === PAGE_SIZE;
                 const c = document.getElementById('privateMessages');
                 c.innerHTML = '';
                 privateLastDateLabel = '';
@@ -1494,12 +1548,16 @@
                     });
                 }
                 // 网络不佳时实时广播可能丢失，轮询补拉发现的新消息需要正常播放提示音（免打扰时不播放）
-                if (notifyNew && prevIds) {
+                if (notifyNew && prevIds && !usedCache) {
                     const fresh = privateMessages.filter(m => !prevIds.has(m.id) && m.sender !== currentUser);
                     if (fresh.length > 0 && !_mutePerPrivateSession[privateSessionId] && getPrivateNotifyEnabled() &&
                         !document.getElementById('privatePage').classList.contains('active')) {
                         playNotifySound();
                     }
+                }
+                // v070: 拉取成功后更新本地加密缓存
+                if (!usedCache) {
+                    upsertPrivateMsgCache(sessionId, privateMessages);
                 }
             } catch (e) { /* ignore */ }
         }
@@ -1540,6 +1598,7 @@
                 await loadUserAvatars(senders);
                 const unique = moreMessages.reverse().filter(m => !privateMessages.some(e => e.id === m.id));
                 privateMessages = unique.concat(privateMessages);
+                upsertPrivateMsgCache(sessionId, privateMessages);
                 const container = document.getElementById('privateMessages');
                 const prevScrollHeight = container.scrollHeight;
                 const prevScrollTop = container.scrollTop;
@@ -1569,6 +1628,7 @@
                 const msg = payload.payload;
                 if (!privateMessages.some(m => m.id === msg.id)) {
                     privateMessages.push(msg);
+                    appendPrivateMsgCache(sessionId, msg);
                     if (document.getElementById('privatePage').classList.contains('active')) {
                         renderPrivateMessage(msg);
                         checkPrivacyBanner();
@@ -2056,6 +2116,8 @@
                 }
                 if (overlay) overlay.remove();
                 localStorage.removeItem('mjchat_session');
+                // v070: 账号注销时同步清除本地聊天记录缓存
+                clearChatMessageCache();
                 clearEncryptionKey();
                 showSnackbar('账号已彻底注销');
                 setTimeout(function() {

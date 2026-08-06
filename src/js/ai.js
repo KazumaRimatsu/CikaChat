@@ -271,8 +271,22 @@ var CikaAI = (function() {
         return loadingEl;
     }
 
-    function renderTranslation(row, text) {
-        removeTranslation(row);
+    // v071: 根据消息行定位消息对象（公聊/私聊），用于把译文写入消息并随缓存落盘
+    function findMessageByRow(row) {
+        if (!row) return null;
+        var id = row.dataset.msgId;
+        if (!id) return null;
+        var isPrivate = !!(row.closest && row.closest('#privateMessages'));
+        var list = isPrivate ? privateMessages : publicMessages;
+        if (!Array.isArray(list)) return null;
+        for (var i = 0; i < list.length; i++) {
+            if (list[i] && list[i].id === id) return list[i];
+        }
+        return null;
+    }
+
+    // 仅渲染译文 DOM（不读写消息缓存；renderTranslation 与缓存恢复共用）
+    function _renderTranslationHtml(row, text) {
         if (!text) return;
         var bubble = row.querySelector('.bubble');
         if (!bubble) return;
@@ -287,12 +301,33 @@ var CikaAI = (function() {
         bubble.appendChild(el);
     }
 
+    function renderTranslation(row, text) {
+        removeTranslation(row);
+        _renderTranslationHtml(row, text);
+        // v071: 译文写入消息对象，随消息缓存落盘（离线/重渲染可恢复）
+        var msgObj = findMessageByRow(row);
+        if (msgObj) {
+            msgObj.translation = text;
+            // v072: 私聊译文就地同步到会话缓存（公聊缓存在落盘时从 publicMessages 重取）
+            if (typeof privateSessionId === 'string' && privateSessionId) updateCachedMessageFields(privateSessionId, msgObj);
+            scheduleMessageCacheSave();
+        }
+    }
+
     function removeTranslation(row) {
         if (!row) return;
         var bubble = row.querySelector('.bubble');
         if (!bubble) return;
         var existing = bubble.querySelectorAll('.ai-translation');
         existing.forEach(function(el) { el.remove(); });
+        // v071: 同步清除消息对象上的缓存译文
+        var msgObj = findMessageByRow(row);
+        if (msgObj && msgObj.translation) {
+            delete msgObj.translation;
+            // v072: 私聊译文删除时同步到会话缓存
+            if (typeof privateSessionId === 'string' && privateSessionId) updateCachedMessageFields(privateSessionId, msgObj);
+            scheduleMessageCacheSave();
+        }
     }
 
     // ============ 对外翻译入口（上下文菜单调用） ============
@@ -332,6 +367,16 @@ var CikaAI = (function() {
         window.CikaAI_doTranslate = doTranslate;
         window.CikaAI_toggleTranslation = toggleTranslation;
         window.CikaAI_removeTranslation = removeTranslation;
+        // v071: 恢复已缓存译文（chat.js 渲染消息时调用，不重复写入缓存）
+        // 注意：只清理旧译文 DOM，不能调用 removeTranslation（那会删除消息对象上的缓存值）
+        window.CikaAI_renderStoredTranslation = function(row, text) {
+            if (!row || !text) return;
+            var bubble = row.querySelector('.bubble');
+            if (!bubble) return;
+            var existing = bubble.querySelectorAll('.ai-translation');
+            existing.forEach(function(el) { el.remove(); });
+            _renderTranslationHtml(row, text);
+        };
     }
 
     return {

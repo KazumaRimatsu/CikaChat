@@ -36,6 +36,19 @@
     animation: ai-translation-enter 0.2s ease-out;
 }
 
+/* v071: 屏蔽词提示——独立警告样式，警告色更显眼 */
+.msg-warning {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--md-error);
+    background: var(--md-error-container);
+    color: var(--md-on-error-container);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    animation: ai-translation-enter 0.2s ease-out;
+}
+
 /* 翻译请求进行中：弱化显示 */
 .ai-translation-loading {
     border-left-color: var(--md-on-surface-variant);
@@ -59,6 +72,143 @@
     margin-bottom: 4px;
     font-size: 0.75rem;
     color: var(--md-on-surface-variant);
+}
+
+/* v071: 屏蔽词提示标签——警告色加粗突出 */
+.msg-warning .msg-warning-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--md-error);
+}
+
+/* v072: 屏蔽词隐藏消息占位条——弱化虚线框，点击可展开查看原文 */
+.msg-blocked-placeholder {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px dashed var(--md-error);
+    border-radius: var(--radius-sm);
+    background: var(--md-error-container);
+    color: var(--md-on-error-container);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    cursor: pointer;
+    user-select: none;
+    animation: ai-translation-enter 0.2s ease-out;
+}
+
+.msg-blocked-placeholder:hover {
+    opacity: 0.85;
+}
+
+/* v072: 屏蔽词检测设置弹窗（类型复选 + 方式单选 + 启用开关） */
+.blockword-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.blockword-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.blockword-row-label {
+    font-size: 0.925rem;
+    color: var(--md-on-surface);
+}
+
+.blockword-hint {
+    font-size: 0.75rem;
+    color: var(--md-on-surface-variant);
+}
+
+.blockword-section-label {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--md-on-surface-variant);
+}
+
+.blockword-type-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin-top: 4px;
+}
+
+.blockword-method-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.blockword-check,
+.blockword-radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+    color: var(--md-on-surface);
+    cursor: pointer;
+}
+
+.blockword-check input,
+.blockword-radio input {
+    accent-color: var(--md-primary);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.blockword-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.blockword-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.blockword-switch-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: var(--md-surface-container-highest);
+    transition: background 0.2s ease;
+}
+
+.blockword-switch-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--md-on-surface-variant);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.blockword-switch input:checked + .blockword-switch-track {
+    background: var(--md-primary);
+}
+
+.blockword-switch input:checked + .blockword-switch-track::after {
+    transform: translateX(18px);
+    background: var(--md-on-primary);
 }
 
 .ai-translation .ai-translation-text {
