@@ -48,8 +48,8 @@
 
     // 内置主题预览色（未自定义时用于设置页卡片缩略图）
     var BUILTIN_PREVIEW = {
-        dark:  { background: '#121212', surface: '#1E1E1E', primary: '#4A9EFF', onSurface: '#FFFFFF' },
-        light: { background: '#FAFAFA', surface: '#FFFFFF', primary: '#1976D2', onSurface: '#212121' }
+        dark:  { background: '#1A1C1E', surface: '#262A2C', primary: '#A0CAFD', onSurface: '#E2E2E5' },
+        light: { background: '#FDFCFF', surface: '#EDEEF1', primary: '#1976D2', onSurface: '#1A1C1E' }
     };
 
     // ============================================================
@@ -217,12 +217,22 @@
         try {
             var root = document.documentElement;
             if (isCustom) {
-                root.setAttribute('data-theme', theme.base || 'dark');
+                // :root 默认为 light，仅 base='dark' 时需设置 data-theme
+                if (theme.base === 'dark') {
+                    root.setAttribute('data-theme', 'dark');
+                } else {
+                    root.removeAttribute('data-theme');
+                }
                 root.setAttribute('data-custom-theme', theme.id);
                 var el = ensureStyleEl();
                 if (el) el.textContent = buildCss(theme);
             } else {
-                root.setAttribute('data-theme', theme.id);
+                // 内置主题：:root 默认 light，dark 需显式设置
+                if (theme.id === 'dark') {
+                    root.setAttribute('data-theme', 'dark');
+                } else {
+                    root.removeAttribute('data-theme');
+                }
                 root.removeAttribute('data-custom-theme');
                 if (styleEl) styleEl.textContent = '';
             }
@@ -370,20 +380,20 @@
                 base: 'dark',
                 description: '基于暗黑模式的自定义主题示例',
                 variables: {
-                    '--md-primary': '#4A9EFF',
-                    '--md-primary-variant': '#1565C0',
-                    '--md-primary-container': 'rgba(74, 158, 255, 0.12)',
-                    '--md-on-primary': '#FFFFFF',
-                    '--md-background': '#121212',
-                    '--md-surface': '#1E1E1E',
-                    '--md-surface-1dp': '#1E1E1E',
-                    '--md-on-background': '#FFFFFF',
-                    '--md-on-surface': '#FFFFFF',
-                    '--md-on-surface-muted': 'rgba(255, 255, 255, 0.60)',
-                    '--md-outline': 'rgba(255, 255, 255, 0.12)',
-                    '--md-error': '#CF6679',
+                    '--md-primary': '#A0CAFD',
+                    '--md-primary-container': 'rgba(160, 202, 253, 0.12)',
+                    '--md-on-primary': '#003258',
+                    '--md-background': '#1A1C1E',
+                    '--md-surface': '#262A2C',
+                    '--md-surface-container': '#2B2F31',
+                    '--md-surface-container-high': '#35393B',
+                    '--md-on-background': '#E2E2E5',
+                    '--md-on-surface': '#E2E2E5',
+                    '--md-on-surface-variant': 'rgba(226, 226, 229, 0.70)',
+                    '--md-outline': 'rgba(226, 226, 229, 0.30)',
+                    '--md-error': '#FFB4AB',
                     '--md-success': '#81C784',
-                    '--md-link': '#64B5F6'
+                    '--md-link': '#A0CAFD'
                 }
             };
         },

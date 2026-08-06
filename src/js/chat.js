@@ -3,6 +3,7 @@
         let publicChannel = null;
         let privateChannel = null;
         let publicMessages = [];
+        let publicMessageById = new Map(); // 消息 id 索引，用于 O(1) 去重与回复查找
         let publicLastDateLabel = '';
         let privateMessages = [];
         let privateLastDateLabel = '';
@@ -10,7 +11,10 @@
         let privateOtherUser = '';
         let privateChatActive = false;
         let privateStatusInterval = null;
-        let dismissedPrivacyBanners = new Set(JSON.parse(localStorage.getItem('dismissedPrivacyBanners') || '[]'));
+        let dismissedPrivacyBanners = new Set();
+        try {
+            dismissedPrivacyBanners = new Set(JSON.parse(localStorage.getItem('dismissedPrivacyBanners') || '[]'));
+        } catch (e) { /* 本地数据损坏时保持空集合 */ }
         let onlineUsers = {};
         let replyTarget = null;
         let privateReplyTarget = null;
@@ -171,7 +175,7 @@
         }
 
         function handlePublicMessage(msg, isHistory = false) {
-            if (publicMessages.some(m => m.id === msg.id)) return;
+            if (publicMessageById.has(msg.id)) return;
             if (msg.is_system && isGarbledText(msg.text)) return;
             if (msg.is_system && msg.text && (
                 msg.text.includes('加入了CikaChat') || msg.text.includes('离开了CikaChat') ||
@@ -192,10 +196,11 @@
                 is_system: msg.is_system || false
             };
             publicMessages.push(nm);
+            publicMessageById.set(nm.id, nm);
             if (!userAvatarCache.hasOwnProperty(nm.sender) && !nm.is_system) {
                 loadUserAvatars([nm.sender]).then(() => {
                     if (document.getElementById('publicPage').classList.contains('active')) {
-                        document.querySelectorAll(`[data-sender="${nm.sender}"]`).forEach(el => {
+                        document.querySelectorAll(`[data-sender="${CSS.escape(nm.sender)}"]`).forEach(el => {
                             applyAvatarToElement(el, nm.sender);
                         });
                     }
@@ -237,6 +242,15 @@
                 '</div>';
         }
 
+        // 消息气泡构建辅助（公聊/私聊渲染共用，消除视频/文件气泡 HTML 重复）
+        function buildVideoBubbleHtml(url, name) {
+            return `<div class="video-bubble" onclick="openVideoPreview('${escapeJsString(url)}')"><video src="${escapeAttr(url)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(name)}</div></div>`;
+        }
+        function buildFileBubbleHtml(url, name, sizeKb) {
+            const iconPath = getFileIconSvg(name);
+            return `<div class="file-msg" onclick="openFilePreview('${escapeJsString(url)}', '${escapeJsString(name)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(name)}${sizeKb ? ` (${escapeHtml(sizeKb)} KB)` : ''}</span></div>`;
+        }
+
         function renderPublicMessage(msg) {
             const c = document.getElementById('publicMessages');
             const isOwn = msg.sender === currentUser;
@@ -272,7 +286,7 @@
 
             let replyHtml = '';
             if (msg.reply_to_id) {
-                const repliedMsg = publicMessages.find(m => m.id === msg.reply_to_id);
+                const repliedMsg = publicMessageById.get(msg.reply_to_id);
                 let replyPreviewContent = '';
                 if (repliedMsg) {
                     const senderDisplay = repliedMsg.sender_deleted ? `[用户已注销] ${repliedMsg.sender}` : repliedMsg.sender;
@@ -301,7 +315,7 @@
                     replyPreviewContent = escapeHtml(msg.reply_content || '');
                 }
                 if (replyPreviewContent) {
-                    replyHtml = `<div class="reply-preview-block" data-reply-id="${escapeAttr(msg.reply_to_id)}" onclick="jumpToMessage('${escapeAttr(msg.reply_to_id)}', 'public')">↩ ${replyPreviewContent}</div>`;
+                    replyHtml = `<div class="reply-preview-block" data-reply-id="${escapeAttr(msg.reply_to_id)}" onclick="jumpToMessage('${escapeJsString(msg.reply_to_id)}', 'public')">↩ ${replyPreviewContent}</div>`;
                 }
             }
 
@@ -311,7 +325,8 @@
                 const mjAttrs = _parseMjV064(mjMatch);
                 const mjType = mjAttrs.type;
                 if (mjType === 'voice') {
-                    bubbleContent = buildVoiceBubbleHtml(mjAttrs.url || '', parseInt(mjAttrs.dur) || 0, '请升级到最新版本播放');
+                    // v069: mjv064 无 url 时回退到消息 audio_url 字段（兼容公聊语音发送格式）
+                    bubbleContent = buildVoiceBubbleHtml(mjAttrs.url || msg.audio_url || '', parseInt(mjAttrs.dur) || msg.audio_dur || 0, '请升级到最新版本播放');
                     msgType = 'voice';
                 } else if (mjType === 'link') {
                     linkUrl = mjAttrs.url || '';
@@ -324,16 +339,14 @@
                     const mjFurl = mjAttrs.url || '';
                     linkUrl = mjFurl;
                     if (isImageFile(mjFname)) {
-                        bubbleContent = _wrapImgWithLoader(mjFurl, `onclick="previewImage('${escapeAttr(mjFurl)}')" alt="${escapeAttr(mjFname)}"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        bubbleContent = _wrapImgWithLoader(mjFurl, `onclick="previewImage('${escapeJsString(mjFurl)}')" alt="${escapeAttr(mjFname)}"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
                         msgType = 'image';
                         imageUrl = mjFurl;
                     } else if (isVideoFile(mjFname)) {
-                        bubbleContent = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(mjFurl)}')"><video src="${escapeAttr(mjFurl)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(mjFname)}</div></div>`;
+                        bubbleContent = buildVideoBubbleHtml(mjFurl, mjFname);
                         msgType = 'video';
                     } else {
-                        const mjIconPath = getFileIconSvg(mjFname);
-                        bubbleContent =
-                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(mjFurl)}', '${escapeAttr(mjFname)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${mjIconPath}</svg><span>${escapeHtml(mjFname)}${mjFsize ? ` (${escapeHtml(mjFsize)} KB)` : ''}</span></div>`;
+                        bubbleContent = buildFileBubbleHtml(mjFurl, mjFname, mjFsize);
                         msgType = 'file';
                     }
                 } else {
@@ -353,10 +366,10 @@
                     }
                 }
                 if (imageUrls.length > 1) {
-                    bubbleContent = `<div class="image-grid">${imageUrls.map(url => _wrapImgWithLoader(url, `onclick="previewImage('${escapeAttr(url)}')"`)).join('')}</div>`;
+                    bubbleContent = `<div class="image-grid">${imageUrls.map(url => _wrapImgWithLoader(url, `onclick="previewImage('${escapeJsString(url)}')"`)).join('')}</div>`;
                     msgType = 'image';
                 } else {
-                    bubbleContent = _wrapImgWithLoader(msg.image_url, `onclick="previewImage('${escapeAttr(msg.image_url)}')"`);
+                    bubbleContent = _wrapImgWithLoader(msg.image_url, `onclick="previewImage('${escapeJsString(msg.image_url)}')"`);
                     msgType = 'image';
                 }
                 if (msg.text && !msg.text.startsWith('🖼️ ')) {
@@ -380,17 +393,15 @@
                     const fileName = fileParts ? fileParts[1] : marked.fileInfo;
                     const fileSize = fileParts ? fileParts[2] : '';
                     if (isImageFile(fileName)) {
-                        bubbleContent = `<img src="${escapeAttr(marked.url)}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeAttr(marked.url)}')">`;
+                        bubbleContent = `<img src="${escapeAttr(marked.url)}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeJsString(marked.url)}')">`;
                         msgType = 'image';
                         imageUrl = marked.url;
                     } else if (isVideoFile(fileName)) {
-                        bubbleContent = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(marked.url)}')"><video src="${escapeAttr(marked.url)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileName)}</div></div>`;
+                        bubbleContent = buildVideoBubbleHtml(marked.url, fileName);
                         msgType = 'video';
                         linkUrl = marked.url;
                     } else {
-                        const iconPath = getFileIconSvg(fileName);
-                        bubbleContent =
-                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(marked.url)}', '${escapeAttr(fileName)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)} KB)` : ''}</span></div>`;
+                        bubbleContent = buildFileBubbleHtml(marked.url, fileName, fileSize);
                         msgType = 'file';
                         linkUrl = marked.url;
                     }
@@ -416,7 +427,7 @@
             row.dataset.imageUrl = imageUrl || '';
             row.dataset.replyToId = msg.reply_to_id || '';
             row.dataset.replyContent = msg.reply_content || '';
-            row.dataset.replySender = msg.reply_to_id ? ((function(){ var _f = publicMessages.find(function(m){ return m.id === msg.reply_to_id; }); return _f ? _f.sender : ''; })() || '') :
+            row.dataset.replySender = msg.reply_to_id ? ((function(){ var _f = publicMessageById.get(msg.reply_to_id); return _f ? _f.sender : ''; })() || '') :
             '';
 
             let bubbleClass = 'bubble';
@@ -430,7 +441,7 @@
             }
 
             row.innerHTML = `
-                <div class="${avatarClass}" data-sender="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
+                <div class="${avatarClass}" data-sender="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeJsString(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="${senderClass}">${escapeHtml(senderDisplay)}</span><span class="time">${time}</span></div>
                     <div class="${bubbleClass}">${replyHtml}${bubbleContent}</div>
@@ -709,6 +720,7 @@
 
         function handlePublicCleared() {
             publicMessages = publicMessages.filter(m => m.is_system);
+            publicMessageById = new Map(publicMessages.map(m => [m.id, m]));
             publicLastDateLabel = '';
             const c = document.getElementById('publicMessages');
             c.innerHTML = '';
@@ -719,6 +731,7 @@
 
         function handlePublicDeleted(msgId) {
             publicMessages = publicMessages.filter(m => m.id !== msgId);
+            publicMessageById.delete(msgId);
             const rows = document.querySelectorAll('#publicMessages .msg-row');
             rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
             updatePublicEntry();
@@ -1208,7 +1221,7 @@
                 var avUrl = userAvatarCache[other];
                 var avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                 var avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
-                return '<div class="list-item" data-session="' + s.id + '" onclick="openPrivateChat(\'' + s.id + '\',\'' + escapeAttr(other) + '\')">' +
+                return '<div class="list-item" data-session="' + escapeAttr(s.id) + '" onclick="openPrivateChat(\'' + escapeJsString(s.id) + '\',\'' + escapeJsString(other) + '\')">' +
                             '<div class="av-wrap">' +
                                 '<div class="av av-' + idx + '" data-username="' + escapeAttr(other) + '"' + avStyle + '>' + avText + '</div>' +
                                 '<div class="av-status-dot" data-username="' + escapeAttr(other) + '"></div>' +
@@ -1281,6 +1294,8 @@
             } else {
                 markPrivateRead(sessionId);
             }
+            // v069: 进入会话即标记已读并回执发送方
+            await markPrivateMessagesRead(sessionId);
             subscribePrivateChannel(sessionId);
             checkPrivacyBanner();
             updatePrivateChatStatus();
@@ -1319,6 +1334,45 @@
                 renderPrivateList();
                 updateBackBadge();
             }
+        }
+
+        // v069: 标记私聊消息已读（RPC 落库 + 广播给发送方）
+        async function markPrivateMessagesRead(sessionId) {
+            if (!sb || !currentUser || !sessionId) return;
+            try {
+                await sb.rpc('mark_private_messages_read', {
+                    p_session_id: sessionId,
+                    p_reader: currentUser,
+                    p_session_token: getSessionToken()
+                });
+            } catch (e) {
+                console.warn('[markPrivateMessagesRead] RPC failed, still broadcasting:', e);
+            }
+            setTimeout(function() {
+                if (privateChannel) {
+                    privateChannel.send({
+                        type: 'broadcast',
+                        event: 'messages_read',
+                        payload: { reader: currentUser, session_id: sessionId }
+                    });
+                }
+            }, 300);
+        }
+
+        // v069: 对方已读回执 —— 将本端发出的私聊消息状态更新为「已读」
+        function updatePrivateReadStatus(reader) {
+            if (!reader || reader !== privateOtherUser) return;
+            const rows = document.querySelectorAll('#privateMessages .msg-row');
+            rows.forEach(function(row) {
+                if (row.dataset.msgSender === currentUser) {
+                    const statusEl = row.querySelector('.read-status');
+                    if (statusEl) {
+                        statusEl.textContent = '已读';
+                        statusEl.classList.remove('unread');
+                        statusEl.classList.add('read');
+                    }
+                }
+            });
         }
 
         function getTotalUnread() {
@@ -1382,7 +1436,7 @@
                     actualContent = msg.content.substring(rplMatch[0].length);
                     const senderDisplay = rpl.s || '';
                     const rplPreviewStr = getMjV064Preview(replyContentStr) || replyContentStr;
-                    replyHtml = `<div class="reply-preview-block" onclick="jumpToMessage('${escapeAttr(replyToId)}', 'private')">↩ <span class="reply-sender">${escapeHtml(senderDisplay)}</span><br><span class="reply-content">${escapeHtml(rplPreviewStr)}</span></div>`;
+                    replyHtml = `<div class="reply-preview-block" onclick="jumpToMessage('${escapeJsString(replyToId)}', 'private')">↩ <span class="reply-sender">${escapeHtml(senderDisplay)}</span><br><span class="reply-content">${escapeHtml(rplPreviewStr)}</span></div>`;
                 } catch (e) { actualContent = msg.content; }
             }
 
@@ -1391,6 +1445,11 @@
             let mjType = '';
             let mjUrl = '';
             let mjFname = '';
+            // 声明在函数作用域，供 mjv064 分支之外（dataset 标记处）复用
+            let linkMatch = null;
+            let fileMatch = null;
+            let imgMatch = null;
+            let voiceMatch = null;
             const mjMatch = actualContent.match(/<mjv064\s+([^>]*)>([\s\S]*?)<\/mjv064>/);
             if (mjMatch) {
                 mjMatched = true;
@@ -1399,37 +1458,36 @@
                 mjUrl = mjAttrs.url || '';
                 mjFname = mjAttrs.name || '';
                 if (mjType === 'voice') {
-                    contentHtml = buildVoiceBubbleHtml(mjUrl, parseInt(mjAttrs.dur) || 0, '语音消息');
+                    // v069: mjv064 无 url 时回退到消息 audio_url 字段
+                    contentHtml = buildVoiceBubbleHtml(mjUrl || msg.audio_url || '', parseInt(mjAttrs.dur) || msg.audio_dur || 0, '语音消息');
                 } else if (mjType === 'link') {
                     contentHtml =
                         `<a href="${escapeAttr(mjUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(mjAttrs.text || mjUrl)}</a>`;
                 } else if (mjType === 'file') {
                     const fsize = mjAttrs.size || '';
                     if (isImageFile(mjFname)) {
-                        contentHtml = _wrapImgWithLoader(mjUrl, `alt="${escapeAttr(mjFname)}" onclick="viewImage('${escapeAttr(mjUrl)}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        contentHtml = _wrapImgWithLoader(mjUrl, `alt="${escapeAttr(mjFname)}" onclick="viewImage('${escapeJsString(mjUrl)}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
                         fileIsImage = true;
                     } else if (isVideoFile(mjFname)) {
-                        contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(mjUrl)}')"><video src="${escapeAttr(mjUrl)}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(mjFname)}</div></div>`;
+                        contentHtml = buildVideoBubbleHtml(mjUrl, mjFname);
                     } else {
-                        const iconPath = getFileIconSvg(mjFname);
-                        contentHtml =
-                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(mjUrl)}', '${escapeAttr(mjFname)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(mjFname)}${fsize ? ` (${escapeHtml(fsize)} KB)` : ''}</span></div>`;
+                        contentHtml = buildFileBubbleHtml(mjUrl, mjFname, fsize);
                     }
                 } else {
                     contentHtml = cleanHtml(actualContent);
                 }
             } else {
                 contentHtml = cleanHtml(actualContent);
-                const linkMatch = actualContent.match(/🔗 (.*?) → (.*)/);
-                const fileMatch = actualContent.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
-                const imgMatch = actualContent.match(/!\[.*?\]\((.*?)\)/);
-                const voiceMatch = actualContent.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
+                linkMatch = actualContent.match(/🔗 (.*?) → (.*)/);
+                fileMatch = actualContent.match(/📎 (.*?) \(([\d.]+) KB\) → (.*)/);
+                imgMatch = actualContent.match(/!\[.*?\]\((.*?)\)/);
+                voiceMatch = actualContent.match(/🎤\s*语音\s*(\d+):(\d+)\s*→\s*(.*)/);
                 if (voiceMatch) {
                     const duration = parseInt(voiceMatch[1]) * 60 + parseInt(voiceMatch[2]);
                     const audioUrl = voiceMatch[3] && voiceMatch[3].startsWith('http') ? voiceMatch[3].trim() : null;
                     contentHtml = buildVoiceBubbleHtml(audioUrl, duration, '语音消息');
                 } else if (imgMatch) {
-                    contentHtml = _wrapImgWithLoader(imgMatch[1], `onclick="previewImage('${escapeAttr(imgMatch[1])}')" alt="图片"`, 'max-width:180px;max-height:180px;border-radius:2px;display:block;');
+                    contentHtml = _wrapImgWithLoader(imgMatch[1], `onclick="previewImage('${escapeJsString(imgMatch[1])}')" alt="图片"`, 'max-width:180px;max-height:180px;border-radius:2px;display:block;');
                     const extraText = actualContent.replace(/!\[.*?\]\(.*?\)/, '').trim();
                     if (extraText) {
                         contentHtml += `<div style="margin-top:4px;">${escapeHtml(extraText)}</div>`;
@@ -1439,14 +1497,12 @@
                         `<a href="${escapeAttr(linkMatch[2])}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(linkMatch[1])}</a>`;
                 } else if (fileMatch && isSafeUrl(fileMatch[3])) {
                     if (isImageFile(fileMatch[1])) {
-                        contentHtml = _wrapImgWithLoader(fileMatch[3], `alt="${escapeAttr(fileMatch[1])}" onclick="viewImage('${escapeAttr(fileMatch[3])}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
+                        contentHtml = _wrapImgWithLoader(fileMatch[3], `alt="${escapeAttr(fileMatch[1])}" onclick="viewImage('${escapeJsString(fileMatch[3])}')"`, 'max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;');
                         fileIsImage = true;
                     } else if (isVideoFile(fileMatch[1])) {
-                        contentHtml = `<div class="video-bubble" onclick="openVideoPreview('${escapeAttr(fileMatch[3])}')"><video src="${escapeAttr(fileMatch[3])}" preload="metadata" muted playsinline></video><div class="video-play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div><div class="video-name">${escapeHtml(fileMatch[1])}</div></div>`;
+                        contentHtml = buildVideoBubbleHtml(fileMatch[3], fileMatch[1]);
                     } else {
-                        const iconPath = getFileIconSvg(fileMatch[1]);
-                        contentHtml =
-                            `<div class="file-msg" onclick="openFilePreview('${escapeAttr(fileMatch[3])}', '${escapeAttr(fileMatch[1])}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(fileMatch[1])} (${escapeHtml(fileMatch[2])} KB)</span></div>`;
+                        contentHtml = buildFileBubbleHtml(fileMatch[3], fileMatch[1], fileMatch[2]);
                     }
                 } else {
                     contentHtml = contentHtml.replace(/@([\w\u4e00-\u9fa5]+)/g, '<b>@$1</b>');
@@ -1474,11 +1530,17 @@
                 else if (fileMatch && isSafeUrl(fileMatch[3])) { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(fileMatch[1]) ? 'video' : 'file'); row.dataset.linkUrl = fileMatch[3] || ''; if (fileIsImage) row.dataset.imageUrl = fileMatch[3] || ''; }
                 else row.dataset.msgType = 'text';
             }
+            // v069: 自己发出的私聊消息显示已读/未读状态
+            let readStatus = '';
+            if (isOwn) {
+                readStatus = msg.read_at ? '<span class="read-status read">已读</span>' : '<span class="read-status unread">未读</span>';
+            }
             row.innerHTML = `
-                <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeAttr(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
+                <div class="avatar av-${ci}" data-username="${escapeAttr(msg.sender)}" onclick="showUserProfile('${escapeJsString(msg.sender)}')">${escapeHtml(msg.sender.charAt(0).toUpperCase())}</div>
                 <div class="content">
                     <div class="meta"><span class="sender">${isOwn ? '我' : escapeHtml(msg.sender)}</span><span class="time">${time}</span></div>
                     <div class="bubble">${replyHtml}${contentHtml}</div>
+                    ${readStatus}
                 </div>
             `;
             if (userAvatarCache[msg.sender]) {
@@ -1650,7 +1712,7 @@
                     const avUrl = userAvatarCache[name];
                     const avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                     const avText = avUrl ? '' : escapeHtml(name.charAt(0).toUpperCase());
-                    return `<div class="online-item" onclick="closeOnlineList();showUserProfile('${escapeAttr(name)}')">
+                    return `<div class="online-item" onclick="closeOnlineList();showUserProfile('${escapeJsString(name)}')">
                                 <div class="av av-${idx}" data-username="${escapeAttr(name)}"${avStyle}>${avText}</div>
                                 <span class="name">${escapeHtml(name)}${me ? ' <span class="me-tag">(我)</span>' : ''}</span>
                             </div>`;
@@ -1681,6 +1743,7 @@
             document.getElementById('userProfileOnline').textContent = '加载中';
             document.getElementById('userProfileOnlineItem').style.display = 'flex';
             document.getElementById('userProfileChatBtn').style.display = 'none';
+            document.getElementById('userProfileViewBtn').style.display = 'none';
             // v049: 管理员按钮可能不存在，需空值保护
             var banBtn = document.getElementById('userProfileBanBtn');
             if (banBtn) banBtn.style.display = 'none';
@@ -1709,6 +1772,7 @@
 
                 const chatBtn = document.getElementById('userProfileChatBtn');
                 chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
+                document.getElementById('userProfileViewBtn').style.display = 'block';
             }
 
             function renderDeletedUser(name) {
@@ -1721,6 +1785,7 @@
                 document.getElementById('userProfileOnline').textContent = '离线';
                 document.getElementById('userProfileOnlineItem').style.display = 'flex';
                 document.getElementById('userProfileChatBtn').style.display = 'none';
+                document.getElementById('userProfileViewBtn').style.display = 'block';
             }
 
             try {
@@ -1782,6 +1847,7 @@
                     document.getElementById('userProfileOnline').textContent = '离线';
                     document.getElementById('userProfileOnlineItem').style.display = 'none';
                     document.getElementById('userProfileChatBtn').style.display = 'none';
+                    document.getElementById('userProfileViewBtn').style.display = 'block';
                     document.getElementById('userProfileBanBtn').style.display = 'none';
                     document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
                     document.getElementById('userProfileDeleteBtn').style.display = 'none';

@@ -145,8 +145,7 @@
                     p_audio_dur: payload.audio_dur || null,
                     p_reply_to_id: payload.reply_to_id || null,
                     p_reply_content: payload.reply_content || null,
-                    p_is_system: payload.is_system || false,
-                    p_msg_version: payload.msg_version || null
+                    p_is_system: payload.is_system || false
                 });
                 if (error) return { success: false, message: error.message };
                 return data || { success: false, message: '发送失败' };
@@ -161,8 +160,7 @@
                     p_username: currentUser,
                     p_session_token: token,
                     p_text: text,
-                    p_is_system: true,
-                    p_msg_version: APP_VERSION
+                    p_is_system: true
                 });
                 if (error) return { success: false };
                 return data || { success: false };
@@ -762,7 +760,7 @@
             titleEl.style.cssText = 'margin:0 0 12px 0;font-size:1.1rem;color:var(--md-on-surface, #fff);cursor:default;user-select:none;';
             var textEl = document.createElement('p');
             textEl.textContent = message || '';
-            textEl.style.cssText = 'margin:0 0 20px 0;font-size:0.875rem;line-height:1.5;color:var(--md-on-surface-muted, #aaa);white-space:pre-wrap;cursor:default;user-select:none;';
+            textEl.style.cssText = 'margin:0 0 20px 0;font-size:0.875rem;line-height:1.5;color:var(--md-on-surface-variant, #aaa);white-space:pre-wrap;cursor:default;user-select:none;';
             dialog.appendChild(titleEl);
             dialog.appendChild(textEl);
             if (allowClose && !isLoginBlocked) {
@@ -1314,9 +1312,10 @@
                     reply_content: msg.reply_content || null, sender_deleted: msg.sender_deleted || false,
                     is_system: msg.is_system || false
                 }));
-                const unique = newMsgs.filter(m => !publicMessages.some(e => e.id === m.id));
+                const unique = newMsgs.filter(m => !publicMessageById.has(m.id));
                 const filtered = unique.filter(m => !(m.is_system && isGarbledText(m.text)));
                 publicMessages = filtered.concat(publicMessages);
+                filtered.forEach(m => publicMessageById.set(m.id, m));
                 const container = document.getElementById('publicMessages');
                 const prevScrollHeight = container.scrollHeight;
                 const prevScrollTop = container.scrollTop;
@@ -1513,16 +1512,20 @@
                 const oldest = privateMessages[0].created_at;
                 let moreMessages = null;
                 try {
+                    // RPC get_private_messages 固定返回最新 p_limit 条（无游标参数），
+                    // 通过把 limit 放大到「已加载条数 + 一页」，再按 id/时间过滤出尚未加载的更早一页。
+                    const loadedIds = new Set(privateMessages.map(m => m.id));
+                    const needLimit = Math.min(privateMessages.length + PAGE_SIZE, 1000);
                     const { data: rpcData, error: rpcError } = await sb.rpc('get_private_messages', {
                         p_session_id: sessionId,
                         p_username: currentUser,
                         p_session_token: getSessionToken(),
-                        p_limit: PAGE_SIZE
+                        p_limit: needLimit
                     });
                     if (!rpcError && rpcData && Array.isArray(rpcData)) {
-                        moreMessages = rpcData.filter(m =>
-                            new Date(m.created_at) < new Date(oldest)
-                        ).slice(0, PAGE_SIZE);
+                        moreMessages = rpcData
+                            .filter(m => new Date(m.created_at) < new Date(oldest) && !loadedIds.has(m.id))
+                            .slice(0, PAGE_SIZE);
                     }
                 } catch (e) { /* RPC error */ }
                 if (!moreMessages) {
@@ -1595,6 +1598,10 @@
                             last_message: msg.content
                         }).eq('id', sessionId);
                     }
+                    // v069: 正在查看私聊时收到对方消息，立即标记已读并回执
+                    if (document.getElementById('privatePage').classList.contains('active') && msg.sender !== currentUser) {
+                        markPrivateMessagesRead(sessionId);
+                    }
                     loadPrivateSessions();
                 }
             });
@@ -1605,6 +1612,14 @@
                 privateMessages = privateMessages.filter(m => m.id !== msgId);
                 const rows = document.querySelectorAll('#privateMessages .msg-row');
                 rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
+            });
+
+            // v069: 对方已读回执 —— 更新本端发出的消息状态
+            privateChannel.on('broadcast', { event: 'messages_read' }, (payload) => {
+                const data = payload.payload;
+                if (data && data.reader) {
+                    updatePrivateReadStatus(data.reader);
+                }
             });
 
 
@@ -1652,7 +1667,7 @@
 
         async function loadAgentList() {
             const container = document.getElementById('agentListContainer');
-            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载中...</p>';
+            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">加载中...</p>';
             try {
                 let agents = null;
                 let rpcErrMsg = null;
@@ -1681,7 +1696,7 @@
                         } else {
                             hint = '加载失败: ' + (error.message || '未知错误');
                         }
-                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);font-size:0.8rem;">' + escapeHtml(hint) + '</p>';
+                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);font-size:0.8rem;">' + escapeHtml(hint) + '</p>';
                         return;
                     }
                     agents = data || [];
@@ -1690,7 +1705,7 @@
                 // v049: 只显示 enabled 的智能体
                 agents = agents.filter(function(a){ return a.enabled !== false; });
                 if (!agents || agents.length === 0) {
-                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">暂无智能体</p>';
+                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">暂无智能体</p>';
                     return;
                 }
                 const providerLabels = {
@@ -1722,13 +1737,13 @@
                                     '<div class="creator">添加者：' + escapeHtml(agent.created_by || '未知') + '</div>' +
                                 '</div>' +
                                 '<div style="display:flex;gap:8px;align-items:center;">' +
-                                    '<button class="use-agent-btn" onclick="useAgent(\'' + agent.id + '\')" style="' + useBtnStyle + '">' + (isActive ? '取消' : '使用') + '</button>' +
-                                    (canDelete ? '<button class="delete-btn" onclick="deleteAgent(\'' + agent.id + '\')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>' : '') +
+                                    '<button class="use-agent-btn" onclick="useAgent(\'' + escapeJsString(agent.id) + '\')" style="' + useBtnStyle + '">' + (isActive ? '取消' : '使用') + '</button>' +
+                                    (canDelete ? '<button class="delete-btn" onclick="deleteAgent(\'' + escapeJsString(agent.id) + '\')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>' : '') +
                                 '</div>' +
                             '</div>';
                 }).join('');
             } catch (e) {
-                container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载失败：' + escapeHtml(e.message || '未知错误') + '</p>';
+                container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">加载失败：' + escapeHtml(e.message || '未知错误') + '</p>';
             }
         }
 
@@ -1859,9 +1874,9 @@
                 }
             }
             if (newSessionToken) {
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, token: newSessionToken, pwhash: newPasswordHash }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, token: newSessionToken, pwhash: newHash }));
                 // Re-initialize encrypted settings with new password hash
-                initUserSettings(newPasswordHash, currentUser).catch(function(e) { console.warn('initUserSettings failed:', e); });
+                initUserSettings(newHash, currentUser).catch(function(e) { console.warn('initUserSettings failed:', e); });
             }
             showSnackbar('密码更改成功');
             closeChangePasswordDialog();
@@ -1875,6 +1890,9 @@
             if (_publicPollTimer) { clearInterval(_publicPollTimer); _publicPollTimer = null; }
             if (_publicBackupPollTimer) { clearInterval(_publicBackupPollTimer); _publicBackupPollTimer = null; }
             _publicRetryCount = 0;
+            // 清理登出后仍会运行的后台定时器
+            if (privateStatusInterval) { clearInterval(privateStatusInterval); privateStatusInterval = null; }
+            if (_cloudControlInterval) { clearInterval(_cloudControlInterval); _cloudControlInterval = null; }
             if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel); globalPrivateChannel = null; }
             if (publicChannel) { publicChannel.untrack();
                 sb.removeChannel(publicChannel);
@@ -1889,6 +1907,7 @@
             localStorage.removeItem('mjchat_private_muted');
             currentUser = '';
             publicMessages = [];
+            publicMessageById.clear();
             privateMessages = [];
             onlineUsers = {};
             isEntered = false;
@@ -1934,7 +1953,7 @@
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100000;animation:fade-in 0.2s ease;';
 
             var dialog = document.createElement('div');
-            dialog.style.cssText = 'background:var(--md-surface-4dp, #1c1c1e);border-radius:8px;padding:24px;max-width:350px;width:86vw;box-shadow:var(--md-elevation-8, 0 8px 32px rgba(0,0,0,0.4));';
+            dialog.style.cssText = 'background:var(--md-surface-container-high, #1c1c1e);border-radius:8px;padding:24px;max-width:350px;width:86vw;box-shadow:var(--md-elevation-8, 0 8px 32px rgba(0,0,0,0.4));';
 
             var title = document.createElement('h2');
             title.textContent = '注销账号';
@@ -1943,7 +1962,7 @@
 
             var desc = document.createElement('p');
             desc.textContent = '请输入您的密码以确认注销账号：\n注销后，您的所有数据将被永久删除，此操作不可恢复。';
-            desc.style.cssText = 'margin:0 0 16px 0;font-size:0.8rem;color:var(--md-on-surface-dim, #aaa);white-space:pre-line;line-height:1.5;';
+            desc.style.cssText = 'margin:0 0 16px 0;font-size:0.8rem;color:var(--md-on-surface-variant, #aaa);white-space:pre-line;line-height:1.5;';
             dialog.appendChild(desc);
 
             var inputContainer = document.createElement('div');
@@ -1959,7 +1978,7 @@
             inputContainer.appendChild(input);
             var label = document.createElement('label');
             label.textContent = '账号密码';
-            label.style.cssText = 'position:absolute;left:0;bottom:32px;font-size:0.75rem;color:var(--md-on-surface-dim, #888);pointer-events:none;';
+            label.style.cssText = 'position:absolute;left:0;bottom:32px;font-size:0.75rem;color:var(--md-on-surface-variant, #888);pointer-events:none;';
             inputContainer.appendChild(label);
             dialog.appendChild(inputContainer);
 
@@ -2134,7 +2153,7 @@
 
         async function loadBlocklist() {
             const container = document.getElementById('blocklistContainer');
-            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">加载中...</p>';
+            container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">加载中...</p>';
             try {
                 const { data: rpcData, error: rpcError } = await sb.rpc('get_blocked_users', {
                     p_username: currentUser
@@ -2142,13 +2161,13 @@
                 if (rpcError) { container.innerHTML = '<p>加载失败</p>'; return; }
                 const blocked = rpcData || [];
                 if (blocked.length === 0) {
-                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-dim);">黑名单为空</p>';
+                    container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">黑名单为空</p>';
                     return;
                 }
                 container.innerHTML = blocked.map(u =>
                     `<div class="block-item">
                         <span class="name">${escapeHtml(u.blocked)}</span>
-                        <button class="unblock-btn" onclick="unblockUser('${escapeAttr(u.blocked)}')">移除</button>
+                        <button class="unblock-btn" onclick="unblockUser('${escapeJsString(u.blocked)}')">移除</button>
                     </div>`
                 ).join('');
             } catch (e) { container.innerHTML = '<p>加载失败</p>'; }

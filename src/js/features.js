@@ -1,5 +1,9 @@
 /* CikaChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
 
+        // 文件类型分类（模块级常量：图片/视频判定、粘贴识别、群文件共用；fview.js 复用）
+        const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
+        const VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v', 'avi', 'mkv', 'flv', 'wmv', '3gp', 'mpeg', 'mpg', 'ogv', 'm3u8'];
+
         // 通用上传：返回公网 URL，失败时提示并返回 null（bucket 未创建给出引导）
         async function uploadToBucket(filePath, blob, contentType, bucket) {
             const bk = bucket || STORAGE_BUCKET;
@@ -176,23 +180,16 @@
             }
         }
 
-        // 群聊「消息提示音」开关（是否播放提示音由调用方结合免打扰状态判断）
-        function getPublicNotifyEnabled() {
+        // 消息提示音开关读取（公聊/私聊共用，key 区分）
+        function getNotifyEnabled(key) {
             if (!_userSettingsCache) return false;
             if (!_userSettingsCache.notify) {
                 _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
-            return !!_userSettingsCache.notify.publicEnabled;
+            return !!_userSettingsCache.notify[key];
         }
-
-        // 私聊「消息提示音」开关（是否播放提示音由调用方结合免打扰状态判断）
-        function getPrivateNotifyEnabled() {
-            if (!_userSettingsCache) return false;
-            if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
-            }
-            return !!_userSettingsCache.notify.privateEnabled;
-        }
+        function getPublicNotifyEnabled() { return getNotifyEnabled('publicEnabled'); }
+        function getPrivateNotifyEnabled() { return getNotifyEnabled('privateEnabled'); }
 
         function refreshNotifySettingsUI() {
             if (!_userSettingsCache) return;
@@ -291,63 +288,140 @@
             }
         }
 
-        // 群聊「消息提示音」开关（仅免打扰关闭时在聊天菜单显示）
-        async function togglePublicNotify() {
+        // 消息提示音开关切换（公聊/私聊共用）
+        async function toggleNotifyMode(key, onText, offText) {
             if (!_userSettingsCache) return;
             if (!_userSettingsCache.notify) {
                 _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
             }
-            _userSettingsCache.notify.publicEnabled = !_userSettingsCache.notify.publicEnabled;
+            _userSettingsCache.notify[key] = !_userSettingsCache.notify[key];
             await syncSettingsToEncryptedStore();
             refreshNotifySettingsUI();
-            showSnackbar(_userSettingsCache.notify.publicEnabled ? '公共聊天消息提示音已开启' : '公共聊天消息提示音已关闭');
+            showSnackbar(_userSettingsCache.notify[key] ? onText : offText);
+        }
+        function togglePublicNotify() { return toggleNotifyMode('publicEnabled', '公共聊天消息提示音已开启', '公共聊天消息提示音已关闭'); }
+        function togglePrivateNotify() { return toggleNotifyMode('privateEnabled', '私聊消息提示音已开启', '私聊消息提示音已关闭'); }
+
+        // 功能面板控制器工厂：公聊/私聊的「更多」面板、子面板（表情/文字特效/语音）、
+        // 表情插入、文字特效、图片/文件选择入口共用同一套逻辑，仅元素 id 与差异项不同。
+        function createFeaturePanelController(cfg) {
+            const el = id => document.getElementById(id);
+            return {
+                togglePanel: function() {
+                    const panel = el(cfg.panelId);
+                    const btn = el(cfg.moreBtnId);
+                    if (panel.classList.contains('show')) {
+                        panel.classList.remove('show');
+                        btn.classList.remove('active');
+                    } else {
+                        panel.classList.add('show');
+                        btn.classList.add('active');
+                    }
+                },
+                closePanel: function() {
+                    el(cfg.panelId).classList.remove('show');
+                    el(cfg.moreBtnId).classList.remove('active');
+                    this.closeSubPanel();
+                },
+                closeSubPanel: function() {
+                    if (cfg.recorder && cfg.recorder.state && cfg.recorder.state.recorder && cfg.recorder.state.recorder.state === 'recording') {
+                        cfg.recorder.state.recorder.stop();
+                    }
+                    el(cfg.emojiSubPanelId).classList.remove('active');
+                    el(cfg.textEffectSubPanelId).classList.remove('active');
+                    el(cfg.voiceSubPanelId).classList.remove('active');
+                    el(cfg.featurePanelMainId).style.display = 'block';
+                },
+                openImagePicker: function() {
+                    if (cfg.closePanelOnPick) this.closePanel(); else this.closeSubPanel();
+                    el(cfg.imageInputId).click();
+                },
+                openFilePicker: function() {
+                    if (cfg.closePanelOnPick) this.closePanel(); else this.closeSubPanel();
+                    el(cfg.fileInputId).click();
+                },
+                insertEmoji: function(emoji) {
+                    const input = el(cfg.inputId);
+                    input.value += emoji;
+                    autoResize(input);
+                    cfg.toggleSendBtn();
+                },
+                openEmojiSubPanel: function() {
+                    el(cfg.featurePanelMainId).style.display = 'none';
+                    el(cfg.emojiSubPanelId).classList.add('active');
+                },
+                openTextEffectSubPanel: function() {
+                    el(cfg.featurePanelMainId).style.display = 'none';
+                    el(cfg.textEffectSubPanelId).classList.add('active');
+                },
+                openVoiceSubPanel: function() {
+                    el(cfg.featurePanelMainId).style.display = 'none';
+                    el(cfg.voiceSubPanelId).classList.add('active');
+                },
+                applyTextEffect: function(tag) {
+                    applyTextEffectTo(el(cfg.inputId), cfg.toggleSendBtn, tag);
+                },
+                initEmojiPicker: function(insertFnName) {
+                    el(cfg.emojiGridId).innerHTML = EMOJIS.map(e =>
+                        `<button class="emoji-item" onclick="${insertFnName}('${e}')">${e}</button>`).join('');
+                }
+            };
         }
 
-        // 私聊「消息提示音」开关（仅免打扰关闭时在聊天菜单显示）
-        async function togglePrivateNotify() {
-            if (!_userSettingsCache) return;
-            if (!_userSettingsCache.notify) {
-                _userSettingsCache.notify = Object.assign({}, DEFAULT_NOTIFY);
-            }
-            _userSettingsCache.notify.privateEnabled = !_userSettingsCache.notify.privateEnabled;
-            await syncSettingsToEncryptedStore();
-            refreshNotifySettingsUI();
-            showSnackbar(_userSettingsCache.notify.privateEnabled ? '私聊消息提示音已开启' : '私聊消息提示音已关闭');
-        }
+        const publicPanelCtrl = createFeaturePanelController({
+            panelId: 'publicFeaturePanel', moreBtnId: 'publicMoreBtn',
+            featurePanelMainId: 'featurePanelMain',
+            emojiSubPanelId: 'emojiSubPanel', textEffectSubPanelId: 'textEffectSubPanel', voiceSubPanelId: 'voiceSubPanel',
+            emojiGridId: 'emojiGrid', inputId: 'publicMsgInput',
+            imageInputId: 'imageInput', fileInputId: 'fileInput',
+            recorder: publicRecorder, closePanelOnPick: true,
+            toggleSendBtn: togglePublicSendBtn
+        });
+        const privatePanelCtrl = createFeaturePanelController({
+            panelId: 'privateFeaturePanel', moreBtnId: 'privateMoreBtn',
+            featurePanelMainId: 'privateFeaturePanelMain',
+            emojiSubPanelId: 'privateEmojiSubPanel', textEffectSubPanelId: 'privateTextEffectSubPanel', voiceSubPanelId: 'privateVoiceSubPanel',
+            emojiGridId: 'privateEmojiGrid', inputId: 'privateMsgInput',
+            imageInputId: 'privateImageInput', fileInputId: 'privateFileInput',
+            recorder: privateRecorder, closePanelOnPick: false,
+            toggleSendBtn: togglePrivateSendBtn
+        });
 
-        // Pure JavaScript SHA-256 implementation for old WebView compatibility
-        function toggleFeaturePanel() {
-            const panel = document.getElementById('publicFeaturePanel');
-            const btn = document.getElementById('publicMoreBtn');
-            if (panel.classList.contains('show')) {
-                panel.classList.remove('show');
-                btn.classList.remove('active');
-            } else {
-                panel.classList.add('show');
-                btn.classList.add('active');
-            }
-        }
+        // 保留原全局函数名（index.html 内联 onclick 依赖）
+        function toggleFeaturePanel() { publicPanelCtrl.togglePanel(); }
+        function closeFeaturePanel() { publicPanelCtrl.closePanel(); }
+        function openImagePicker() { publicPanelCtrl.openImagePicker(); }
+        function openFilePicker() { publicPanelCtrl.openFilePicker(); }
+        function insertEmoji(emoji) { publicPanelCtrl.insertEmoji(emoji); }
+        function openEmojiSubPanel() { publicPanelCtrl.openEmojiSubPanel(); }
+        function openTextEffectSubPanel() { publicPanelCtrl.openTextEffectSubPanel(); }
+        function openVoiceSubPanel() { publicPanelCtrl.openVoiceSubPanel(); }
+        function closeSubPanel() { publicPanelCtrl.closeSubPanel(); }
+        function applyTextEffect(tag) { publicPanelCtrl.applyTextEffect(tag); }
+        function initEmojiPicker() { publicPanelCtrl.initEmojiPicker('insertEmoji'); }
 
-        function closeFeaturePanel() {
-            document.getElementById('publicFeaturePanel').classList.remove('show');
-            document.getElementById('publicMoreBtn').classList.remove('active');
-            closeSubPanel();
-        }
+        function togglePrivateFeaturePanel() { privatePanelCtrl.togglePanel(); }
+        function privateCloseSubPanel() { privatePanelCtrl.closeSubPanel(); }
+        function privateOpenImagePicker() { privatePanelCtrl.openImagePicker(); }
+        function privateOpenFilePicker() { privatePanelCtrl.openFilePicker(); }
+        function privateInsertEmoji(emoji) { privatePanelCtrl.insertEmoji(emoji); }
+        function privateOpenEmojiSubPanel() { privatePanelCtrl.openEmojiSubPanel(); }
+        function privateOpenTextEffectSubPanel() { privatePanelCtrl.openTextEffectSubPanel(); }
+        function privateOpenVoiceSubPanel() { privatePanelCtrl.openVoiceSubPanel(); }
+        function privateApplyTextEffect(tag) { privatePanelCtrl.applyTextEffect(tag); }
+        function initPrivateEmojiPicker() { privatePanelCtrl.initEmojiPicker('privateInsertEmoji'); }
 
-        function openImagePicker() {
-            closeFeaturePanel();
-            document.getElementById('imageInput').click();
-        }
-
-        async function handleImageSelect(event) {
+        // 图片选择事件（公聊/私聊共用，isPrivate 区分发送目标）
+        async function handleImageSelect(event, isPrivate) {
             const files = Array.from(event.target.files || []);
             event.target.value = '';
             if (files.length === 0) {
                 showSnackbar('未选择图片');
                 return;
             }
-            await uploadImagesAndSend(files, false);
+            await uploadImagesAndSend(files, !!isPrivate);
         }
+        function privateHandleImageSelect(event) { handleImageSelect(event, true); }
 
         // 核心：图片文件列表 → 压缩上传 → 发送（公共/私聊共用，剪贴板粘贴也复用）
         async function uploadImagesAndSend(files, isPrivate) {
@@ -363,25 +437,40 @@
             }
 
             showSnackbar(`正在上传 ${files.length} 张图片...`);
-            const imageUrls = [];
 
+            // v069: 逐张压缩 + 上传，单张失败跳过继续（不整批中止）；GIF 跳过压缩保留动画
+            const imageUrls = [];
             for (let i = 0; i < files.length; i++) {
-                let file = files[i];
+                const file = files[i];
+                const isGif = file.type === 'image/gif' || (file.name.split('.').pop() || '').toLowerCase() === 'gif';
                 let blobToUpload = file;
-                if (file.size > COMPRESS_THRESHOLD) {
+                // 未压缩时保留原扩展名/类型；压缩或 GIF 时使用对应格式
+                let ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+                let contentType = file.type || 'image/jpeg';
+                if (isGif) {
+                    ext = 'gif';
+                    contentType = 'image/gif';
+                } else if (file.size > COMPRESS_THRESHOLD) {
                     try {
                         blobToUpload = await compressImage(file, 1920, 0.7);
-                    } catch (e) { /* use original */ }
+                        ext = 'jpg';
+                        contentType = 'image/jpeg';
+                    } catch (e) {
+                        console.warn('[v069] 图片压缩失败，使用原图:', e);
+                    }
                 }
-                const filePath = (isPrivate ? `private/${privateSessionId}/` : 'chat/') + `${Date.now()}-${generateId()}-${i}.jpg`;
+                const filePath = (isPrivate ? `private/${privateSessionId}/` : 'chat/') + `${Date.now()}-${generateId()}-${i}.${ext}`;
                 try {
-                    const url = await uploadToBucket(filePath, blobToUpload, 'image/jpeg');
-                    if (!url) return;
-                    imageUrls.push(url);
+                    const url = await uploadToBucket(filePath, blobToUpload, contentType);
+                    if (url) imageUrls.push(url);
+                    else console.warn('[v069] 图片上传失败，跳过该张:', file.name);
                 } catch (e) {
-                    showSnackbar('上传失败');
-                    return;
+                    console.warn('[v069] 图片上传失败，跳过该张:', e);
                 }
+            }
+            if (imageUrls.length === 0) {
+                showSnackbar('没有成功上传的图片');
+                return;
             }
 
             let text = '';
@@ -418,7 +507,6 @@
         // 剪贴板粘贴图片直接发送
         function handlePasteImage(e, isPrivate) {
             const imageFiles = [];
-            const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
             const collect = (file) => {
                 if (!file) return;
                 const isImageByType = file.type && file.type.startsWith('image/');
@@ -480,11 +568,6 @@
                 };
                 reader.readAsDataURL(file);
             });
-        }
-
-        function openFilePicker() {
-            closeFeaturePanel();
-            document.getElementById('fileInput').click();
         }
 
         async function handleFileSelect(event) {
@@ -567,38 +650,6 @@
             }
         }
 
-        function insertEmoji(emoji) {
-            const input = document.getElementById('publicMsgInput');
-            input.value += emoji;
-            autoResize(input);
-            togglePublicSendBtn();
-        }
-
-        function openEmojiSubPanel() {
-            document.getElementById('featurePanelMain').style.display = 'none';
-            document.getElementById('emojiSubPanel').classList.add('active');
-        }
-
-        function openTextEffectSubPanel() {
-            document.getElementById('featurePanelMain').style.display = 'none';
-            document.getElementById('textEffectSubPanel').classList.add('active');
-        }
-
-        function openVoiceSubPanel() {
-            document.getElementById('featurePanelMain').style.display = 'none';
-            document.getElementById('voiceSubPanel').classList.add('active');
-        }
-
-        function closeSubPanel() {
-            if (publicRecorder.state.recorder && publicRecorder.state.recorder.state === 'recording') {
-                publicRecorder.state.recorder.stop();
-            }
-            document.getElementById('emojiSubPanel').classList.remove('active');
-            document.getElementById('textEffectSubPanel').classList.remove('active');
-            document.getElementById('voiceSubPanel').classList.remove('active');
-            document.getElementById('featurePanelMain').style.display = 'block';
-        }
-
         function applyTextEffectTo(input, toggleFn, tag) {
             const start = input.selectionStart;
             const end = input.selectionEnd;
@@ -626,15 +677,6 @@
             toggleFn();
             const newPos = start + wrapped.length;
             input.setSelectionRange(newPos, newPos);
-        }
-
-        function applyTextEffect(tag) {
-            applyTextEffectTo(document.getElementById('publicMsgInput'), togglePublicSendBtn, tag);
-        }
-
-        function initEmojiPicker() {
-            document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
-                `<button class="emoji-item" onclick="insertEmoji('${e}')">${e}</button>`).join('');
         }
 
         function buildVoiceFallback(duration, audioUrl) {
@@ -728,29 +770,31 @@
             return null;
         }
 
+        // 文件图标 SVG path 与扩展名映射（模块级常量，避免每次调用重建）
+        const FILE_ICONS = {
+            audio: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 13h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S6 19.88 6 18.5s1.12-2.5 2.5-2.5c.42 0 .8.11 1.14.29V11h3.36v4z"/>',
+            video: '<path d="M4 6.47L5.76 10H20v8H4V6.47M22 4h-4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4z"/>',
+            archive: '<path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>',
+            image: '<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>',
+            document: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+            code: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>',
+            default: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>'
+        };
+        const FILE_EXT_MAP = {
+            audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma', 'opus'],
+            video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'mpg'],
+            archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'],
+            image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'],
+            document: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'odt', 'ods',
+                'odp'
+            ],
+            code: ['js', 'html', 'css', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'php', 'rb', 'go', 'rs',
+                'ts', 'jsx', 'tsx', 'vue', 'sh', 'bat', 'sql', 'yml', 'yaml', 'toml', 'ini', 'md'
+            ]
+        };
+
         function getFileIconSvg(filename) {
             const ext = (filename.split('.').pop() || '').toLowerCase();
-            const FILE_ICONS = {
-                audio: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 13h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S6 19.88 6 18.5s1.12-2.5 2.5-2.5c.42 0 .8.11 1.14.29V11h3.36v4z"/>',
-                video: '<path d="M4 6.47L5.76 10H20v8H4V6.47M22 4h-4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4z"/>',
-                archive: '<path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>',
-                image: '<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>',
-                document: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
-                code: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>',
-                default: '<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>'
-            };
-            const FILE_EXT_MAP = {
-                audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma', 'opus'],
-                video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'mpg'],
-                archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'],
-                image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'],
-                document: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'odt', 'ods',
-                    'odp'
-                ],
-                code: ['js', 'html', 'css', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'php', 'rb', 'go', 'rs',
-                    'ts', 'jsx', 'tsx', 'vue', 'sh', 'bat', 'sql', 'yml', 'yaml', 'toml', 'ini', 'md'
-                ]
-            };
             for (const [type, exts] of Object.entries(FILE_EXT_MAP)) {
                 if (exts.includes(ext)) return FILE_ICONS[type];
             }
@@ -759,55 +803,15 @@
 
         function isImageFile(filename) {
             const ext = (filename.split('.').pop() || '').toLowerCase();
-            const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
             return IMAGE_EXTS.includes(ext);
         }
 
         function isVideoFile(filename) {
             const ext = (filename.split('.').pop() || '').toLowerCase();
-            const VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
             return VIDEO_EXTS.includes(ext);
         }
 
-        function togglePrivateFeaturePanel() {
-            const panel = document.getElementById('privateFeaturePanel');
-            const btn = document.getElementById('privateMoreBtn');
-            if (panel.classList.contains('show')) {
-                panel.classList.remove('show');
-                btn.classList.remove('active');
-            } else {
-                panel.classList.add('show');
-                btn.classList.add('active');
-            }
-        }
-
-        function privateCloseSubPanel() {
-            if (privateRecorder.state.recorder && privateRecorder.state.recorder.state === 'recording') {
-                privateRecorder.state.recorder.stop();
-            }
-            document.getElementById('privateEmojiSubPanel').classList.remove('active');
-            document.getElementById('privateTextEffectSubPanel').classList.remove('active');
-            document.getElementById('privateVoiceSubPanel').classList.remove('active');
-            document.getElementById('privateFeaturePanelMain').style.display = 'block';
-        }
-
-        function privateOpenImagePicker() {
-            privateCloseSubPanel();
-            document.getElementById('privateImageInput').click();
-        }
-
-        async function privateHandleImageSelect(event) {
-            const files = Array.from(event.target.files || []);
-            event.target.value = '';
-            if (files.length === 0) return;
-            await uploadImagesAndSend(files, true);
-        }
-
-        function privateOpenFilePicker() {
-            privateCloseSubPanel();
-            document.getElementById('privateFileInput').click();
-        }
-
+        // 私聊文件上传发送（与公聊路径/发送方式不同，保留独立实现）
         async function privateHandleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -826,37 +830,6 @@
                     appendPrivateMsgLocally(newMsg, true);
                 } catch (ie) { const msg = ie.message || ''; showSnackbar(msg.includes('隐私') || msg.includes('拒收') ? msg : '发送失败: ' + msg); }
             } catch (e) { showSnackbar('上传失败'); }
-        }
-
-        function privateInsertEmoji(emoji) {
-            const input = document.getElementById('privateMsgInput');
-            input.value += emoji;
-            autoResize(input);
-            togglePrivateSendBtn();
-        }
-
-        function privateOpenEmojiSubPanel() {
-            document.getElementById('privateFeaturePanelMain').style.display = 'none';
-            document.getElementById('privateEmojiSubPanel').classList.add('active');
-        }
-
-        function privateOpenTextEffectSubPanel() {
-            document.getElementById('privateFeaturePanelMain').style.display = 'none';
-            document.getElementById('privateTextEffectSubPanel').classList.add('active');
-        }
-
-        function privateOpenVoiceSubPanel() {
-            document.getElementById('privateFeaturePanelMain').style.display = 'none';
-            document.getElementById('privateVoiceSubPanel').classList.add('active');
-        }
-
-        function privateApplyTextEffect(tag) {
-            applyTextEffectTo(document.getElementById('privateMsgInput'), togglePrivateSendBtn, tag);
-        }
-
-        function initPrivateEmojiPicker() {
-            document.getElementById('privateEmojiGrid').innerHTML = EMOJIS.map(e =>
-                `<button class="emoji-item" onclick="privateInsertEmoji('${e}')">${e}</button>`).join('');
         }
 
         async function doSearch(query) {
@@ -892,7 +865,7 @@
                     if (u.avatar_url) {
                         avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(u.avatar_url)) + ');background-size:cover;background-position:center;';
                     }
-                    return `<div class="result-item" onclick="showUserProfile('${escapeAttr(u.username)}')">
+                    return `<div class="result-item" onclick="showUserProfile('${escapeJsString(u.username)}')">
                                 <div class="av av-${idx}" style="${avatarStyle}">${u.avatar_url ? '' : escapeHtml(u.username.charAt(0).toUpperCase())}</div>
                                 <span class="name">${escapeHtml(u.username)}</span>
                                 <span class="status">${isOnline ? '在线' : '离线'}</span>
@@ -909,9 +882,6 @@
         // ============================================================
         // 群文件：浏览 chat-images 桶中的公共文件（排除 private/ 私聊内容）
         // ============================================================
-        const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
-        const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'm3u8'];
-
         function showGroupFiles() {
             pushPageHistory('groupFiles');
             switchPage('groupFilesPage', true);
@@ -923,32 +893,35 @@
             if (!container) return;
             container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px;"><span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span></div>';
             try {
-                const allFiles = [];
-                // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶
+                // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶，并行请求
                 const buckets = [STORAGE_BUCKET, FILES_BUCKET];
                 const prefixes = ['', 'chat/', 'files/', 'audio/', 'avatars/', 'Public/', 'Public/avatars/'];
-                for (let bi = 0; bi < buckets.length; bi++) {
-                    for (let pi = 0; pi < prefixes.length; pi++) {
-                        const bk = buckets[bi];
-                        const prefix = prefixes[pi];
-                        try {
-                            const { data: files, error } = await sb.storage.from(bk).list(prefix, {
-                                limit: 100,
-                                offset: 0,
-                                sortBy: { column: 'created_at', order: 'desc' }
-                            });
-                            if (!error && files) {
-                                for (let fi = 0; fi < files.length; fi++) {
-                                    const f = files[fi];
-                                    if (f.name === '.emptyFolderPlaceholder') continue;
-                                    // 文件夹无 metadata，跳过
-                                    if (!f.metadata) continue;
-                                    f._bucket = bk;
-                                    f._prefix = prefix;
-                                    allFiles.push(f);
-                                }
+                const listResults = await Promise.all(buckets.map(bk =>
+                    Promise.all(prefixes.map(prefix =>
+                        sb.storage.from(bk).list(prefix, {
+                            limit: 100,
+                            offset: 0,
+                            sortBy: { column: 'created_at', order: 'desc' }
+                        }).then(res => ({ bk, prefix, res }))
+                            .catch(() => ({ bk, prefix, res: null }))
+                    ))
+                ));
+                const allFiles = [];
+                for (const bucketResult of listResults) {
+                    for (const { bk, prefix, res } of bucketResult) {
+                        if (!res) continue;
+                        const { data: files, error } = res;
+                        if (!error && files) {
+                            for (let fi = 0; fi < files.length; fi++) {
+                                const f = files[fi];
+                                if (f.name === '.emptyFolderPlaceholder') continue;
+                                // 文件夹无 metadata，跳过
+                                if (!f.metadata) continue;
+                                f._bucket = bk;
+                                f._prefix = prefix;
+                                allFiles.push(f);
                             }
-                        } catch (eb) { /* 单个桶/前缀失败不影响整体 */ }
+                        }
                     }
                 }
                 allFiles.sort(function(a, b) {
@@ -977,17 +950,17 @@
                         const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
                         const fileUrl = urlData ? urlData.publicUrl : '';
                         if (isImage) {
-                            html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeAttr(fileUrl) + '\')">';
+                            html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeJsString(fileUrl) + '\')">';
                             html += '<div class="gf-file-icon"><img src="' + escapeAttr(fileUrl) + '" loading="lazy" onerror="this.style.display=\'none\'"></div>';
                         } else {
-                            html += '<div class="gf-file-item" onclick="openVideoPreview(\'' + escapeAttr(fileUrl) + '\')">';
+                            html += '<div class="gf-file-item" onclick="openVideoPreview(\'' + escapeJsString(fileUrl) + '\')">';
                             html += '<div class="gf-file-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 8.5v7l6-3.5-6-3.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></div>';
                         }
                     } else {
                         const iconHtml = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' + getFileIconSvg(file.name) + '</svg>';
                         const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
                         const fileUrl = urlData ? urlData.publicUrl : '';
-                        html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeAttr(fileUrl) + '\', \'' + escapeAttr(file.name) + '\')">';
+                        html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeJsString(fileUrl) + '\', \'' + escapeJsString(file.name) + '\')">';
                         html += '<div class="gf-file-icon">' + iconHtml + '</div>';
                     }
                     html += '<div class="gf-file-info"><div class="gf-file-name">' + escapeHtml(file.name) + '</div>';
@@ -1121,7 +1094,7 @@
                 if (file.size > COMPRESS_THRESHOLD) {
                     blob = await compressImage(file, 256, 0.8);
                 }
-                const filePath = `avatars/${currentUser}-${Date.now()}.jpg`;
+                const filePath = `Public/avatars/${hashStr(currentUser)}-${Date.now()}.jpg`;
                 try {
                     const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: 'image/jpeg',
                         cacheControl: '3600' });

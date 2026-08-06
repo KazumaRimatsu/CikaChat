@@ -8,10 +8,8 @@
  */
 
         // ============================================================
-        // 文件类型分类
+        // 文件类型分类（图片/视频扩展名复用 features.js 的 IMAGE_EXTS / VIDEO_EXTS 常量）
         // ============================================================
-        var FVIEW_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'psd'];
-        var FVIEW_VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
         // Office Web Viewer 支持的文档格式
         var FVIEW_OFFICE_EXTS = ['doc', 'docx', 'docm', 'dotx', 'dotm', 'rtf',
             'xls', 'xlsx', 'xlsb', 'xlsm', 'csv',
@@ -148,8 +146,8 @@
             if (!url) return;
             filename = filename || '';
             const ext = (filename.split('.').pop() || '').toLowerCase();
-            if (FVIEW_IMAGE_EXTS.indexOf(ext) !== -1) { previewImage(url); return; }
-            if (FVIEW_VIDEO_EXTS.indexOf(ext) !== -1) { openVideoPreview(url); return; }
+            if (IMAGE_EXTS.indexOf(ext) !== -1) { previewImage(url); return; }
+            if (VIDEO_EXTS.indexOf(ext) !== -1) { openVideoPreview(url); return; }
             if (FVIEW_OFFICE_EXTS.indexOf(ext) !== -1) { _previewOffice(url, filename); return; }
             if (FVIEW_CODE_EXTS.indexOf(ext) !== -1) { _previewCode(url, filename); return; }
             _previewUnsupported(filename);

@@ -105,9 +105,10 @@ src/fonts.js（FontManager，全局单例）
     "base": "dark",
     "description": "可选，最多 120 字符",
     "variables": {
-        "--md-primary": "#4A9EFF",
-        "--md-on-primary": "#FFFFFF",
-        "--md-background": "#121212"
+        "--md-primary": "#A0CAFD",
+        "--md-on-primary": "#003258",
+        "--md-surface-container": "#262A2C",
+        "--md-on-surface": "#E2E2E5"
     }
 }
 ```
@@ -147,47 +148,48 @@ src/fonts.js（FontManager，全局单例）
 
 | 变量 | 含义 | 暗色默认 | 亮色默认 |
 | --- | --- | --- | --- |
-| `--md-primary` | 主色 | `#4A9EFF` | `#1976D2` |
-| `--md-primary-variant` | 主色变体（按压/深色场景） | `#1565C0` | `#1565C0` |
-| `--md-primary-container` | 主色容器底（选中/悬停背景） | `rgba(74,158,255,0.12)` | `rgba(25,118,210,0.10)` |
-| `--md-primary-highlight` | 主色高亮（消息定位闪烁） | `rgba(74,158,255,0.25)` | `rgba(25,118,210,0.18)` |
+| `--md-primary` | 主色 | `#A0CAFD` | `#1976D2` |
+| `--md-primary-container` | 主色容器底（选中/悬停背景） | `rgba(160,202,253,0.12)` | `rgba(25,118,210,0.10)` |
+| `--md-primary-highlight` | 主色高亮（消息定位闪烁） | `rgba(160,202,253,0.25)` | `rgba(25,118,210,0.18)` |
 | `--md-on-primary` | 主色上的文字/图标 | `#FFFFFF` | `#FFFFFF` |
-| `--md-on-primary-container` | 容器上的文字 | `#E3F2FD` | `#D6E7F7` |
-| `--md-on-primary-muted` | 主色上弱化文字（语音时长等） | `rgba(255,255,255,0.7)` | `rgba(255,255,255,0.85)` |
-| `--md-on-primary-dim` | 主色上极弱背景（回复引用块） | `rgba(255,255,255,0.05)` | `rgba(255,255,255,0.12)` |
-| `--md-on-primary-translucent` | 主色上半透明层（语音条背景） | `rgba(255,255,255,0.15)` | `rgba(255,255,255,0.25)` |
+| `--md-on-primary-container` | 容器上的文字 | `#003258` | `#D6E7F7` |
 | `--md-secondary` | 辅助色 | `#03DAC6` | `#018786` |
-| `--md-background` | 页面背景 | `#121212` | `#FAFAFA` |
-| `--md-surface` | 表面（导航栏等） | `#1E1E1E` | `#FFFFFF` |
-| `--md-surface-1dp` | 表面（气泡等） | `#1E1E1E` | `#FFFFFF` |
-| `--md-surface-2dp` | 表面（输入区等） | `#232323` | `#F5F5F5` |
-| `--md-surface-3dp` | 表面（侧边栏选中项等） | `#252525` | `#F0F0F0` |
-| `--md-surface-4dp` | 表面（对话框等） | `#272727` | `#EEEEEE` |
-| `--md-surface-6dp` | 表面（输入栏/按压态等） | `#2C2C2C` | `#E8E8E8` |
-| `--md-surface-8dp` | 表面（提示条等） | `#2E2E2E` | `#E0E0E0` |
-| `--md-surface-12dp` | 表面（音效按钮深按压等） | `#313131` | `#D9D9D9` |
-| `--md-surface-16dp` | 表面（最深层级） | `#333333` | `#D6D6D6` |
+| `--md-secondary-container` | 辅助色容器底 | `rgba(3,218,198,0.12)` | `rgba(1,135,134,0.10)` |
+| `--md-tertiary` | 第三色 | `#C4C7FF` | `#7B53C4` |
+| `--md-tertiary-container` | 第三色容器底 | `rgba(196,199,255,0.12)` | `rgba(123,83,196,0.10)` |
+| `--md-on-tertiary` | 第三色上的文字 | `#FFFFFF` | `#FFFFFF` |
+| `--md-on-tertiary-container` | 第三色容器上的文字 | `#E8E0FF` | `#EDE7F6` |
+| `--md-background` | 页面背景 | `#1A1C1E` | `#FAFAFA` |
+| `--md-surface` | 表面（导航栏等） | `#1A1C1E` | `#FFFFFF` |
+| `--md-surface-dim` | 表面（暗淡） | `#1A1C1E` | `#D9D9D9` |
+| `--md-surface-bright` | 表面（明亮） | `#383A3E` | `#FFFFFF` |
+| `--md-surface-container-lowest` | 表面容器（最浅层） | `#0F1113` | `#FFFFFF` |
+| `--md-surface-container-low` | 表面容器（浅层） | `#1A1C1E` | `#F3F3F3` |
+| `--md-surface-container` | 表面容器（默认层） | `#1E2022` | `#EDEDEF` |
+| `--md-surface-container-high` | 表面容器（高层） | `#262A2C` | `#E7E7E9` |
+| `--md-surface-container-highest` | 表面容器（最高层） | `#313437` | `#E1E1E3` |
 | `--md-surface-hover` | 悬停背景 | `#2A2A2A` | `#ECECEC` |
 | `--md-surface-active` | 按压背景 | `#303030` | `#E3E3E3` |
 | `--md-on-background` | 背景上的文字 | `#FFFFFF` | `#212121` |
-| `--md-on-surface` | 表面上的文字 | `#FFFFFF` | `#212121` |
-| `--md-on-surface-muted` | 表面弱化文字 | `rgba(255,255,255,0.60)` | `rgba(0,0,0,0.60)` |
-| `--md-on-surface-dim` | 表面次级文字 | `rgba(255,255,255,0.38)` | `rgba(0,0,0,0.38)` |
-| `--md-bubble-bg` | 对方消息气泡背景（组件级，见 §4.2.1） | `#232323` | `#F5F5F5` |
-| `--md-bubble-text` | 对方消息气泡文字（组件级，见 §4.2.1） | `#FFFFFF` | `#212121` |
+| `--md-on-surface` | 表面上的文字 | `#E2E2E5` | `#212121` |
+| `--md-on-surface-variant` | 表面弱化文字 | `rgba(226,226,229,0.60)` | `rgba(0,0,0,0.60)` |
+| `--md-inverse-surface` | 反转表面（Snackbar 等） | `#E2E2E5` | `#313033` |
+| `--md-inverse-on-surface` | 反转表面上的文字 | `#1A1C1E` | `#F4EFF4` |
+| `--md-inverse-primary` | 反转主色 | `#0061A4` | `#A0CAFD` |
 | `--md-outline` | 描边/分隔线 | `rgba(255,255,255,0.12)` | `rgba(0,0,0,0.12)` |
-| `--md-error` | 错误/危险色 | `#CF6679` | `#B00020` |
+| `--md-outline-variant` | 描边变体（弱分隔线） | `rgba(255,255,255,0.08)` | `rgba(0,0,0,0.08)` |
+| `--md-error` | 错误/危险色 | `#FFB4AB` | `#B00020` |
 | `--md-on-error` | 错误色上的文字（徽标、录音按钮、退出登录等） | `#FFFFFF` | `#FFFFFF` |
-| `--md-error-container` | 错误容器底 | `rgba(207,102,121,0.12)` | `rgba(176,0,32,0.08)` |
-| `--md-error-container-border` | 错误容器描边 | `rgba(207,102,121,0.2)` | `rgba(176,0,32,0.15)` |
-| `--md-error-glow` | 录音脉冲光晕 | `rgba(207,102,121,0.4)` | `rgba(176,0,32,0.3)` |
+| `--md-error-container` | 错误容器底 | `rgba(255,180,171,0.12)` | `rgba(176,0,32,0.08)` |
+| `--md-error-container-border` | 错误容器描边 | `rgba(255,180,171,0.2)` | `rgba(176,0,32,0.15)` |
+| `--md-error-glow` | 录音脉冲光晕 | `rgba(255,180,171,0.4)` | `rgba(176,0,32,0.3)` |
 | `--md-on-error-container` | 错误容器文字 | `#FFCDD2` | `#B00020` |
-| `--md-success` | 成功/在线色 | `#81C784` | `#2E7D32` |
-| `--md-success-container` | 成功容器底（在线徽标） | `rgba(129,199,132,0.12)` | `rgba(46,125,50,0.12)` |
-| `--md-success-container-hover` | 成功容器悬停 | `rgba(129,199,132,0.2)` | `rgba(46,125,50,0.2)` |
+| `--md-success` | 成功/在线色 | `#9CD67D` | `#2E7D32` |
+| `--md-success-container` | 成功容器底（在线徽标） | `rgba(156,214,125,0.12)` | `rgba(46,125,50,0.12)` |
+| `--md-on-success-container` | 成功容器文字 | `#003900` | `#FFFFFF` |
 | `--md-link` | 链接色 | `#64B5F6` | `#1565C0` |
-| `--md-ripple` | 涟漪/悬停过渡色 | `rgba(255,255,255,0.08)` | `rgba(0,0,0,0.08)` |
 | `--md-ripple-effect` | 涟漪动画色 | `rgba(255,255,255,0.2)` | `rgba(0,0,0,0.1)` |
+| `--md-shadow` | 阴影色 | `rgba(0,0,0,0.3)` | `rgba(0,0,0,0.15)` |
 | `--md-scrim` | 轻遮罩（头像菜单等） | `rgba(0,0,0,0.3)` | `rgba(0,0,0,0.2)` |
 | `--md-scrim-mid` | 中遮罩（对话框等） | `rgba(0,0,0,0.5)` | `rgba(0,0,0,0.4)` |
 | `--md-scrim-high` | 重遮罩（图片预览等） | `rgba(0,0,0,0.9)` | `rgba(0,0,0,0.75)` |
@@ -200,100 +202,100 @@ src/fonts.js（FontManager，全局单例）
 | 变量 | 控件 / 作用 | 默认值（引用通用令牌） |
 | --- | --- | --- |
 | **顶栏** | | |
-| `--md-appbar-bg` | 顶栏背景 | `var(--md-surface-4dp)` |
+| `--md-appbar-bg` | 顶栏背景 | `var(--md-surface-container-high)` |
 | `--md-appbar-text` | 顶栏标题/图标 | `var(--md-on-surface)` |
-| `--md-appbar-text-muted` | 顶栏次级文字（在线状态等） | `var(--md-on-surface-dim)` |
+| `--md-appbar-text-muted` | 顶栏次级文字（在线状态等） | `var(--md-on-surface-variant)` |
 | **在线人数药丸** | | |
 | `--md-online-bg` | 药丸背景 | `var(--md-success-container)` |
-| `--md-online-bg-hover` | 药丸悬停背景 | `var(--md-success-container-hover)` |
-| `--md-online-text` | 在线人数文字 | `var(--md-success)` |
+| `--md-online-bg-hover` | 药丸悬停背景 | `var(--md-surface-container-high)` |
+| `--md-online-text` | 在线人数文字 | `var(--md-on-success-container)` |
 | `--md-online-dot` | 在线绿点 | `var(--md-success)` |
 | **侧边栏聊天列表** | | |
-| `--md-sidebar-bg` | 侧边栏背景 | `var(--md-surface-1dp)` |
+| `--md-sidebar-bg` | 侧边栏背景 | `var(--md-surface-container-lowest)` |
 | `--md-sidebar-text` | 列表昵称 | `var(--md-on-surface)` |
-| `--md-sidebar-text-muted` | 最后消息/时间/空态 | `var(--md-on-surface-dim)` |
-| `--md-sidebar-item-hover` | 私聊列表项悬停背景 | `var(--md-surface-2dp)` |
+| `--md-sidebar-text-muted` | 最后消息/时间/空态 | `var(--md-on-surface-variant)` |
+| `--md-sidebar-item-hover` | 私聊列表项悬停背景 | `var(--md-surface-container-low)` |
 | `--md-sidebar-item-bg` | 私聊列表项未选中背景 | `var(--md-sidebar-bg)` |
-| `--md-sidebar-item-active` | 私聊列表项选中背景（当前打开的会话） | `var(--md-surface-3dp)` |
+| `--md-sidebar-item-active` | 私聊列表项选中背景（当前打开的会话） | `var(--md-surface-container)` |
 | `--md-sidebar-item-text` | 私聊列表项未选中文字 | `var(--md-sidebar-text)` |
 | `--md-sidebar-item-text-muted` | 私聊列表项未选中次文字（最后消息/时间） | `var(--md-sidebar-text-muted)` |
 | `--md-sidebar-item-text-active` | 私聊列表项悬停/选中文字 | `var(--md-on-surface)` |
-| `--md-sidebar-entry-bg` | 公会频道入口背景 | `var(--md-surface-2dp)` |
-| `--md-sidebar-entry-hover` | 公会频道入口悬停背景 | `var(--md-surface-4dp)` |
+| `--md-sidebar-entry-bg` | 公会频道入口背景 | `var(--md-surface-container-low)` |
+| `--md-sidebar-entry-hover` | 公会频道入口悬停背景 | `var(--md-surface-container-high)` |
 | **聊天区** | | |
 | `--md-chat-bg` | 消息区背景 | `var(--md-background)` |
-| `--md-chat-sender` | 公聊对方昵称 | `var(--md-on-surface-muted)` |
-| `--md-chat-sender-dim` | 私聊昵称/已删除昵称 | `var(--md-on-surface-dim)` |
+| `--md-chat-sender` | 公聊对方昵称 | `var(--md-on-surface-variant)` |
+| `--md-chat-sender-dim` | 私聊昵称/已删除昵称 | `var(--md-on-surface-variant)` |
 | `--md-chat-sender-own` | 己方昵称 | `var(--md-primary)` |
-| `--md-chat-time` | 消息时间 | `var(--md-on-surface-dim)` |
+| `--md-chat-time` | 消息时间 | `var(--md-on-surface-variant)` |
 | **消息气泡** | | |
-| `--md-bubble-bg` | 对方气泡背景 | `var(--md-surface-2dp)` |
+| `--md-bubble-bg` | 对方气泡背景 | `var(--md-surface-container-low)` |
 | `--md-bubble-text` | 对方气泡文字 | `var(--md-on-surface)` |
-| `--md-bubble-own-bg` | 己方气泡背景 | `var(--md-primary)` |
-| `--md-bubble-own-text` | 己方气泡文字 | `var(--md-on-primary)` |
+| `--md-bubble-own-bg` | 己方气泡背景 | `var(--md-primary-container)` |
+| `--md-bubble-own-text` | 己方气泡文字 | `var(--md-on-primary-container)` |
 | **输入栏** | | |
-| `--md-chatbar-bg` | 输入栏整体背景 | `var(--md-surface-4dp)` |
-| `--md-chatbar-input-bg` | 输入框背景（含回复预览条） | `var(--md-surface-1dp)` |
-| `--md-chatbar-input-bg-focus` | 输入框聚焦背景 | `var(--md-surface-2dp)` |
+| `--md-chatbar-bg` | 输入栏整体背景 | `var(--md-surface-container-high)` |
+| `--md-chatbar-input-bg` | 输入框背景（含回复预览条） | `var(--md-surface-container-lowest)` |
+| `--md-chatbar-input-bg-focus` | 输入框聚焦背景 | `var(--md-surface-container-low)` |
 | `--md-chatbar-text` | 输入文字 | `var(--md-on-surface)` |
-| `--md-chatbar-text-muted` | 占位符/辅助文字/禁用发送 | `var(--md-on-surface-dim)` |
-| `--md-chatbar-btn-bg` | 「+」按钮背景 | `var(--md-surface-2dp)` |
-| `--md-chatbar-btn-hover` | 「+」按钮悬停 | `var(--md-surface-4dp)` |
-| `--md-chatbar-btn-active` | 「+」按钮按压/发送禁用 | `var(--md-surface-6dp)` |
+| `--md-chatbar-text-muted` | 占位符/辅助文字/禁用发送 | `var(--md-on-surface-variant)` |
+| `--md-chatbar-btn-bg` | 「+」按钮背景 | `var(--md-surface-container-low)` |
+| `--md-chatbar-btn-hover` | 「+」按钮悬停 | `var(--md-surface-container-high)` |
+| `--md-chatbar-btn-active` | 「+」按钮按压/发送禁用 | `var(--md-surface-container-highest)` |
 | **功能面板（+ 面板）** | | |
-| `--md-panel-bg` | 面板背景 | `var(--md-surface-2dp)` |
-| `--md-panel-icon-bg` | 功能图标/音效按钮背景 | `var(--md-surface-4dp)` |
-| `--md-panel-icon-active` | 图标按压背景 | `var(--md-surface-6dp)` |
-| `--md-panel-icon-pressed` | 音效按钮深按压背景 | `var(--md-surface-12dp)` |
-| `--md-panel-text` | 图标/标签/返回/标题文字 | `var(--md-on-surface-muted)` |
-| `--md-panel-text-dim` | 面板提示文字 | `var(--md-on-surface-dim)` |
+| `--md-panel-bg` | 面板背景 | `var(--md-surface-container-low)` |
+| `--md-panel-icon-bg` | 功能图标/音效按钮背景 | `var(--md-surface-container-high)` |
+| `--md-panel-icon-active` | 图标按压背景 | `var(--md-surface-container-highest)` |
+| `--md-panel-icon-pressed` | 音效按钮深按压背景 | `var(--md-surface-container-highest)` |
+| `--md-panel-text` | 图标/标签/返回/标题文字 | `var(--md-on-surface-variant)` |
+| `--md-panel-text-dim` | 面板提示文字 | `var(--md-on-surface-variant)` |
 | `--md-panel-text-strong` | 录音计时/停止按钮文字 | `var(--md-on-surface)` |
 | **菜单（长按/头像/用户菜单）** | | |
-| `--md-menu-bg` | 消息长按菜单背景 | `var(--md-surface-6dp)` |
-| `--md-menu-bg-card` | 用户菜单卡片背景 | `var(--md-surface-4dp)` |
+| `--md-menu-bg` | 消息长按菜单背景 | `var(--md-surface-container-highest)` |
+| `--md-menu-bg-card` | 用户菜单卡片背景 | `var(--md-surface-container-high)` |
 | `--md-menu-bg-sheet` | 头像底部菜单背景 | `var(--md-surface)` |
 | `--md-menu-text` | 菜单项文字 | `var(--md-on-surface)` |
-| `--md-menu-text-muted` | 用户菜单项文字 | `var(--md-on-surface-muted)` |
-| `--md-menu-text-dim` | 菜单取消按钮文字 | `var(--md-on-surface-dim)` |
-| `--md-menu-hover` | 菜单项悬停/按压背景 | `var(--md-ripple)` |
-| `--md-menu-item-active` | 用户菜单项按压背景 | `var(--md-surface-8dp)` |
+| `--md-menu-text-muted` | 用户菜单项文字 | `var(--md-on-surface-variant)` |
+| `--md-menu-text-dim` | 菜单取消按钮文字 | `var(--md-on-surface-variant)` |
+| `--md-menu-hover` | 菜单项悬停/按压背景 | `var(--md-surface-container-high)` |
+| `--md-menu-item-active` | 用户菜单项按压背景 | `var(--md-surface-container-highest)` |
 | `--md-menu-item-bg` | 用户菜单项（主页/聊天菜单按钮）未选中背景 | `transparent` |
 | `--md-menu-item-hover` | 用户菜单项悬停背景 | `var(--md-menu-hover)` |
 | **对话框** | | |
-| `--md-dialog-bg` | 对话框背景 | `var(--md-surface-4dp)` |
+| `--md-dialog-bg` | 对话框背景 | `var(--md-surface-container-high)` |
 | `--md-dialog-text` | 标题/主文字 | `var(--md-on-surface)` |
-| `--md-dialog-text-muted` | 说明文字 | `var(--md-on-surface-muted)` |
-| `--md-dialog-text-dim` | 次级标签/徽标文字 | `var(--md-on-surface-dim)` |
+| `--md-dialog-text-muted` | 说明文字 | `var(--md-on-surface-variant)` |
+| `--md-dialog-text-dim` | 次级标签/徽标文字 | `var(--md-on-surface-variant)` |
 | `--md-dialog-border` | 列表/操作按钮分隔线 | `var(--md-outline)` |
-| `--md-dialog-btn-bg` | 小圆按钮背景（音效预览等） | `var(--md-surface-4dp)` |
-| `--md-dialog-btn-hover` | 操作按钮悬停背景 | `var(--md-ripple)` |
-| `--md-dialog-btn-active` | 操作按钮按压背景 | `var(--md-surface-6dp)` |
+| `--md-dialog-btn-bg` | 小圆按钮背景（音效预览等） | `var(--md-surface-container-high)` |
+| `--md-dialog-btn-hover` | 操作按钮悬停背景 | `var(--md-surface-container-high)` |
+| `--md-dialog-btn-active` | 操作按钮按压背景 | `var(--md-surface-container-highest)` |
 | **提示条** | | |
-| `--md-snackbar-bg` | 提示条背景 | `var(--md-surface-8dp)` |
-| `--md-snackbar-text` | 提示条文字 | `var(--md-on-surface)` |
+| `--md-snackbar-bg` | 提示条背景 | `var(--md-inverse-surface)` |
+| `--md-snackbar-text` | 提示条文字 | `var(--md-inverse-on-surface)` |
 | **设置页** | | |
-| `--md-settings-bg` | 设置项背景 | `var(--md-surface-2dp)` |
-| `--md-settings-hover` | 设置项悬停背景 | `var(--md-surface-4dp)` |
-| `--md-settings-active` | 设置项按压背景 | `var(--md-surface-6dp)` |
-| `--md-settings-icon-bg` | 设置项图标圆底 | `var(--md-surface-4dp)` |
+| `--md-settings-bg` | 设置项背景 | `var(--md-surface-container-low)` |
+| `--md-settings-hover` | 设置项悬停背景 | `var(--md-surface-container-high)` |
+| `--md-settings-active` | 设置项按压背景 | `var(--md-surface-container-highest)` |
+| `--md-settings-icon-bg` | 设置项图标圆底 | `var(--md-surface-container-high)` |
 | `--md-settings-text` | 设置项标签 | `var(--md-on-surface)` |
-| `--md-settings-text-muted` | 设置项图标 | `var(--md-on-surface-muted)` |
-| `--md-settings-text-dim` | 分区标题/箭头/当前值 | `var(--md-on-surface-dim)` |
+| `--md-settings-text-muted` | 设置项图标 | `var(--md-on-surface-variant)` |
+| `--md-settings-text-dim` | 分区标题/箭头/当前值 | `var(--md-on-surface-variant)` |
 | **聊天辅助信息** | | |
-| `--md-hint-bg` | 系统消息背景 | `var(--md-surface-1dp)` |
-| `--md-hint-bg-alt` | 日期分隔背景 | `var(--md-surface-2dp)` |
-| `--md-hint-text` | 系统消息/日期文字 | `var(--md-on-surface-dim)` |
+| `--md-hint-bg` | 系统消息背景 | `var(--md-surface-container-lowest)` |
+| `--md-hint-bg-alt` | 日期分隔背景 | `var(--md-surface-container-low)` |
+| `--md-hint-text` | 系统消息/日期文字 | `var(--md-on-surface-variant)` |
 | **语音消息条** | | |
-| `--md-voice-bg` | 对方语音条背景 | `var(--md-surface-4dp)` |
-| `--md-voice-bg-own` | 己方语音条背景 | `var(--md-on-primary-translucent)` |
-| `--md-voice-text` | 语音时长文字 | `var(--md-on-surface-muted)` |
+| `--md-voice-bg` | 对方语音条背景 | `var(--md-surface-container-high)` |
+| `--md-voice-bg-own` | 己方语音条背景 | `var(--md-primary-container)` |
+| `--md-voice-text` | 语音时长文字 | `var(--md-on-surface-variant)` |
 | **搜索页** | | |
-| `--md-search-bg` | 搜索框区域背景 | `var(--md-surface-1dp)` |
-| `--md-search-input-bg` | 搜索输入框背景 | `var(--md-surface-2dp)` |
+| `--md-search-bg` | 搜索框区域背景 | `var(--md-surface-container-lowest)` |
+| `--md-search-input-bg` | 搜索输入框背景 | `var(--md-surface-container-low)` |
 | `--md-search-input-focus-border` | 输入框聚焦边框 | `var(--md-primary)` |
 | `--md-search-text` | 搜索结果昵称 | `var(--md-on-surface)` |
-| `--md-search-text-dim` | 状态/空态/占位符 | `var(--md-on-surface-dim)` |
-| `--md-search-item-hover` | 结果项悬停背景 | `var(--md-surface-2dp)` |
+| `--md-search-text-dim` | 状态/空态/占位符 | `var(--md-on-surface-variant)` |
+| `--md-search-item-hover` | 结果项悬停背景 | `var(--md-surface-container-low)` |
 | **描边属性** | | |
 | `--md-outline-width` | 全局描边宽度（分隔线/边框），默认 `1px` | `1px` |
 | `--md-outline-style` | 全局描边线型（`solid`/`dashed` 等），默认 `solid` | `solid` |
@@ -317,7 +319,7 @@ src/fonts.js（FontManager，全局单例）
 
 | 变量 | 含义 |
 | --- | --- |
-| `--md-elevation-1` / `--md-elevation-2` / `--md-elevation-4` / `--md-elevation-8` | Material 风格阴影，覆盖卡片、菜单、对话框等 |
+| `--md-elevation-1` / `--md-elevation-2` / `--md-elevation-3` / `--md-elevation-4` / `--md-elevation-5` | Material 风格阴影，覆盖卡片、菜单、对话框等 |
 
 ### 4.4 字体类变量
 
@@ -334,7 +336,7 @@ src/fonts.js（FontManager，全局单例）
 
 ### 4.6 圆角类变量
 
-`--radius-sm`(4px) `--radius-md`(8px) `--radius-lg`(16px)
+`--radius-xs`(4px) `--radius-sm`(8px) `--radius-md`(12px) `--radius-lg`(16px) `--radius-xl`(28px) `--radius-full`(9999px)
 
 ---
 
@@ -367,7 +369,7 @@ src/fonts.js（FontManager，全局单例）
 - **禁止**在组件样式中硬编码颜色，一律引用 `--md-*` 变量；
 - 每个大控件（顶栏、侧边栏、输入栏、菜单、对话框等）的样式只使用其**专属组件令牌**（见 §4.2.1），避免直接引用通用表面/文字令牌造成「牵一发而动全身」；
 - 新增控件样式时，若现有组件令牌无法表达，先按 §5.3 新增组件级令牌，再在样式规则中引用；
-- 需要主题可调的尺寸/间距/阴影，一律引用 `--space-*`、`--radius-*`、`--md-elevation-*`；
+- 需要主题可调的尺寸/间距/阴影，一律引用 `--space-*`、`--radius-*`、`--md-elevation-*`（最大值 `--md-elevation-5`）；
 - 头像底色 `av-0`~`av-7` 为品牌固定色板，不参与主题化（文字色使用 `--md-avatar-text`）。
 
 ### 5.5 校验规则摘要

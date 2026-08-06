@@ -12,7 +12,7 @@
 .ai-form .translate-hint {
     padding: 0 4px;
     font-size: 0.875rem;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 .ai-baseurl-wrapper {
@@ -29,7 +29,7 @@
     padding: 8px 12px;
     border-radius: var(--radius-sm);
     border-left: var(--md-accent-border);
-    background: var(--md-surface-2dp);
+    background: var(--md-surface-container-low);
     font-size: 0.875rem;
     line-height: 1.5;
     cursor: pointer;
@@ -38,7 +38,7 @@
 
 /* 翻译请求进行中：弱化显示 */
 .ai-translation-loading {
-    border-left-color: var(--md-on-surface-dim);
+    border-left-color: var(--md-on-surface-variant);
     opacity: 0.7;
 }
 
@@ -58,7 +58,7 @@
     display: block;
     margin-bottom: 4px;
     font-size: 0.75rem;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 .ai-translation .ai-translation-text {
@@ -67,5 +67,5 @@
 }
 
 .ai-translation-loading .ai-translation-label {
-    color: var(--md-on-surface-muted);
+    color: var(--md-on-surface-variant);
 }

@@ -29,10 +29,10 @@
     flex-shrink: 0;
     width: 72px;
     height: 72px;
-    border-radius: 18px;
-    background: linear-gradient(135deg, var(--md-primary), var(--md-primary-variant));
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--md-primary), var(--md-primary-container));
     color: var(--md-on-primary);
-    box-shadow: var(--md-elevation-4);
+    box-shadow: var(--md-elevation-2);
 }
 
 .auth-logo svg {
@@ -131,7 +131,7 @@
 .auth-switch {
     text-align: center;
     font-size: 0.8125rem;
-    color: var(--md-on-surface-muted);
+    color: var(--md-on-surface-variant);
 }
 
 .auth-switch a {

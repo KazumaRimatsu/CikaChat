@@ -53,7 +53,7 @@
     width: 36px;
     height: 36px;
     margin-right: 12px;
-    border-radius: 50%;
+    border-radius: var(--radius-full);
     background: var(--md-settings-icon-bg);
 }
 
@@ -183,7 +183,7 @@
     padding: 60px 20px;
     text-align: center;
     font-size: 0.85rem;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 /* --- 关于页 --- */
@@ -206,13 +206,13 @@
 
 .about-page .about-version {
     font-size: 0.9375rem;
-    color: var(--md-on-surface-muted);
+    color: var(--md-on-surface-variant);
 }
 
 .about-page .about-desc {
     margin-top: 4px;
     font-size: 0.875rem;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 .about-page a {
@@ -228,5 +228,5 @@
     margin-top: 24px;
     font-size: 0.75rem;
     opacity: 0.6;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }

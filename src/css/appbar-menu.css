@@ -6,16 +6,16 @@
    z-index 说明：顶栏 10，用户菜单遮罩 50，底部菜单 150。
    ========================================================================== */
 
-/* --- 顶栏 --- */
+/* --- 顶栏（MD3 Surface Container 风格） --- */
 .app-bar {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    height: 56px;
+    height: 64px;
     padding: 0 8px;
     background: var(--md-appbar-bg);
     color: var(--md-appbar-text);
-    box-shadow: var(--md-elevation-2);
+    box-shadow: none;
     z-index: 10;
 }
 
@@ -63,11 +63,11 @@
 }
 
 .app-bar .back-btn:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 .icon-button:active {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 .app-bar .back-btn svg,
@@ -87,7 +87,7 @@
     height: 18px;
     margin-left: 2px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: var(--radius-md);
     background: var(--md-error);
     font-size: 0.6875rem;
     font-weight: 600;
@@ -105,7 +105,7 @@
     gap: 4px;
     margin-right: 8px;
     padding: 4px 10px;
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
     background: var(--md-online-bg);
     font-size: 0.75rem;
     font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
@@ -166,9 +166,9 @@
     max-width: 280px;
     margin-top: 56px;
     padding: 20px 16px 12px;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     background: var(--md-menu-bg-card);
-    box-shadow: var(--md-elevation-8);
+    box-shadow: var(--md-elevation-3);
     animation: menu-slide 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -269,9 +269,9 @@
     left: 0;
     z-index: 150;
     padding: 16px;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     background: var(--md-menu-bg-sheet);
-    box-shadow: var(--md-elevation-8);
+    box-shadow: var(--md-elevation-3);
     animation: slide-up 0.25s ease;
 }
 

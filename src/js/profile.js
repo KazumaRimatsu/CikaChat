@@ -1,0 +1,703 @@
+/* CikaChat 用户资料模块：用户详情页 / 编辑资料页 / 图片裁剪编辑器（移植自 MJChat v69） */
+
+        // ============ 状态与本地缓存 ============
+        let _udTargetUser = null;
+        let _udTargetIsSelf = false;
+        let _udBgUrl = null;
+        let _udProfileData = null;
+        let _udUserData = null;
+
+        const _AVATAR_LS_PREFIX = 'mjchat_avatar_';
+        function _lsGetAvatar(username) {
+            try { return localStorage.getItem(_AVATAR_LS_PREFIX + encodeURIComponent(username)); } catch (e) { return null; }
+        }
+        function _lsSetAvatar(username, url) {
+            try { if (url) localStorage.setItem(_AVATAR_LS_PREFIX + encodeURIComponent(username), url); else localStorage.removeItem(_AVATAR_LS_PREFIX + encodeURIComponent(username)); } catch (e) { }
+        }
+
+        // ============ 用户详情页 ============
+        function openUserDetailPage(username) {
+            if (!username) return;
+            _udTargetUser = username;
+            _udTargetIsSelf = (username === currentUser);
+            _udBgUrl = null;
+            _udProfileData = null;
+            navigateTo('userDetail');
+            loadUserDetailPage();
+        }
+
+        // 从头像弹窗的「查看资料」按钮进入详情页
+        function openUserDetailFromProfile() {
+            const usernameEl = document.getElementById('userProfileUsername');
+            const username = usernameEl ? usernameEl.textContent : '';
+            if (!username || username === '加载中' || username === '-') return;
+            closeUserProfile();
+            openUserDetailPage(username);
+        }
+
+        function closeUserDetailMenu() {
+            const overlay = document.getElementById('udMenuOverlay');
+            if (overlay) overlay.classList.remove('show');
+        }
+
+        async function startPrivateChatFromDetail() {
+            if (!_udTargetUser || _udTargetUser === currentUser) return;
+            closeUserDetailMenu();
+            const sessionId = await createPrivateSession(_udTargetUser);
+            if (sessionId) {
+                await loadPrivateSessions();
+                openPrivateChat(sessionId, _udTargetUser);
+            }
+        }
+
+        async function loadUserDetailPage() {
+            if (!_udTargetUser) return;
+            const avatarEl = document.getElementById('udAvatar');
+            const nameEl = document.getElementById('udUsername');
+            const statusEl = document.getElementById('udStatusText');
+            const statusDot = document.getElementById('udAvatarStatus');
+            const bgEl = document.getElementById('udBg');
+            const infoList = document.getElementById('udInfoList');
+            const editBtn = document.getElementById('udEditBtn');
+
+            // Avatar: 先显示加载动画
+            avatarEl.innerHTML = '<div class="md-circular-loader" style="width:24px;height:24px;"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div>';
+            avatarEl.style.backgroundImage = '';
+            avatarEl.style.backgroundColor = '#fff';
+            avatarEl.className = 'ud-avatar';
+            avatarEl.textContent = '';
+            nameEl.textContent = _udTargetUser;
+            statusEl.textContent = '';
+            statusDot.className = 'ud-avatar-status offline';
+            // Info list 加载动画
+            infoList.innerHTML = '<div style="text-align:center;padding:40px;"><div class="md-circular-loader" style="width:32px;height:32px;margin:0 auto;"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div></div>';
+            editBtn.style.display = _udTargetIsSelf ? 'flex' : 'none';
+
+            // 背景加载动画
+            bgEl.style.backgroundImage = '';
+            const bgLoader = document.createElement('div');
+            bgLoader.id = 'udBgLoader';
+            bgLoader.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1;';
+            bgLoader.innerHTML = '<div class="md-circular-loader" style="width:32px;height:32px;color:#fff;"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div>';
+            bgEl.appendChild(bgLoader);
+
+            function removeBgLoader() {
+                const loader = document.getElementById('udBgLoader');
+                if (loader) loader.remove();
+            }
+
+            // 本地缓存背景（立即显示）
+            let cachedBgUrl = null;
+            try { cachedBgUrl = localStorage.getItem('mjchat_ud_bg_' + _udTargetUser); } catch (ex) { }
+            if (cachedBgUrl) {
+                const bgImg = new Image();
+                bgImg.onload = function() { bgEl.style.backgroundImage = 'url(' + cachedBgUrl + ')'; removeBgLoader(); };
+                bgImg.onerror = removeBgLoader;
+                bgImg.src = cachedBgUrl;
+            }
+
+            // 本地缓存头像（立即显示）
+            const cachedAvatarUrl = _lsGetAvatar(_udTargetUser) || userAvatarCache[_udTargetUser] || '';
+            if (cachedAvatarUrl) {
+                const avImg = new Image();
+                avImg.onload = function() {
+                    avatarEl.innerHTML = '';
+                    avatarEl.style.backgroundImage = 'url(' + cachedAvatarUrl + ')';
+                    avatarEl.style.backgroundColor = '';
+                    avatarEl.className = 'ud-avatar av-' + (hashStr(_udTargetUser) % 8);
+                };
+                avImg.src = cachedAvatarUrl;
+            }
+
+            try {
+                // 优先 RPC 获取完整资料（含邮箱/生日/简介/标签/背景）
+                let profileData = null;
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: _udTargetUser });
+                    if (!rpcError && rpcData && rpcData.success !== false) {
+                        profileData = rpcData;
+                    }
+                } catch (e) { /* RPC 不可用时回退用户表 */ }
+                if (!profileData) {
+                    try {
+                        const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
+                            .eq('username', _udTargetUser).maybeSingle();
+                        if (!error && data) profileData = data;
+                    } catch (e) { /* ignore */ }
+                }
+
+                _udUserData = profileData;
+                if (!profileData) {
+                    infoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--md-error);">用户不存在</div>';
+                    removeBgLoader();
+                    return;
+                }
+
+                // 头像：与缓存不同才重新预加载，加载完成后才显示
+                if (profileData.avatar_url) {
+                    if (profileData.avatar_url !== cachedAvatarUrl) {
+                        const newAvImg = new Image();
+                        newAvImg.onload = function() {
+                            avatarEl.innerHTML = '';
+                            avatarEl.style.backgroundImage = 'url(' + profileData.avatar_url + ')';
+                            avatarEl.style.backgroundColor = '';
+                            avatarEl.className = 'ud-avatar av-' + (hashStr(_udTargetUser) % 8);
+                        };
+                        newAvImg.src = profileData.avatar_url;
+                    }
+                    userAvatarCache[_udTargetUser] = profileData.avatar_url;
+                    _lsSetAvatar(_udTargetUser, profileData.avatar_url);
+                } else {
+                    avatarEl.innerHTML = '';
+                    avatarEl.style.backgroundImage = '';
+                    avatarEl.style.backgroundColor = '';
+                    avatarEl.textContent = _udTargetUser.charAt(0).toUpperCase();
+                    avatarEl.className = 'ud-avatar av-' + (hashStr(_udTargetUser) % 8);
+                }
+
+                // 背景：从资料预加载
+                const rpcBgUrl = profileData.bg_url || '';
+                if (rpcBgUrl && rpcBgUrl !== cachedBgUrl) {
+                    const newBgImg = new Image();
+                    newBgImg.onload = function() {
+                        bgEl.style.backgroundImage = 'url(' + rpcBgUrl + ')';
+                        removeBgLoader();
+                        try { localStorage.setItem('mjchat_ud_bg_' + _udTargetUser, rpcBgUrl); } catch (ex) { }
+                    };
+                    newBgImg.onerror = removeBgLoader;
+                    newBgImg.src = rpcBgUrl;
+                } else if (!rpcBgUrl && !cachedBgUrl) {
+                    removeBgLoader();
+                }
+
+                nameEl.textContent = _udTargetUser;
+
+                const isOnline = getOnlineUsernames().includes(_udTargetUser) || _udTargetIsSelf;
+                statusDot.className = 'ud-avatar-status ' + (isOnline ? 'online' : 'offline');
+                const banned = !!profileData.banned;
+                if (banned) {
+                    statusEl.textContent = '已封禁';
+                    statusEl.style.color = 'var(--md-error)';
+                } else {
+                    statusEl.textContent = isOnline ? '在线' : '离线';
+                    statusEl.style.color = '';
+                }
+
+                const email = profileData.email || '';
+                const birthday = profileData.birthday || '';
+                const bio = profileData.bio || '';
+                const tags = profileData.tags || '';
+                _udProfileData = { email: email, birthday: birthday, bio: bio, tags: tags };
+
+                const items = [];
+                items.push({
+                    icon: '<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>',
+                    value: email || '未设置',
+                    label: '邮箱',
+                    isEmpty: !email
+                });
+                items.push({
+                    icon: '<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>',
+                    value: birthday || '未设置',
+                    label: '生日',
+                    isEmpty: !birthday
+                });
+                const roleText = profileData.role === 'admin' ? '管理员' : '普通用户';
+                items.push({
+                    icon: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>',
+                    value: roleText,
+                    label: '身份',
+                    isEmpty: false
+                });
+                items.push({
+                    icon: '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>',
+                    value: bio || '未设置',
+                    label: '个人简介',
+                    isEmpty: !bio
+                });
+                items.push({
+                    icon: '<path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>',
+                    value: tags || '未设置',
+                    label: '标签',
+                    isEmpty: !tags
+                });
+
+                let html = '';
+                for (let i = 0; i < items.length; i++) {
+                    html += '<div class="ud-info-item">';
+                    html += '<svg class="ud-info-icon" viewBox="0 0 24 24">' + items[i].icon + '</svg>';
+                    html += '<div class="ud-info-content">';
+                    html += '<div class="ud-info-value' + (items[i].isEmpty ? ' empty' : '') + '">' + escapeHtml(items[i].value) + '</div>';
+                    html += '<div class="ud-info-label">' + escapeHtml(items[i].label) + '</div>';
+                    html += '</div></div>';
+                }
+                infoList.innerHTML = html;
+            } catch (e) {
+                infoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--md-error);">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+                removeBgLoader();
+            }
+        }
+
+        // ============ 编辑资料页 ============
+        let _epAvatarFile = null;
+        let _epBgFile = null;
+        let _epAvatarUrl = null;
+        let _epBgUrl = null;
+        let _epExistingAvatarUrl = null;
+        let _epExistingBgUrl = null;
+
+        function openEditProfilePage() {
+            // 支持从主页菜单直接进入（此时可能尚未打开过自己的详情页）
+            if (!_udTargetUser || _udTargetUser !== currentUser) {
+                _udTargetUser = currentUser;
+                _udTargetIsSelf = true;
+            }
+            navigateTo('editProfile');
+            loadEditProfilePage();
+        }
+
+        function loadEditProfilePage() {
+            const epAvatar = document.getElementById('epAvatar');
+            const epBg = document.getElementById('epBg');
+            const epUsername = document.getElementById('epUsername');
+            const epEmail = document.getElementById('epEmail');
+            const epBirthday = document.getElementById('epBirthday');
+            const epBio = document.getElementById('epBio');
+            const epTags = document.getElementById('epTags');
+
+            _epAvatarFile = null;
+            _epBgFile = null;
+            _epAvatarUrl = null;
+            _epBgUrl = null;
+
+            epUsername.value = currentUser;
+            epEmail.value = '';
+            epBirthday.value = '';
+            epBio.value = '';
+            epTags.value = '';
+
+            // 生日选择器：上限为今天，禁止选择未来日期
+            const _today = new Date();
+            epBirthday.max = _today.getFullYear() + '-' +
+                (_today.getMonth() + 1 < 10 ? '0' : '') + (_today.getMonth() + 1) + '-' +
+                (_today.getDate() < 10 ? '0' : '') + _today.getDate();
+            // 邮箱输入时即时清除错误提示
+            epEmail.oninput = clearEpEmailError;
+
+            // 头像预览：优先 currentAvatarUrl / 内存缓存 / 本地缓存
+            const idx = hashStr(currentUser) % 8;
+            epAvatar.className = 'ep-avatar av-' + idx;
+            const epCachedAvatar = currentAvatarUrl || userAvatarCache[currentUser] || _lsGetAvatar(currentUser);
+            _epExistingAvatarUrl = epCachedAvatar || null;
+            if (_epExistingAvatarUrl) {
+                epAvatar.style.backgroundImage = 'url(' + _epExistingAvatarUrl + ')';
+                epAvatar.textContent = '';
+            } else {
+                epAvatar.style.backgroundImage = '';
+                epAvatar.textContent = currentUser.charAt(0).toUpperCase();
+            }
+
+            // 背景预览
+            _epExistingBgUrl = null;
+            try {
+                const cachedBg = localStorage.getItem('mjchat_ud_bg_' + currentUser);
+                if (cachedBg) {
+                    _epExistingBgUrl = cachedBg;
+                    epBg.style.backgroundImage = 'url(' + cachedBg + ')';
+                } else {
+                    epBg.style.backgroundImage = '';
+                }
+            } catch (ex) { epBg.style.backgroundImage = ''; }
+
+            // 从 RPC 回填已有资料
+            (async function() {
+                try {
+                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                    if (!rpcError && rpcData && rpcData.success !== false) {
+                        epEmail.value = rpcData.email || '';
+                        epBirthday.value = normalizeDateToISO(rpcData.birthday) || '';
+                        epBio.value = rpcData.bio || '';
+                        epTags.value = rpcData.tags || '';
+                        const rpcBgUrl = rpcData.bg_url || '';
+                        if (rpcBgUrl && rpcBgUrl !== _epExistingBgUrl) {
+                            _epExistingBgUrl = rpcBgUrl;
+                            epBg.style.backgroundImage = 'url(' + rpcBgUrl + ')';
+                            try { localStorage.setItem('mjchat_ud_bg_' + currentUser, rpcBgUrl); } catch (ex) { }
+                        }
+                    }
+                } catch (ex) { /* ignore */ }
+            })();
+        }
+
+        function handleEpAvatarSelect(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) { showSnackbar('请选择图片'); return; }
+            if (file.size > 10 * 1024 * 1024) { showSnackbar('图片不能超过10MB'); return; }
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                openImageEditor(ev.target.result, '1-1', function(blob) {
+                    _epAvatarFile = blob;
+                    const url = URL.createObjectURL(blob);
+                    if (_epAvatarUrl && _epAvatarUrl.startsWith('blob:')) URL.revokeObjectURL(_epAvatarUrl);
+                    _epAvatarUrl = url;
+                    const epAvatar = document.getElementById('epAvatar');
+                    epAvatar.style.backgroundImage = 'url(' + url + ')';
+                    epAvatar.textContent = '';
+                });
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        }
+
+        function handleEpBgSelect(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) { showSnackbar('请选择图片'); return; }
+            if (file.size > 10 * 1024 * 1024) { showSnackbar('图片不能超过10MB'); return; }
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                openImageEditor(ev.target.result, '16-9', function(blob) {
+                    _epBgFile = blob;
+                    const url = URL.createObjectURL(blob);
+                    if (_epBgUrl && _epBgUrl.startsWith('blob:')) URL.revokeObjectURL(_epBgUrl);
+                    _epBgUrl = url;
+                    document.getElementById('epBg').style.backgroundImage = 'url(' + url + ')';
+                });
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        }
+
+        // 邮箱/生日字段校验与规范化
+        function isValidEmail(email) {
+            if (!email) return true; // 允许为空
+            if (email.length > 254) return false;
+            return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+        }
+
+        function normalizeDateToISO(text) {
+            if (!text) return '';
+            text = String(text).trim();
+            let m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (!m) m = text.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$/);
+            if (!m) return '';
+            const y = +m[1], mo = +m[2], d = +m[3];
+            if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+            return y + '-' + (mo < 10 ? '0' + mo : mo) + '-' + (d < 10 ? '0' + d : d);
+        }
+
+        function showEpEmailError(msg) {
+            const item = document.getElementById('epEmailItem');
+            const err = document.getElementById('epEmailError');
+            if (item) item.classList.add('error');
+            if (err) { err.textContent = msg; err.classList.add('show'); }
+        }
+
+        function clearEpEmailError() {
+            const item = document.getElementById('epEmailItem');
+            const err = document.getElementById('epEmailError');
+            if (item) item.classList.remove('error');
+            if (err) { err.textContent = ''; err.classList.remove('show'); }
+        }
+
+        async function saveEditProfile() {
+            const btn = document.getElementById('epSaveBtn');
+            const email = document.getElementById('epEmail').value.trim();
+            const birthday = document.getElementById('epBirthday').value.trim();
+            const bio = document.getElementById('epBio').value.trim();
+            const tags = document.getElementById('epTags').value.trim();
+
+            // 邮箱校验：非空必须为合法邮箱
+            clearEpEmailError();
+            if (email && !isValidEmail(email)) {
+                showEpEmailError('请输入有效的邮箱地址');
+                const epEmailEl = document.getElementById('epEmail');
+                if (epEmailEl) epEmailEl.focus();
+                showSnackbar('邮箱格式不正确');
+                return;
+            }
+            // 生日规范化（后端为纯文本，统一保存为 YYYY-MM-DD）
+            const birthdayISO = normalizeDateToISO(birthday);
+
+            btn.disabled = true;
+            // 全屏保存遮罩
+            const overlay = document.createElement('div');
+            overlay.id = 'epSavingOverlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99998;display:flex;align-items:center;justify-content:center;';
+            overlay.innerHTML = '<div class="md-circular-loader" style="width:48px;height:48px;color:#fff;"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div>';
+            document.body.appendChild(overlay);
+            try {
+
+                let newAvatarUrl = _epExistingAvatarUrl;
+                let newBgUrl = _epExistingBgUrl;
+
+                // 头像有改动才上传（已在裁剪器压缩为 512x512）
+                if (_epAvatarFile) {
+                    const avPath = 'Public/avatars/' + hashStr(currentUser) + '-' + Date.now() + '.jpg';
+                    const { error: avErr } = await sb.storage.from(STORAGE_BUCKET).upload(avPath, _epAvatarFile, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
+                    if (avErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('头像上传失败: ' + avErr.message); return; }
+                    const { data: avUrl } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(avPath);
+                    newAvatarUrl = avUrl.publicUrl;
+                    const { error: upErr } = await sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: newAvatarUrl });
+                    if (upErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('更新头像失败: ' + upErr.message); return; }
+                    currentAvatarUrl = newAvatarUrl;
+                    userAvatarCache[currentUser] = newAvatarUrl;
+                    _lsSetAvatar(currentUser, newAvatarUrl);
+                    updateAllAvatars();
+                    updateHomeMenu();
+                    updatePublicMenu();
+                    if (publicChannel) {
+                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: newAvatarUrl } });
+                    }
+                }
+
+                // 背景有改动才上传（已在裁剪器压缩为 1920x1080）
+                if (_epBgFile) {
+                    const bgPath = 'Public/background/' + currentUser + '_' + Date.now() + '.jpg';
+                    const { error: bgErr } = await sb.storage.from(STORAGE_BUCKET).upload(bgPath, _epBgFile, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
+                    if (bgErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('背景上传失败: ' + bgErr.message); return; }
+                    const { data: bgUrl } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(bgPath);
+                    newBgUrl = bgUrl.publicUrl;
+                    try { localStorage.setItem('mjchat_ud_bg_' + currentUser, newBgUrl); } catch (ex) { }
+                }
+
+                // 保存资料（含背景）
+                const { data: saveData, error: saveErr } = await sb.rpc('upsert_user_profile', {
+                    p_username: currentUser,
+                    p_email: email,
+                    p_birthday: birthdayISO,
+                    p_bio: bio,
+                    p_tags: tags,
+                    p_bg_url: newBgUrl || ''
+                });
+                if (saveErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('保存失败: ' + saveErr.message); return; }
+                if (saveData && saveData.success === false) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('保存失败'); return; }
+
+                if (overlay) overlay.remove();
+                navigateBack();
+                setTimeout(function() { loadUserDetailPage(); }, 100);
+            } catch (e) {
+                if (overlay) overlay.remove();
+                showSnackbar('保存失败: ' + (e.message || ''));
+            }
+            btn.disabled = false;
+        }
+
+        // ============ 图片裁剪编辑器 ============
+        let _ieCallback = null;
+        let _ieRatio = '1-1';
+        let _ieScale = 1;
+        let _ieMinScale = 0.1;
+        let _ieOffsetX = 0;
+        let _ieOffsetY = 0;
+        let _ieStartX = 0;
+        let _ieStartY = 0;
+        let _ieStartOffsetX = 0;
+        let _ieStartOffsetY = 0;
+        let _ieNaturalW = 0;
+        let _ieNaturalH = 0;
+        let _ieDisplayW = 0;
+        let _ieDisplayH = 0;
+        let _iePinchStartDist = 0;
+        let _iePinchStartScale = 1;
+
+        function openImageEditor(dataUrl, ratio, callback) {
+            _ieCallback = callback;
+            _ieRatio = ratio;
+            _ieScale = 1;
+            _ieOffsetX = 0;
+            _ieOffsetY = 0;
+            const img = document.getElementById('ieImage');
+            const frame = document.getElementById('ieCropFrame');
+            frame.className = 'ie-crop-frame ratio-' + ratio;
+            const page = document.getElementById('imageEditorPage');
+            page.classList.add('active');
+            // 等待布局完成后读取裁剪框尺寸
+            requestAnimationFrame(function() {
+                img.onload = function() {
+                    _ieNaturalW = img.naturalWidth;
+                    _ieNaturalH = img.naturalHeight;
+                    // 让图片 cover 裁剪框
+                    const frameEl = document.getElementById('ieCropFrame');
+                    const fw = frameEl.offsetWidth;
+                    const fh = frameEl.offsetHeight;
+                    const scaleW = fw / _ieNaturalW;
+                    const scaleH = fh / _ieNaturalH;
+                    _ieScale = Math.max(scaleW, scaleH);
+                    _ieMinScale = _ieScale;
+                    _ieDisplayW = _ieNaturalW * _ieScale;
+                    _ieDisplayH = _ieNaturalH * _ieScale;
+                    _ieOffsetX = 0;
+                    _ieOffsetY = 0;
+                    updateImageTransform();
+                    updateZoomLabel();
+                };
+                img.src = dataUrl;
+            });
+            img.addEventListener('touchstart', ieOnPointerDown, { passive: false });
+            img.addEventListener('mousedown', ieOnPointerDown);
+            img.addEventListener('wheel', ieOnWheel, { passive: false });
+        }
+
+        function ieClampOffset() {
+            // 约束平移范围，保证图片始终覆盖裁剪框
+            const frame = document.getElementById('ieCropFrame');
+            const fw = frame.offsetWidth;
+            const fh = frame.offsetHeight;
+            const maxX = Math.max(0, (_ieDisplayW - fw) / 2);
+            const maxY = Math.max(0, (_ieDisplayH - fh) / 2);
+            _ieOffsetX = Math.max(-maxX, Math.min(maxX, _ieOffsetX));
+            _ieOffsetY = Math.max(-maxY, Math.min(maxY, _ieOffsetY));
+        }
+
+        function updateImageTransform() {
+            const img = document.getElementById('ieImage');
+            img.style.width = _ieDisplayW + 'px';
+            img.style.height = _ieDisplayH + 'px';
+            img.style.transform = 'translate(-50%, -50%) translate(' + _ieOffsetX + 'px, ' + _ieOffsetY + 'px)';
+        }
+
+        function ieGetDist(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function ieOnPointerDown(e) {
+            e.preventDefault();
+            if (e.touches && e.touches.length === 2) {
+                _iePinchStartDist = ieGetDist(e.touches);
+                _iePinchStartScale = _ieScale;
+            } else {
+                const pt = e.touches ? e.touches[0] : e;
+                _ieStartX = pt.clientX;
+                _ieStartY = pt.clientY;
+                _ieStartOffsetX = _ieOffsetX;
+                _ieStartOffsetY = _ieOffsetY;
+                document.addEventListener('touchmove', ieOnPointerMove, { passive: false });
+                document.addEventListener('touchend', ieOnPointerUp);
+                document.addEventListener('mousemove', ieOnPointerMove);
+                document.addEventListener('mouseup', ieOnPointerUp);
+            }
+        }
+
+        function ieOnPointerMove(e) {
+            e.preventDefault();
+            if (e.touches && e.touches.length === 2) {
+                const dist = ieGetDist(e.touches);
+                _ieScale = Math.max(_ieMinScale, Math.min(_iePinchStartScale * (dist / _iePinchStartDist), 10));
+                _ieDisplayW = _ieNaturalW * _ieScale;
+                _ieDisplayH = _ieNaturalH * _ieScale;
+                ieClampOffset();
+                updateImageTransform();
+            } else {
+                const pt = e.touches ? e.touches[0] : e;
+                const dx = pt.clientX - _ieStartX;
+                const dy = pt.clientY - _ieStartY;
+                _ieOffsetX = _ieStartOffsetX + dx;
+                _ieOffsetY = _ieStartOffsetY + dy;
+                ieClampOffset();
+                updateImageTransform();
+            }
+        }
+
+        function ieOnPointerUp() {
+            document.removeEventListener('touchmove', ieOnPointerMove);
+            document.removeEventListener('touchend', ieOnPointerUp);
+            document.removeEventListener('mousemove', ieOnPointerMove);
+            document.removeEventListener('mouseup', ieOnPointerUp);
+        }
+
+        function cancelImageEdit() {
+            const page = document.getElementById('imageEditorPage');
+            page.classList.remove('active');
+            const img = document.getElementById('ieImage');
+            img.removeEventListener('touchstart', ieOnPointerDown);
+            img.removeEventListener('mousedown', ieOnPointerDown);
+            img.removeEventListener('wheel', ieOnWheel);
+            img.src = '';
+            _ieCallback = null;
+        }
+
+        // 缩放控制：滚轮缩放 + 放大/缩小/重置按钮（桌面端交互）
+        function ieSetScale(newScale) {
+            _ieScale = Math.max(_ieMinScale, Math.min(newScale, 10));
+            _ieDisplayW = _ieNaturalW * _ieScale;
+            _ieDisplayH = _ieNaturalH * _ieScale;
+            ieClampOffset();
+            updateImageTransform();
+            updateZoomLabel();
+        }
+
+        function ieZoomIn() { ieSetScale(_ieScale * 1.2); }
+
+        function ieZoomOut() { ieSetScale(_ieScale / 1.2); }
+
+        function ieResetTransform() {
+            _ieScale = _ieMinScale;
+            _ieOffsetX = 0;
+            _ieOffsetY = 0;
+            updateImageTransform();
+            updateZoomLabel();
+        }
+
+        function updateZoomLabel() {
+            const el = document.getElementById('ieZoomValue');
+            if (el) el.textContent = Math.round(_ieScale / _ieMinScale * 100) + '%';
+        }
+
+        function ieOnWheel(e) {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.1 : 0.9;
+            ieSetScale(_ieScale * factor);
+        }
+
+        function confirmImageEdit() {
+            const img = document.getElementById('ieImage');
+            const frame = document.getElementById('ieCropFrame');
+            const canvas = document.getElementById('ieCanvas');
+            // 按比例决定输出尺寸
+            let cropW, cropH;
+            if (_ieRatio === '1-1') { cropW = 512; cropH = 512; }
+            else { cropW = 1920; cropH = 1080; }
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = cropW;
+            outCanvas.height = cropH;
+            const ctx = outCanvas.getContext('2d');
+            // 黑色底（JPEG 无透明通道）
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, cropW, cropH);
+            // 计算原图上对应裁剪框的源区域
+            const frameRect = frame.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect();
+            const fcx = frameRect.left + frameRect.width / 2 - canvasRect.left;
+            const fcy = frameRect.top + frameRect.height / 2 - canvasRect.top;
+            const icx = imgRect.left + imgRect.width / 2 - canvasRect.left;
+            const icy = imgRect.top + imgRect.height / 2 - canvasRect.top;
+            const ox = icx - fcx;
+            const oy = icy - fcy;
+            const sf = _ieNaturalW / _ieDisplayW;
+            const frameW = frameRect.width;
+            const frameH = frameRect.height;
+            let srcW = frameW * sf;
+            let srcH = frameH * sf;
+            let srcX = (_ieNaturalW - srcW) / 2 - ox * sf;
+            let srcY = (_ieNaturalH - srcH) / 2 - oy * sf;
+            // 防越界
+            srcX = Math.max(0, Math.min(srcX, _ieNaturalW - srcW));
+            srcY = Math.max(0, Math.min(srcY, _ieNaturalH - srcH));
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, cropW, cropH);
+            outCanvas.toBlob(function(blob) {
+                if (!blob) return;
+                // v069: 先回调再关闭编辑器——cancelImageEdit 会清空 _ieCallback，
+                // 顺序颠倒会导致裁剪结果回调被静默丢弃（背景/头像无法更新）
+                if (_ieCallback) {
+                    const cb = _ieCallback;
+                    _ieCallback = null;
+                    cb(blob);
+                }
+                cancelImageEdit();
+            }, 'image/jpeg', 0.9);
+        }

@@ -125,6 +125,7 @@
     <link rel="stylesheet" href="css/chat.css">
     <link rel="stylesheet" href="css/chat-input.css">
     <link rel="stylesheet" href="css/overlays.css">
+    <link rel="stylesheet" href="css/profile.css">
     <link rel="stylesheet" href="css/dialog.css">
     <link rel="stylesheet" href="css/auth.css">
     <link rel="stylesheet" href="css/search.css">
@@ -135,6 +136,30 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 </head>
 <body>
+    <!-- 图标符号表：页面中重复出现的 SVG 图标统一在此定义一次，其余位置通过 <use> 引用 -->
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="display:none" aria-hidden="true">
+        <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></symbol>
+        <symbol id="icon-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+        <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+        <symbol id="icon-send" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></symbol>
+        <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></symbol>
+        <symbol id="icon-mic" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></symbol>
+        <symbol id="icon-effect" viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></symbol>
+        <symbol id="icon-effect-none" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></symbol>
+        <symbol id="icon-image" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
+        <symbol id="icon-link" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></symbol>
+        <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+        <symbol id="icon-emoji" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></symbol>
+        <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+        <symbol id="icon-dnd" viewBox="0 0 24 24"><path d="M4.34 2.93l-1.41 1.41L5.59 7H5c-1.66 0-3 1.34-3 3v8c0 .55.45 1 1 1h8.59l4.47 4.47 1.41-1.41L4.34 2.93zM17 11c0-2.76-2.24-5-5-5-.32 0-.63.04-.93.1l7.86 7.86c.05-.3.07-.63.07-.96zm-1.65 6.35L7.3 9.24C6.5 9.64 6 10.27 6 11v5H4v-5c0-.83.34-1.58.88-2.12L2.1 6.1 3.51 4.69l13.19 13.19-1.41 1.41L16 18h-1.59l.59.59V20H5v-1.41l.59-.59H17v-1.65z"/></symbol>
+        <symbol id="icon-block" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></symbol>
+        <symbol id="icon-user" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
+        <symbol id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+        <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></symbol>
+        <symbol id="icon-minus" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></symbol>
+        <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+    </svg>
     <div class="app">
 
         <div id="globalLoading" class="global-loading">
@@ -153,11 +178,11 @@
                     <div class="title-block"><span class="title">CikaChat</span></div>
                     <div class="online-indicator" id="onlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="onlineCount">0</span></div>
                     <button class="icon-button" id="homeMenuBtn" onclick="toggleHomeMenu()" title="菜单">
-                        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-menu" xlink:href="#icon-menu"/></svg>
                     </button>
                 </div>
                 <div class="public-chat-entry" id="publicChatEntry" onclick="navigateTo('public')">
-                    <div class="icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></div>
+                    <div class="icon"><svg viewBox="0 0 24 24"><use href="#icon-chat" xlink:href="#icon-chat"/></svg></div>
                     <div class="info"><div class="name">公共</div><div class="sub" id="publicEntrySub">点击进入聊天</div></div>
                     <div class="badge" id="publicUnreadBadge" style="display:none;">新</div>
                 </div>
@@ -165,8 +190,9 @@
             </div>
             <div class="user-menu-overlay sidebar-menu" id="homeMenuOverlay" onclick="closeHomeMenu(event)">
                 <div class="user-menu-card" onclick="event.stopPropagation()">
-                    <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="avatar-status-dot" id="homeAvatarDot"></div></div><div class="user-name" id="homeMenuName">用户</div></div>
+                    <div class="user-info" onclick="closeHomeMenu();openUserDetailPage(currentUser);" style="cursor:pointer"><div class="avatar-wrap"><div class="user-avatar" id="homeMenuAvatar">U</div><div class="avatar-status-dot" id="homeAvatarDot"></div></div><div class="user-name" id="homeMenuName">用户</div></div>
                     <ul class="menu-list">
+                        <li onclick="closeHomeMenu();openUserDetailPage(currentUser);"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>我的资料</li>
                         <li onclick="closeHomeMenu();navigateTo('settings');"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>设置</li>
                         <li onclick="closeHomeMenu();navigateTo('search');"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>搜索用户</li>
                         <li onclick="closeHomeMenu();navigateTo('about');"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>关于</li>
@@ -183,7 +209,7 @@
                         <span class="title">公共</span>
                     </div>
                     <button class="icon-button" id="publicMenuBtn" onclick="togglePublicMenu()" title="菜单">
-                        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-menu" xlink:href="#icon-menu"/></svg>
                     </button>
                 </div>
                 <div class="messages" id="publicMessages">
@@ -195,46 +221,46 @@
                 </div>
                 <div class="chat-bar">
                     <button class="more-btn" id="publicMoreBtn" onclick="toggleFeaturePanel()" title="更多功能">
-                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-plus" xlink:href="#icon-plus"/></svg>
                     </button>
                     <div class="input-container">
                         <textarea class="msg-input" id="publicMsgInput" placeholder="按Enter发送，Ctrl/Shift+Enter换行" rows="1" oninput="autoResize(this);togglePublicSendBtn()" onkeydown="handlePublicKeyDown(event)"></textarea>
                     </div>
                     <button class="fab-send" id="publicSendBtn" onclick="sendPublicMsg()" disabled>
-                        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-send" xlink:href="#icon-send"/></svg>
                     </button>
                 </div>
                 <div class="feature-panel" id="publicFeaturePanel">
                     <div id="featurePanelMain">
                         <div class="feature-grid">
-                            <div class="feature-item" onclick="openImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span class="feature-label">图片</span></div>
-                            <div class="feature-item" onclick="openLinkDialog('public')"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div><span class="feature-label">链接</span></div>
-                            <div class="feature-item" onclick="openFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div><span class="feature-label">文件</span></div>
-                            <div class="feature-item" onclick="openEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></div><span class="feature-label">表情</span></div>
-                            <div class="feature-item" onclick="openVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></div><span class="feature-label">语音</span></div>
-                            <div class="feature-item" onclick="openTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div><span class="feature-label">文字特效</span></div>
+                            <div class="feature-item" onclick="openImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-image" xlink:href="#icon-image"/></svg></div><span class="feature-label">图片</span></div>
+                            <div class="feature-item" onclick="openLinkDialog('public')"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-link" xlink:href="#icon-link"/></svg></div><span class="feature-label">链接</span></div>
+                            <div class="feature-item" onclick="openFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-file" xlink:href="#icon-file"/></svg></div><span class="feature-label">文件</span></div>
+                            <div class="feature-item" onclick="openEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-emoji" xlink:href="#icon-emoji"/></svg></div><span class="feature-label">表情</span></div>
+                            <div class="feature-item" onclick="openVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-mic" xlink:href="#icon-mic"/></svg></div><span class="feature-label">语音</span></div>
+                            <div class="feature-item" onclick="openTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-effect" xlink:href="#icon-effect"/></svg></div><span class="feature-label">文字特效</span></div>
                         </div>
                     </div>
                     <div class="sub-panel" id="emojiSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">表情</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">表情</span></div>
                         <div class="emoji-scroll"><div class="emoji-grid" id="emojiGrid"></div></div>
                     </div>
                     <div class="sub-panel" id="textEffectSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">文字特效</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">文字特效</span></div>
                         <div class="text-effect-grid">
                             <button class="effect-btn" onclick="applyTextEffect('b')" title="粗体"><b>B</b></button>
                             <button class="effect-btn" onclick="applyTextEffect('i')" title="斜体"><i>I</i></button>
                             <button class="effect-btn" onclick="applyTextEffect('u')" title="下划线"><span style="text-decoration:underline;">U</span></button>
                             <button class="effect-btn" onclick="applyTextEffect('s')" title="删除线"><span style="text-decoration:line-through;">S</span></button>
-                            <button class="effect-btn" onclick="applyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg></button>
+                            <button class="effect-btn" onclick="applyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><use href="#icon-effect-none" xlink:href="#icon-effect-none"/></svg></button>
                         </div>
                         <div class="effect-hint">请选中输入框中的文字后点击特效按钮</div>
                     </div>
                     <div class="sub-panel" id="voiceSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">语音</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="closeSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">语音</span></div>
                         <div class="voice-panel">
                             <div class="record-timer" id="recordTimer">00:00</div>
-                            <button class="record-btn" id="recordBtn" onclick="toggleRecording()"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button>
+                            <button class="record-btn" id="recordBtn" onclick="toggleRecording()"><svg viewBox="0 0 24 24"><use href="#icon-mic" xlink:href="#icon-mic"/></svg></button>
                             <div class="record-hint" id="recordHint">点击开始录音</div>
                             <button class="record-stop-btn" id="recordStopBtn" onclick="toggleRecording()">停止并发送</button>
                         </div>
@@ -251,7 +277,7 @@
                         <span class="private-status" id="privateChatStatus"></span>
                     </div>
                     <button class="icon-button" id="privateMenuBtn" onclick="togglePrivateMenu()" title="菜单">
-                        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-menu" xlink:href="#icon-menu"/></svg>
                     </button>
                 </div>
                 <div class="privacy-banner" id="privacyBanner">当前为临时私聊页面，请注意安全（点击关闭此提示）</div>
@@ -264,46 +290,46 @@
                 </div>
                 <div class="chat-bar">
                     <button class="more-btn" id="privateMoreBtn" onclick="togglePrivateFeaturePanel()" title="更多功能">
-                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-plus" xlink:href="#icon-plus"/></svg>
                     </button>
                     <div class="input-container">
                         <textarea class="msg-input" id="privateMsgInput" placeholder="发送消息..." rows="1" oninput="autoResize(this);togglePrivateSendBtn()" onkeydown="handlePrivateKeyDown(event)"></textarea>
                     </div>
                     <button class="fab-send" id="privateSendBtn" onclick="sendPrivateMsg()" disabled>
-                        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-send" xlink:href="#icon-send"/></svg>
                     </button>
                 </div>
                 <div class="feature-panel" id="privateFeaturePanel">
                     <div id="privateFeaturePanelMain">
                         <div class="feature-grid">
-                            <div class="feature-item" onclick="privateOpenImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span class="feature-label">图片</span></div>
-                            <div class="feature-item" onclick="openLinkDialog('private')"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div><span class="feature-label">链接</span></div>
-                            <div class="feature-item" onclick="privateOpenFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div><span class="feature-label">文件</span></div>
-                            <div class="feature-item" onclick="privateOpenEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></div><span class="feature-label">表情</span></div>
-                            <div class="feature-item" onclick="privateOpenVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></div><span class="feature-label">语音</span></div>
-                            <div class="feature-item" onclick="privateOpenTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div><span class="feature-label">文字特效</span></div>
+                            <div class="feature-item" onclick="privateOpenImagePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-image" xlink:href="#icon-image"/></svg></div><span class="feature-label">图片</span></div>
+                            <div class="feature-item" onclick="openLinkDialog('private')"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-link" xlink:href="#icon-link"/></svg></div><span class="feature-label">链接</span></div>
+                            <div class="feature-item" onclick="privateOpenFilePicker()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-file" xlink:href="#icon-file"/></svg></div><span class="feature-label">文件</span></div>
+                            <div class="feature-item" onclick="privateOpenEmojiSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-emoji" xlink:href="#icon-emoji"/></svg></div><span class="feature-label">表情</span></div>
+                            <div class="feature-item" onclick="privateOpenVoiceSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-mic" xlink:href="#icon-mic"/></svg></div><span class="feature-label">语音</span></div>
+                            <div class="feature-item" onclick="privateOpenTextEffectSubPanel()"><div class="feature-icon"><svg viewBox="0 0 24 24"><use href="#icon-effect" xlink:href="#icon-effect"/></svg></div><span class="feature-label">文字特效</span></div>
                         </div>
                     </div>
                     <div class="sub-panel" id="privateEmojiSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">表情</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">表情</span></div>
                         <div class="emoji-scroll"><div class="emoji-grid" id="privateEmojiGrid"></div></div>
                     </div>
                     <div class="sub-panel" id="privateTextEffectSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">文字特效</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">文字特效</span></div>
                         <div class="text-effect-grid">
                             <button class="effect-btn" onclick="privateApplyTextEffect('b')" title="粗体"><b>B</b></button>
                             <button class="effect-btn" onclick="privateApplyTextEffect('i')" title="斜体"><i>I</i></button>
                             <button class="effect-btn" onclick="privateApplyTextEffect('u')" title="下划线"><span style="text-decoration:underline;">U</span></button>
                             <button class="effect-btn" onclick="privateApplyTextEffect('s')" title="删除线"><span style="text-decoration:line-through;">S</span></button>
-                            <button class="effect-btn" onclick="privateApplyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg></button>
+                            <button class="effect-btn" onclick="privateApplyTextEffect('none')" title="无效果"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><use href="#icon-effect-none" xlink:href="#icon-effect-none"/></svg></button>
                         </div>
                         <div class="effect-hint">请选中输入框中的文字后点击特效按钮</div>
                     </div>
                     <div class="sub-panel" id="privateVoiceSubPanel">
-                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><span class="sub-panel-title">语音</span></div>
+                        <div class="sub-panel-header"><button class="sub-panel-back" onclick="privateCloseSubPanel()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button><span class="sub-panel-title">语音</span></div>
                         <div class="voice-panel">
                             <div class="record-timer" id="privateRecordTimer">00:00</div>
-                            <button class="record-btn" id="privateRecordBtn" onclick="privateToggleRecording()"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button>
+                            <button class="record-btn" id="privateRecordBtn" onclick="privateToggleRecording()"><svg viewBox="0 0 24 24"><use href="#icon-mic" xlink:href="#icon-mic"/></svg></button>
                             <div class="record-hint" id="privateRecordHint">点击开始录音</div>
                             <button class="record-stop-btn" id="privateRecordStopBtn" onclick="privateToggleRecording()">停止并发送</button>
                         </div>
@@ -333,9 +359,9 @@
                     <div class="settings-section">
                         <div class="settings-section-title">账号与安全</div>
                         <div class="settings-item" onclick="showProfileDialog();">
-                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><use href="#icon-user" xlink:href="#icon-user"/></svg></div>
                             <span class="settings-item-label">账号信息</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -343,28 +369,28 @@
                         <div class="settings-item" id="settingsThemeColorItem" onclick="document.getElementById('themeColorPicker').click();">
                             <div class="settings-item-icon" id="themeColorSwatch" style="width:24px;height:24px;border-radius:50%;background:var(--md-primary);"></div>
                             <span class="settings-item-label">主题色</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                             <input type="color" id="themeColorPicker" style="position:absolute;opacity:0;pointer-events:none;" onchange="setCustomColor(this.value)">
                         </div>
                         <div class="settings-item" onclick="showThemeDialog();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></div>
                             <span class="settings-item-label">主题</span>
                             <span class="settings-item-value" id="settingsThemeValue">暗黑模式</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                         <div class="settings-item" onclick="showFontDialog();">
-                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg></div>
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><use href="#icon-effect" xlink:href="#icon-effect"/></svg></div>
                             <span class="settings-item-label">字体</span>
                             <span class="settings-item-value" id="settingsFontValue">系统默认</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-title">隐私与安全</div>
                         <div class="settings-item" onclick="showBlocklistModal();">
-                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg></div>
+                            <div class="settings-item-icon"><svg viewBox="0 0 24 24"><use href="#icon-block" xlink:href="#icon-block"/></svg></div>
                             <span class="settings-item-label">黑名单管理</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -373,7 +399,7 @@
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
                             <span class="settings-item-label">提示音</span>
                             <span class="settings-item-value" id="settingsNotifySoundValue">经典三全音</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -381,12 +407,12 @@
                         <div class="settings-item" onclick="showAIModelSettings();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
                             <span class="settings-item-label">模型设置</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                         <div class="settings-item" onclick="showAITranslationSettings();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg></div>
                             <span class="settings-item-label">消息翻译</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -394,12 +420,12 @@
                         <div class="settings-item" onclick="exportSettings();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>
                             <span class="settings-item-label">导出设置</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                         <div class="settings-item" onclick="importSettings();">
                             <div class="settings-item-icon"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg></div>
                             <span class="settings-item-label">导入设置</span>
-                            <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                            <svg class="settings-chevron" viewBox="0 0 24 24"><use href="#icon-chevron" xlink:href="#icon-chevron"/></svg>
                         </div>
                     </div>
                 </div>
@@ -408,7 +434,7 @@
             <div class="page group-files-page" id="groupFilesPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
                         <span class="title">群文件</span>
                     </div>
                 </div>
@@ -420,7 +446,7 @@
             <div class="page media-viewer-page" id="mediaViewerPage">
                 <div class="app-bar media-viewer-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="closeMediaViewer()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                        <button class="back-btn" onclick="closeMediaViewer()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
                         <span class="title" id="mediaViewerTitle">预览</span>
                     </div>
                     <div class="media-zoom-controls hidden" id="mediaZoomControls">
@@ -446,7 +472,7 @@
             <div class="page about-page" id="aboutPage">
                 <div class="app-bar">
                     <div class="title-block">
-                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
                         <span class="title">关于</span>
                     </div>
                 </div>
@@ -461,8 +487,109 @@
                     <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer"> MJChat </a>及其他<a href="javascript:void(0)" onclick="showOpensourceDialog()"> 开源项目 </a></div>
                 </div>
             </div>
+            <div class="page user-detail-page" id="userDetailPage">
+                <div class="ud-bar">
+                    <button class="ud-bar-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
+                    <div class="ud-bar-actions">
+                        <button class="ud-bar-btn" id="udEditBtn" onclick="openEditProfilePage()" title="编辑" style="display:none"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                    </div>
+                </div>
+                <div class="ud-bg" id="udBg">
+                </div>
+                <div class="ud-profile-section">
+                    <div class="ud-avatar-wrap">
+                        <div class="ud-avatar" id="udAvatar">U</div>
+                        <div class="ud-avatar-status offline" id="udAvatarStatus"></div>
+                    </div>
+                </div>
+                <div class="ud-name-section">
+                    <div class="ud-username" id="udUsername">-</div>
+                    <div class="ud-status-text" id="udStatusText">离线</div>
+                </div>
+                <div class="ud-divider"></div>
+                <div class="ud-info-list" id="udInfoList">
+                </div>
+            </div>
+            <div class="ud-menu-overlay" id="udMenuOverlay" onclick="closeUserDetailMenu(event)">
+                <div class="ud-menu-card" onclick="event.stopPropagation()">
+                    <ul class="menu-list" id="udMenuList">
+                    </ul>
+                </div>
+            </div>
+
+            <div class="page edit-profile-page" id="editProfilePage">
+                <div class="app-bar">
+                    <div class="title-block">
+                        <button class="back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
+                        <span class="title">编辑个人信息</span>
+                    </div>
+                </div>
+                <div class="ep-body">
+                    <div class="ep-avatar-section">
+                        <div class="ep-avatar-wrap">
+                            <div class="ep-avatar" id="epAvatar" onclick="document.getElementById('epAvatarInput').click()">U</div>
+                            <div class="ep-avatar-edit" onclick="document.getElementById('epAvatarInput').click()"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></div>
+                        </div>
+                        <div class="ep-change-text" onclick="document.getElementById('epAvatarInput').click()">更换头像</div>
+                    </div>
+                    <div class="ep-bg-section" id="epBg" onclick="document.getElementById('epBgInput').click()">
+                        <div class="ep-bg-hint">点击更换背景</div>
+                    </div>
+                    <div class="ep-form-card">
+                        <div class="ep-form-item">
+                            <span class="ep-form-label">用户名</span>
+                            <input class="ep-form-input" id="epUsername" type="text" disabled>
+                        </div>
+                        <div class="ep-form-item" id="epEmailItem">
+                            <span class="ep-form-label">邮箱</span>
+                            <input class="ep-form-input" id="epEmail" type="email" placeholder="未设置">
+                            <div class="ep-form-error" id="epEmailError"></div>
+                        </div>
+                        <div class="ep-form-item">
+                            <span class="ep-form-label">生日</span>
+                            <input class="ep-form-input" id="epBirthday" type="date">
+                        </div>
+                        <div class="ep-form-item">
+                            <span class="ep-form-label">个人简介</span>
+                            <textarea class="ep-form-textarea" id="epBio" placeholder="未设置"></textarea>
+                        </div>
+                        <div class="ep-form-item">
+                            <span class="ep-form-label">标签</span>
+                            <input class="ep-form-input" id="epTags" type="text" placeholder="未设置">
+                        </div>
+                    </div>
+                    <div class="ep-save-bar">
+                        <button class="ep-save-btn" id="epSaveBtn" onclick="saveEditProfile()">保存</button>
+                    </div>
+                </div>
+            </div>
+            <input type="file" id="epAvatarInput" accept="image/*" style="display:none" onchange="handleEpAvatarSelect(event)">
+            <input type="file" id="epBgInput" accept="image/*" style="display:none" onchange="handleEpBgSelect(event)">
+
+            <div class="page image-editor-page" id="imageEditorPage">
+                <div class="ie-canvas" id="ieCanvas">
+                    <div class="ie-grid"></div>
+                    <div class="ie-crop-frame" id="ieCropFrame"></div>
+                    <img class="ie-image" id="ieImage" src="" alt="">
+                </div>
+                <div class="ie-bottom-bar">
+                    <button class="ie-btn ie-cancel-btn" onclick="cancelImageEdit()" title="取消">
+                        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
+                    <div class="ie-zoom-controls">
+                        <button class="ie-btn ie-zoom-btn" onclick="ieZoomOut()" title="缩小"><svg viewBox="0 0 24 24"><use href="#icon-minus" xlink:href="#icon-minus"/></svg></button>
+                        <span class="ie-zoom-value" id="ieZoomValue">100%</span>
+                        <button class="ie-btn ie-zoom-btn" onclick="ieZoomIn()" title="放大"><svg viewBox="0 0 24 24"><use href="#icon-plus" xlink:href="#icon-plus"/></svg></button>
+                        <button class="ie-btn ie-zoom-btn" onclick="ieResetTransform()" title="重置缩放"><svg viewBox="0 0 24 24"><use href="#icon-reset" xlink:href="#icon-reset"/></svg></button>
+                    </div>
+                    <button class="ie-btn ie-confirm-btn" onclick="confirmImageEdit()" title="确认">
+                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </button>
+                </div>
+            </div>
+
             <div class="chat-placeholder" id="chatPlaceholder">
-                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                <svg viewBox="0 0 24 24"><use href="#icon-chat" xlink:href="#icon-chat"/></svg>
                 <span>选择一个聊天开始</span>
             </div>
             </div>
@@ -473,7 +600,7 @@
             <div class="auth-screen" id="loginScreen">
                 <div class="auth-header" id="loginAuthHeader">
                     <div class="auth-logo">
-                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                        <svg viewBox="0 0 24 24"><use href="#icon-chat" xlink:href="#icon-chat"/></svg>
                     </div>
                     <div class="auth-brand">CikaChat</div>
                 </div>
@@ -514,14 +641,14 @@
 
         <div class="dialog-overlay hidden online-list-modal" id="onlineListModal" onclick="if(event.target===this)closeOnlineList()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>在线用户</h2><button onclick="closeOnlineList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
+                <div class="dialog-header"><h2>在线用户</h2><button onclick="closeOnlineList()" class="theme-dialog-close">✕</button></div>
                 <div class="online-list" id="onlineListContainer"></div>
             </div>
         </div>
 
         <div class="dialog-overlay hidden profile-dialog" id="profileDialog" onclick="if(event.target===this)closeProfileDialog()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>账号信息</h2><button onclick="closeProfileDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
+                <div class="dialog-header"><h2>账号信息</h2><button onclick="closeProfileDialog()" class="theme-dialog-close">✕</button></div>
                 <div class="profile-avatar" id="profileDialogAvatar" onclick="showAvatarMenu()">U</div>
                 <div class="profile-info">
                     <div class="item"><span class="label">用户名</span><span class="value" id="profileDialogUsername">-</span></div>
@@ -549,14 +676,14 @@
         </div>
 
         <div class="avatar-menu hidden" id="avatarMenu">
-            <div class="menu-item" onclick="setDefaultAvatar()"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>默认头像（随机颜色）</div>
-            <div class="menu-item" onclick="uploadAvatarFromMenu()"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>从相册上传</div>
+            <div class="menu-item" onclick="setDefaultAvatar()"><svg viewBox="0 0 24 24"><use href="#icon-user" xlink:href="#icon-user"/></svg>默认头像（随机颜色）</div>
+            <div class="menu-item" onclick="uploadAvatarFromMenu()"><svg viewBox="0 0 24 24"><use href="#icon-image" xlink:href="#icon-image"/></svg>从相册上传</div>
             <div class="cancel-btn" onclick="closeAvatarMenu()">取消</div>
         </div>
 
         <div class="dialog-overlay hidden profile-modal" id="userProfileModal" onclick="if(event.target===this)closeUserProfile()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>用户信息</h2><button onclick="closeUserProfile()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
+                <div class="dialog-header"><h2>用户信息</h2><button onclick="closeUserProfile()" class="theme-dialog-close">✕</button></div>
                 <div class="profile-avatar" id="userProfileAvatar">U</div>
                 <div class="profile-info">
                     <div class="item"><span class="label">用户名</span><span class="value" id="userProfileUsername">-</span></div>
@@ -564,6 +691,7 @@
                     <div class="item"><span class="label">用户状态</span><span class="value" id="userProfileStatus">-</span></div>
                     <div class="item" id="userProfileOnlineItem"><span class="label">在线状态</span><span class="value" id="userProfileOnline">-</span></div>
                 </div>
+                <button class="md-button primary" id="userProfileViewBtn" onclick="openUserDetailFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;text-align:left;border-bottom:1px solid var(--md-outline);">查看资料</button>
                 <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);">发起私聊</button>
             </div>
         </div>
@@ -572,9 +700,9 @@
             <div class="user-menu-card" onclick="event.stopPropagation()">
                 <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="publicMenuAvatar">U</div><div class="avatar-status-dot" id="publicAvatarDot"></div></div><div class="user-name" id="publicMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li id="publicMenuNotifyItem" style="display:none;" onclick="togglePublicNotify();"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span id="publicNotifyLabel">开启消息提示音</span></li>
+                    <li id="publicMenuNotifyItem" style="display:none;" onclick="togglePublicNotify();"><svg viewBox="0 0 24 24"><use href="#icon-bell" xlink:href="#icon-bell"/></svg><span id="publicNotifyLabel">开启消息提示音</span></li>
                     <!-- v053: 群聊免打扰 -->
-                    <li id="publicMenuMuteItem" onclick="closePublicMenu();togglePublicMute();"><svg viewBox="0 0 24 24"><path d="M4.34 2.93l-1.41 1.41L5.59 7H5c-1.66 0-3 1.34-3 3v8c0 .55.45 1 1 1h8.59l4.47 4.47 1.41-1.41L4.34 2.93zM17 11c0-2.76-2.24-5-5-5-.32 0-.63.04-.93.1l7.86 7.86c.05-.3.07-.63.07-.96zm-1.65 6.35L7.3 9.24C6.5 9.64 6 10.27 6 11v5H4v-5c0-.83.34-1.58.88-2.12L2.1 6.1 3.51 4.69l13.19 13.19-1.41 1.41L16 18h-1.59l.59.59V20H5v-1.41l.59-.59H17v-1.65z"/></svg><span id="publicMuteLabel">群聊免打扰</span></li>
+                    <li id="publicMenuMuteItem" onclick="closePublicMenu();togglePublicMute();"><svg viewBox="0 0 24 24"><use href="#icon-dnd" xlink:href="#icon-dnd"/></svg><span id="publicMuteLabel">群聊免打扰</span></li>
                     <li onclick="closePublicMenu();showAgentList();"><svg viewBox="0 0 24 24"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-2 10H6V7h12v12zm-9-6c.83 0 1.5-.67 1.5-1.5S10.83 9 10 9s-1.5.67-1.5 1.5S9.17 13 10 13zm4 0c.83 0 1.5-.67 1.5-1.5S14.83 9 14 9s-1.5.67-1.5 1.5S13.17 13 14 13z"/></svg>智能体</li>
                     <li onclick="closePublicMenu();showGroupFiles();"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>群文件</li>
                 </ul>
@@ -585,10 +713,10 @@
             <div class="user-menu-card" onclick="event.stopPropagation()">
                 <div class="user-info"><div class="avatar-wrap"><div class="user-avatar" id="privateMenuAvatar">U</div><div class="avatar-status-dot" id="privateAvatarDot"></div></div><div class="user-name" id="privateMenuName">用户</div></div>
                 <ul class="menu-list">
-                    <li id="privateMenuNotifyItem" style="display:none;" onclick="togglePrivateNotify();"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span id="privateNotifyLabel">开启消息提示音</span></li>
+                    <li id="privateMenuNotifyItem" style="display:none;" onclick="togglePrivateNotify();"><svg viewBox="0 0 24 24"><use href="#icon-bell" xlink:href="#icon-bell"/></svg><span id="privateNotifyLabel">开启消息提示音</span></li>
                     <!-- v053: 私聊按会话免打扰 -->
-                    <li id="privateMenuMuteItem" onclick="closePrivateMenu();togglePrivateMute();"><svg viewBox="0 0 24 24"><path d="M4.34 2.93l-1.41 1.41L5.59 7H5c-1.66 0-3 1.34-3 3v8c0 .55.45 1 1 1h8.59l4.47 4.47 1.41-1.41L4.34 2.93zM17 11c0-2.76-2.24-5-5-5-.32 0-.63.04-.93.1l7.86 7.86c.05-.3.07-.63.07-.96zm-1.65 6.35L7.3 9.24C6.5 9.64 6 10.27 6 11v5H4v-5c0-.83.34-1.58.88-2.12L2.1 6.1 3.51 4.69l13.19 13.19-1.41 1.41L16 18h-1.59l.59.59V20H5v-1.41l.59-.59H17v-1.65z"/></svg><span id="privateMuteLabel">消息免打扰</span></li>
-                    <li onclick="closePrivateMenu();toggleBlockUser();"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6 0 1.66.68 3.16 1.76 4.24l8.48-8.48C15.16 6.68 13.66 6 12 6zm0 12c3.31 0 6-2.69 6-6 0-1.66-.68-3.16-1.76-4.24l-8.48 8.48C8.84 17.32 10.34 18 12 18z"/></svg><span id="privateBlockLabel">加入黑名单</span></li>
+                    <li id="privateMenuMuteItem" onclick="closePrivateMenu();togglePrivateMute();"><svg viewBox="0 0 24 24"><use href="#icon-dnd" xlink:href="#icon-dnd"/></svg><span id="privateMuteLabel">消息免打扰</span></li>
+                    <li onclick="closePrivateMenu();toggleBlockUser();"><svg viewBox="0 0 24 24"><use href="#icon-block" xlink:href="#icon-block"/></svg><span id="privateBlockLabel">加入黑名单</span></li>
                     <li class="logout-item" onclick="closePrivateMenu();deletePrivateChat();"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>删除对话</li>
                 </ul>
             </div>
@@ -596,9 +724,9 @@
 
         <div class="dialog-overlay hidden agent-list-modal" id="agentListModal" onclick="if(event.target===this)closeAgentList()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="dialog-header">
                     <h2>智能体列表</h2>
-                    <button onclick="closeAgentList()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                    <button onclick="closeAgentList()" class="theme-dialog-close">✕</button>
                 </div>
                 <div class="agent-list" id="agentListContainer">
                 </div>
@@ -608,7 +736,7 @@
 
         <div class="dialog-overlay hidden" id="addAgentDialog" onclick="if(event.target===this)closeAddAgentDialog()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;"><h2>添加智能体</h2><button onclick="closeAddAgentDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button></div>
+                <div class="dialog-header"><h2>添加智能体</h2><button onclick="closeAddAgentDialog()" class="theme-dialog-close">✕</button></div>
                 <div class="agent-form">
                     <div class="md-text-field"><input type="text" id="agentName" placeholder=" "><label>智能体名称</label></div>
                     <div class="md-text-field">
@@ -668,9 +796,9 @@
 
         <div class="dialog-overlay hidden blocklist-modal" id="blocklistModal" onclick="if(event.target===this)closeBlocklistModal()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="dialog-header">
                     <h2>黑名单管理</h2>
-                    <button onclick="closeBlocklistModal()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                    <button onclick="closeBlocklistModal()" class="theme-dialog-close">✕</button>
                 </div>
                 <div class="blocklist-container" id="blocklistContainer"></div>
             </div>
@@ -686,9 +814,9 @@
 
         <div class="dialog-overlay hidden" id="aiModelSettingsDialog" onclick="if(event.target===this)closeAIModelSettings()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="dialog-header">
                     <h2>模型设置</h2>
-                    <button onclick="closeAIModelSettings()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                    <button onclick="closeAIModelSettings()" class="theme-dialog-close">✕</button>
                 </div>
                 <div class="ai-form">
                     <div class="md-text-field">
@@ -716,9 +844,9 @@
 
         <div class="dialog-overlay hidden" id="aiTranslateSettingsDialog" onclick="if(event.target===this)closeAITranslationSettings()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="dialog-header">
                     <h2>消息翻译设置</h2>
-                    <button onclick="closeAITranslationSettings()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                    <button onclick="closeAITranslationSettings()" class="theme-dialog-close">✕</button>
                 </div>
                 <div class="ai-form">
                     <div class="translate-hint">选择翻译的目标语言</div>
@@ -744,38 +872,38 @@
 
         <div class="dialog-overlay hidden" id="notifySoundDialog" onclick="if(event.target===this)closeNotifySoundDialog()">
             <div class="md-dialog">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="dialog-header">
                     <h2>提示音</h2>
-                    <button onclick="closeNotifySoundDialog()" style="background:none;border:none;color:var(--md-on-surface);font-size:1.5rem;cursor:pointer;">✕</button>
+                    <button onclick="closeNotifySoundDialog()" class="theme-dialog-close">✕</button>
                 </div>
                 <div class="notify-sound-list" id="notifySoundList">
                     <div class="notify-sound-item" data-sound="qq" onclick="selectNotifySound('qq')">
                         <span class="notify-sound-name">QQ提示音</span>
                         <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('qq')" title="试听">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg viewBox="0 0 24 24"><use href="#icon-play" xlink:href="#icon-play"/></svg>
                         </button>
-                        <svg class="notify-sound-check" id="notifyCheck-qq" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <svg class="notify-sound-check" id="notifyCheck-qq" viewBox="0 0 24 24"><use href="#icon-check" xlink:href="#icon-check"/></svg>
                     </div>
                     <div class="notify-sound-item" data-sound="wechat" onclick="selectNotifySound('wechat')">
                         <span class="notify-sound-name">微信提示音</span>
                         <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('wechat')" title="试听">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg viewBox="0 0 24 24"><use href="#icon-play" xlink:href="#icon-play"/></svg>
                         </button>
-                        <svg class="notify-sound-check" id="notifyCheck-wechat" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <svg class="notify-sound-check" id="notifyCheck-wechat" viewBox="0 0 24 24"><use href="#icon-check" xlink:href="#icon-check"/></svg>
                     </div>
                     <div class="notify-sound-item" data-sound="whatsapp" onclick="selectNotifySound('whatsapp')">
                         <span class="notify-sound-name">WhatsApp提示音</span>
                         <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('whatsapp')" title="试听">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg viewBox="0 0 24 24"><use href="#icon-play" xlink:href="#icon-play"/></svg>
                         </button>
-                        <svg class="notify-sound-check" id="notifyCheck-whatsapp" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <svg class="notify-sound-check" id="notifyCheck-whatsapp" viewBox="0 0 24 24"><use href="#icon-check" xlink:href="#icon-check"/></svg>
                     </div>
                     <div class="notify-sound-item" data-sound="three_note" onclick="selectNotifySound('three_note')">
                         <span class="notify-sound-name">经典三全音</span>
                         <button class="notify-preview-btn" onclick="event.stopPropagation();previewNotifySound('three_note')" title="试听">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg viewBox="0 0 24 24"><use href="#icon-play" xlink:href="#icon-play"/></svg>
                         </button>
-                        <svg class="notify-sound-check" id="notifyCheck-three_note" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <svg class="notify-sound-check" id="notifyCheck-three_note" viewBox="0 0 24 24"><use href="#icon-check" xlink:href="#icon-check"/></svg>
                     </div>
                 </div>
                 <div class="dialog-actions"><button class="md-button text" onclick="closeNotifySoundDialog()">完成</button></div>
@@ -804,18 +932,26 @@
 
         <!-- 字体对话框：字体/字号/字重合并（应用级设置，独立于主题文件） -->
         <div class="dialog-overlay hidden theme-modal" id="fontDialog" onclick="if(event.target===this)closeFontDialog()">
-            <div class="md-dialog theme-dialog">
+            <div class="md-dialog font-dialog">
                 <div class="theme-dialog-header">
                     <h2>字体</h2>
                     <button class="theme-dialog-close" onclick="closeFontDialog()">✕</button>
                 </div>
-                <div class="theme-tip">选择字体、字号与字重，点击「应用」后正式生效</div>
+                <!-- 实时预览区 -->
+                <div class="font-preview-area" id="fontPreviewArea">
+                    <div class="font-preview-primary">Aa 中文预览</div>
+                    <div class="font-preview-secondary">The quick brown fox 敏捷棕狐</div>
+                    <div class="font-preview-tertiary">1234567890 !@#$%</div>
+                </div>
+                <!-- 字体家族（双列网格） -->
                 <div class="typography-section-title">字体</div>
-                <div class="theme-list" id="fontList"></div>
+                <div class="font-grid" id="fontList"></div>
+                <!-- 字号（横向 Chip） -->
                 <div class="typography-section-title">字号</div>
-                <div class="theme-list" id="fontSizeList"></div>
+                <div class="font-chip-row" id="fontSizeList"></div>
+                <!-- 字重（横向 Chip） -->
                 <div class="typography-section-title">字重</div>
-                <div class="theme-list" id="fontWeightList"></div>
+                <div class="font-chip-row" id="fontWeightList"></div>
                 <div class="dialog-actions">
                     <button class="md-button text" onclick="closeFontDialog()">取消</button>
                     <button class="md-button text" onclick="applyFontDialog()">应用</button>
@@ -826,18 +962,19 @@
     </div>
 
 
-    <script src="constants.js"></script>
-    <script src="theme.js"></script>
-    <script src="fonts.js"></script>
-    <script src="storage.js"></script>
-    <script src="api.js"></script>
-    <script src="chat.js"></script>
-    <script src="features.js"></script>
-    <script src="other.js"></script>
-    <script src="ai.js"></script>
+    <script src="js/constants.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/fonts.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/features.js"></script>
+    <script src="js/other.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/ai.js"></script>
     <!-- highlight.js：代码文件预览高亮 -->
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <!-- 文件预览器：图片/视频/Office/代码文件统一预览 -->
-    <script src="fview.js"></script>
+    <script src="js/fview.js"></script>
 </body>
 </html>

@@ -47,13 +47,13 @@
     gap: 12px;
     background: var(--md-background);
     font-size: 0.9375rem;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 .chat-placeholder svg {
     width: 64px;
     height: 64px;
-    fill: var(--md-on-surface-dim);
+    fill: var(--md-on-surface-variant);
     opacity: 0.3;
 }
 

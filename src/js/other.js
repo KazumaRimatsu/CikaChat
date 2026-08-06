@@ -6,6 +6,11 @@
 
         function escapeAttr(t) { if (t == null) return ''; return String(t).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
+        // 用于内联 onclick="fn('...')" 的 JS 字符串上下文转义。
+        // 注意：HTML 实体（如 &#39;）在 JS 执行前会被浏览器解码为 '，会提前闭合 JS 字符串，
+        // 因此不能复用 escapeAttr（只适用于 HTML 属性值上下文）。此处先做 JS 转义再转义 & 防实体注入。
+        function escapeJsString(t) { if (t == null) return ''; return String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/&/g, '&amp;'); }
+
         // ============ mjv064 消息协议（对齐 MJChat v1.6.1） ============
         // 封装一段 mjv064 标签：<mjv064 type="file" name="..." size="..." url="...">fallback</mjv064>
         function _wrapMjV064(type, attrs, fallbackText) {
@@ -43,7 +48,7 @@
             if (!text) return text;
             var cqPattern = /\[CQ:[\w]+(?:,[\w]+=[^\]]+)*\]/g;
             if (cqPattern.test(text)) {
-                return text.replace(cqPattern, '<span style="color:var(--md-on-surface-dim);font-size:0.8rem;font-style:italic;">[当前版本不支持查看，请更新MJChat版本]</span>');
+                return text.replace(cqPattern, '<span style="color:var(--md-on-surface-variant);font-size:0.8rem;font-style:italic;">[当前版本不支持查看，请更新MJChat版本]</span>');
             }
             return text;
         }
@@ -70,7 +75,7 @@
             if (audioUrl) {
                 return `<div class="voice-msg-wrap" data-audio="${escapeAttr(audioUrl)}" data-dur="${Number(duration) || 0}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn">${ICON_PLAY}</button><div class="voice-waves">${buildVoiceWaves()}</div><span class="voice-dur">${durStr}</span></div>`;
             }
-            return `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-dim);margin-left:8px;">${escapeHtml(noUrlText || '请升级到最新版本播放')}</span></div>`;
+            return `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-variant);margin-left:8px;">${escapeHtml(noUrlText || '请升级到最新版本播放')}</span></div>`;
         }
 
         // 提取所有在线用户的用户名（onlineUsers 兼容数组/对象两种取值形态）
@@ -213,6 +218,11 @@
             if (!messagesContainer) return;
             const oldBtn = messagesContainer.querySelector('.scroll-to-bottom-btn');
             if (oldBtn) oldBtn.remove();
+            // 移除上一次绑定的滚动监听器，避免反复进入聊天后监听器累积
+            if (messagesContainer._scrollHandler) {
+                messagesContainer.removeEventListener('scroll', messagesContainer._scrollHandler);
+                messagesContainer._scrollHandler = null;
+            }
 
             const btn = document.createElement('button');
             btn.className = 'scroll-to-bottom-btn';
@@ -228,7 +238,7 @@
             messagesContainer.appendChild(btn);
 
             let topLoadTimer = null;
-            messagesContainer.addEventListener('scroll', function() {
+            const scrollHandler = function() {
                 if (isScrolledToBottom(messagesContainer)) {
                     isUserScrolledUp = false;
                 } else {
@@ -252,7 +262,9 @@
                     }
                     updateScrollButton(messagesContainer);
                 }, 500);
-            });
+            };
+            messagesContainer._scrollHandler = scrollHandler;
+            messagesContainer.addEventListener('scroll', scrollHandler);
 
             setTimeout(() => {
                 scrollToBottom(messagesContainer);
@@ -413,12 +425,29 @@
                 pushPageHistory('groupFiles');
                 switchPage('groupFilesPage', true);
                 _loadGroupFiles();
+            } else if (page === 'userDetail') {
+                pushPageHistory('userDetail');
+                switchPage('userDetailPage', true);
+            } else if (page === 'editProfile') {
+                pushPageHistory('editProfile');
+                switchPage('editProfilePage', true);
             }
             updateBackBadge();
         }
 
         let isHandlingPopstate = false;
         function navigateBack() {
+            // 图片裁剪器：全屏覆盖层，直接取消并回到编辑页
+            const iePage = document.getElementById('imageEditorPage');
+            if (iePage && iePage.classList.contains('active')) {
+                cancelImageEdit();
+                return;
+            }
+            // 用户详情菜单弹层：导航时收起
+            const udMenu = document.getElementById('udMenuOverlay');
+            if (udMenu && udMenu.classList.contains('show')) {
+                udMenu.classList.remove('show');
+            }
             const currentPage = pageHistory[pageHistory.length - 1];
             // 媒体查看器页：交给 closeMediaViewer 统一清理并返回（优先于私聊判断，避免从私聊打开预览时误退私聊）
             if (currentPage === 'media') {
@@ -436,7 +465,9 @@
                                  prevPage === 'search' ? 'searchPage' :
                                  prevPage === 'settings' ? 'settingsPage' :
                                  prevPage === 'about' ? 'aboutPage' :
-                                 prevPage === 'groupFiles' ? 'groupFilesPage' : 'homePage';
+                                 prevPage === 'groupFiles' ? 'groupFilesPage' :
+                                 prevPage === 'userDetail' ? 'userDetailPage' :
+                                 prevPage === 'editProfile' ? 'editProfilePage' : 'homePage';
                 switchPage(targetId, false);
                 updateBackBadge();
             } else {
@@ -684,7 +715,7 @@
         function applyThemeColor(color) {
             const root = document.documentElement;
             root.style.setProperty('--md-primary', color);
-            root.style.setProperty('--md-primary-variant', darkenColor(color, 0.3));
+            root.style.setProperty('--md-primary-container', darkenColor(color, 0.3));
         }
 
         function darkenColor(hex, factor) {
@@ -881,6 +912,7 @@
             renderFontList();
             renderFontSizeList();
             renderFontWeightList();
+            updateFontPreview();
             dialog.classList.remove('hidden');
         }
 
@@ -907,31 +939,24 @@
         function renderFontList() {
             const container = document.getElementById('fontList');
             if (!container) return;
-            const fonts = FontManager.list();
+            const fonts = FontManager.list().filter(function(f) { return f.id !== 'default'; });
             container.innerHTML = '';
             fonts.forEach(function(f) {
                 const card = document.createElement('div');
-                card.className = 'theme-card font-card' + (f.id === _fontDialogPendingId ? ' selected' : '');
+                card.className = 'font-card-item' + (f.id === _fontDialogPendingId ? ' selected' : '');
                 card.onclick = function() { selectFontCard(f.id); };
 
-                // 预览块：以该字体渲染「Aa」示例
                 const preview = document.createElement('div');
-                preview.className = 'font-preview';
-                preview.textContent = 'Aa 中';
+                preview.className = 'font-card-preview';
+                preview.textContent = 'Aa';
                 if (f.family) preview.style.fontFamily = f.family;
                 card.appendChild(preview);
 
-                const info = document.createElement('div');
-                info.className = 'theme-card-info';
                 const nameEl = document.createElement('div');
-                nameEl.className = 'theme-card-name';
+                nameEl.className = 'font-card-name';
                 nameEl.textContent = f.name;
-                const noteEl = document.createElement('div');
-                noteEl.className = 'theme-card-base';
-                noteEl.textContent = f.note || '';
-                info.appendChild(nameEl);
-                info.appendChild(noteEl);
-                card.appendChild(info);
+                card.appendChild(nameEl);
+
                 container.appendChild(card);
             });
         }
@@ -940,7 +965,32 @@
             _fontDialogPendingId = id;
             FontManager.preview(id); // 实时预览，不持久化
             renderFontList();
+            updateFontPreview();
             updateFontLabel();
+        }
+
+        /** 更新对话框顶部预览区 */
+        function updateFontPreview() {
+            const area = document.getElementById('fontPreviewArea');
+            if (!area) return;
+            const font = FontManager.getFont(_fontDialogPendingId);
+            const scale = TypographyManager.getScale(_fontSizeDialogPendingId);
+            const weight = TypographyManager.getWeight(_fontWeightDialogPendingId);
+            const family = (font && font.family) || '';
+            var basePx = 14;
+            const size = (scale && typeof scale.scale === 'number') ? Math.round(basePx * scale.scale) : basePx;
+            const w = (weight && weight.medium) || 400;
+            const els = area.querySelectorAll('.font-preview-primary, .font-preview-secondary, .font-preview-tertiary');
+            els.forEach(function(el) {
+                if (family) el.style.fontFamily = family;
+                el.style.fontWeight = w;
+            });
+            const primary = area.querySelector('.font-preview-primary');
+            if (primary) primary.style.fontSize = (size + 6) + 'px';
+            const secondary = area.querySelector('.font-preview-secondary');
+            if (secondary) secondary.style.fontSize = (size + 2) + 'px';
+            const tertiary = area.querySelector('.font-preview-tertiary');
+            if (tertiary) tertiary.style.fontSize = size + 'px';
         }
 
         function applyFontDialog() {
@@ -997,32 +1047,17 @@
         function renderFontSizeList() {
             const container = document.getElementById('fontSizeList');
             if (!container) return;
-            const scales = TypographyManager.listScales();
+            const scales = TypographyManager.listScales().filter(function(s) { return s.id !== 'default'; });
             container.innerHTML = '';
             scales.forEach(function(s) {
-                const card = document.createElement('div');
-                card.className = 'theme-card size-card' + (s.id === _fontSizeDialogPendingId ? ' selected' : '');
-                card.onclick = function() { selectFontSizeCard(s.id); };
-
-                // 预览块：以该字号渲染「Aa 中」示例
-                const preview = document.createElement('div');
-                preview.className = 'size-preview';
-                preview.textContent = 'Aa 中';
-                if (typeof s.scale === 'number') preview.style.fontSize = (1 * s.scale) + 'rem';
-                card.appendChild(preview);
-
-                const info = document.createElement('div');
-                info.className = 'theme-card-info';
-                const nameEl = document.createElement('div');
-                nameEl.className = 'theme-card-name';
-                nameEl.textContent = s.name;
-                const noteEl = document.createElement('div');
-                noteEl.className = 'theme-card-base';
-                noteEl.textContent = s.note || '';
-                info.appendChild(nameEl);
-                info.appendChild(noteEl);
-                card.appendChild(info);
-                container.appendChild(card);
+                var basePx = 14; // 基准字号 14px
+                var px = (typeof s.scale === 'number') ? Math.round(basePx * s.scale) : basePx;
+                const chip = document.createElement('button');
+                chip.className = 'font-chip' + (s.id === _fontSizeDialogPendingId ? ' selected' : '');
+                chip.textContent = px + 'px';
+                chip.title = s.name;
+                chip.onclick = function() { selectFontSizeCard(s.id); };
+                container.appendChild(chip);
             });
         }
 
@@ -1030,6 +1065,7 @@
             _fontSizeDialogPendingId = id;
             TypographyManager.previewScale(id); // 实时预览，不持久化
             renderFontSizeList();
+            updateFontPreview();
             updateFontLabel();
         }
 
@@ -1042,32 +1078,15 @@
         function renderFontWeightList() {
             const container = document.getElementById('fontWeightList');
             if (!container) return;
-            const weights = TypographyManager.listWeights();
+            const weights = TypographyManager.listWeights().filter(function(w) { return w.id !== 'default'; });
             container.innerHTML = '';
             weights.forEach(function(w) {
-                const card = document.createElement('div');
-                card.className = 'theme-card weight-card' + (w.id === _fontWeightDialogPendingId ? ' selected' : '');
-                card.onclick = function() { selectFontWeightCard(w.id); };
-
-                // 预览块：以该字重渲染「Aa 中」示例
-                const preview = document.createElement('div');
-                preview.className = 'weight-preview';
-                preview.textContent = 'Aa 中';
-                if (typeof w.medium === 'number') preview.style.fontWeight = String(w.medium);
-                card.appendChild(preview);
-
-                const info = document.createElement('div');
-                info.className = 'theme-card-info';
-                const nameEl = document.createElement('div');
-                nameEl.className = 'theme-card-name';
-                nameEl.textContent = w.name;
-                const noteEl = document.createElement('div');
-                noteEl.className = 'theme-card-base';
-                noteEl.textContent = w.note || '';
-                info.appendChild(nameEl);
-                info.appendChild(noteEl);
-                card.appendChild(info);
-                container.appendChild(card);
+                const chip = document.createElement('button');
+                chip.className = 'font-chip' + (w.id === _fontWeightDialogPendingId ? ' selected' : '');
+                chip.textContent = w.name;
+                chip.style.fontWeight = (typeof w.medium === 'number') ? String(w.medium) : '400';
+                chip.onclick = function() { selectFontWeightCard(w.id); };
+                container.appendChild(chip);
             });
         }
 
@@ -1075,6 +1094,7 @@
             _fontWeightDialogPendingId = id;
             TypographyManager.previewWeight(id); // 实时预览，不持久化
             renderFontWeightList();
+            updateFontPreview();
             updateFontLabel();
         }
 
@@ -1103,7 +1123,7 @@
                 ThemeManager.onChange = function() {
                     if (ThemeManager.isCustomThemeActive()) {
                         document.documentElement.style.removeProperty('--md-primary');
-                        document.documentElement.style.removeProperty('--md-primary-variant');
+                        document.documentElement.style.removeProperty('--md-primary-container');
                     }
                     updateThemeLabel();
                 };

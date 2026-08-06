@@ -93,7 +93,7 @@
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 14px;
+    border-radius: var(--radius-lg);
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
     font-size: 0.75rem;
@@ -228,7 +228,7 @@
     position: relative;
     width: 260px;
     max-width: 280px;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     cursor: pointer;
     background: #000;
@@ -279,7 +279,7 @@
     overflow: hidden;
     border-radius: var(--radius-md);
     background: var(--md-menu-bg);
-    box-shadow: var(--md-elevation-8);
+    box-shadow: var(--md-elevation-3);
 }
 
 .msg-context-menu.show {

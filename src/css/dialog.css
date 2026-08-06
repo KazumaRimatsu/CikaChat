@@ -35,10 +35,10 @@
     max-height: 80vh;
     padding: 24px;
     overflow-y: auto;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     background: var(--md-dialog-bg);
     color: var(--md-dialog-text);
-    box-shadow: var(--md-elevation-8);
+    box-shadow: var(--md-elevation-3);
     animation: dialog-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -282,7 +282,7 @@
 }
 
 .blocklist-modal .block-item .unblock-btn:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 /* --- 智能体列表 / 配置弹窗 --- */
@@ -358,7 +358,7 @@
 }
 
 .agent-list-modal .agent-item .delete-btn:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 .agent-list-modal .agent-item .delete-btn svg {
@@ -379,7 +379,7 @@
 }
 
 .agent-list-modal .add-agent-btn:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 .agent-form .md-text-field {
@@ -399,7 +399,7 @@
     right: 14px;
     width: 0;
     height: 0;
-    border-top: 6px solid var(--md-on-surface-dim);
+    border-top: 6px solid var(--md-on-surface-variant);
     border-right: 5px solid transparent;
     border-left: 5px solid transparent;
     content: '';
@@ -421,7 +421,7 @@
     border: var(--md-outline-width) var(--md-outline-style) var(--md-field-border);
     border-radius: var(--radius-md);
     outline: none;
-    background: var(--md-surface-1dp);
+    background: var(--md-surface-container-lowest);
     font-family: inherit;
     font-size: 0.9375rem;
     color: var(--md-on-surface);
@@ -434,20 +434,20 @@
 
 .agent-form select:hover,
 .ai-form select:hover {
-    border-color: var(--md-on-surface-dim);
+    border-color: var(--md-on-surface-variant);
 }
 
 .agent-form select:focus,
 .ai-form select:focus {
     padding: 0 39px 0 15px;
     border: var(--md-focus-border);
-    background: var(--md-surface-2dp);
+    background: var(--md-surface-container-low);
 }
 
 .agent-form select option,
 .ai-form select option {
     padding: 10px 16px;
-    background: var(--md-surface-3dp);
+    background: var(--md-surface-container);
     color: var(--md-on-surface);
 }
 
@@ -566,10 +566,17 @@
     cursor: pointer;
 }
 
+/* 弹窗头部：标题 + 关闭按钮横排（替代原先逐处重复的内联样式） */
+.dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .theme-tip {
     margin: 8px 0 4px;
     font-size: var(--md-font-size-sm);
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 .theme-list {
@@ -584,7 +591,7 @@
     margin: 14px 4px 0;
     font-size: var(--md-font-size-sm);
     font-weight: var(--md-font-weight-medium);
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
     letter-spacing: 0.3px;
 }
 
@@ -648,45 +655,125 @@
     background: var(--sw-on-surface);
 }
 
-/* 字体卡片预览块（其他.js 按字体族内联设置 font-family） */
-.font-card .font-preview {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 48px;
-    height: 34px;
-    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
-    border-radius: var(--radius-sm);
-    font-size: 1rem;
-    color: var(--md-dialog-text);
+/* --- 字体对话框（优化版：预览区 + 三列网格 + Chip 按钮） --- */
+.font-dialog {
+    max-width: min(520px, calc(100% - 32px));
+    max-height: none;
+    overflow-y: visible;
 }
 
-/* 字号卡片预览块（按缩放比例内联设置 font-size） */
-.size-card .size-preview {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 48px;
-    height: 34px;
-    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
-    border-radius: var(--radius-sm);
-    color: var(--md-dialog-text);
+/* 实时预览区 */
+.font-preview-area {
+    padding: 14px 12px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-md);
+    background: var(--md-surface-container-low);
+    text-align: center;
 }
 
-/* 字重卡片预览块（按字重内联设置 font-weight） */
-.weight-card .weight-preview {
+.font-preview-primary {
+    margin-bottom: 4px;
+    font-size: 20px;
+    color: var(--md-on-surface);
+    transition: font-family 0.2s, font-weight 0.2s, font-size 0.2s;
+}
+
+.font-preview-secondary {
+    margin-bottom: 2px;
+    font-size: 14px;
+    color: var(--md-on-surface-variant);
+    transition: font-family 0.2s, font-weight 0.2s, font-size 0.2s;
+}
+
+.font-preview-tertiary {
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+    opacity: 0.7;
+    transition: font-family 0.2s, font-weight 0.2s, font-size 0.2s;
+}
+
+/* 字体家族三列网格 */
+.font-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.font-card-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 48px;
-    height: 34px;
-    border: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
+    padding: 10px 6px 8px;
+    border-radius: var(--radius-md);
+    background: var(--md-surface-container-lowest);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: center;
+}
+
+.font-card-item:hover {
+    background: var(--md-surface-container);
+}
+
+.font-card-item.selected {
+    border-color: var(--md-primary);
+    background: var(--md-primary-container);
+}
+
+.font-card-preview {
+    font-size: 22px;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    color: var(--md-on-surface);
+}
+
+.font-card-name {
+    font-size: var(--md-font-size-xs);
+    color: var(--md-on-surface-variant);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.font-card-item.selected .font-card-name {
+    color: var(--md-on-primary-container);
+    font-weight: var(--md-font-weight-medium);
+}
+
+/* 字号/字重 Chip 行 */
+.font-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.font-chip {
+    padding: 6px 14px;
+    border: 1px solid var(--md-outline-variant);
     border-radius: var(--radius-sm);
-    font-size: 1rem;
-    color: var(--md-dialog-text);
+    background: var(--md-surface-container-lowest);
+    color: var(--md-on-surface);
+    font-size: var(--md-font-size-sm);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.font-chip:hover {
+    background: var(--md-surface-container);
+    border-color: var(--md-outline);
+}
+
+.font-chip.selected {
+    background: var(--md-primary-container);
+    border-color: var(--md-primary);
+    color: var(--md-on-primary-container);
+    font-weight: var(--md-font-weight-medium);
 }
 
 .theme-card .theme-card-info {
@@ -706,7 +793,7 @@
 .theme-card .theme-card-base {
     margin-top: 2px;
     font-size: var(--md-font-size-xs);
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
 }
 
 /* 删除按钮：悬停/选中卡片时显示 */
@@ -720,7 +807,7 @@
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--md-on-surface-dim);
+    color: var(--md-on-surface-variant);
     cursor: pointer;
     visibility: hidden;
     transition: background 0.15s, color 0.15s;

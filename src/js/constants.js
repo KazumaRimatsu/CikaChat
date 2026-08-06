@@ -13,15 +13,15 @@
         const FILES_BUCKET = 'chat-files';
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
-        const APP_VERSION = 64;
-        const VERSION = '26.8.501';
+        const APP_VERSION = 69;
+        const VERSION = '26.8.601';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护，暂时无法登录。';
         const SALT = 'mjchat_2026_salt_v1';
         const FORBIDDEN_WORDS = ['漫卷', 'MJ', 'system', 'System', 'SYSTEM', '管理员', '系统'];
         const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
-        const COMPRESS_THRESHOLD = 2 * 1024 * 1024;
-        const MAX_IMAGES_PER_MSG = 4;
+        const COMPRESS_THRESHOLD = 1 * 1024 * 1024;
+        const MAX_IMAGES_PER_MSG = 9;
         const MAX_FILE_SIZE = 32 * 1024 * 1024;
 
         const PAGE_SIZE = 200;

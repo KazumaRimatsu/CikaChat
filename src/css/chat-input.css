@@ -5,7 +5,7 @@
    语音/文字特效子面板）、录音控件、回复预览条、隐私提示横幅。
    ========================================================================== */
 
-/* --- 输入栏 --- */
+/* --- 输入栏（MD3 Surface Container 风格） --- */
 .public-page .chat-bar,
 .private-page .chat-bar {
     display: flex;
@@ -18,7 +18,7 @@
     box-sizing: border-box;
     overflow: hidden;
     background: var(--md-chatbar-bg);
-    box-shadow: var(--md-elevation-2);
+    box-shadow: none;
 }
 
 /* 「+」更多功能按钮 */
@@ -79,7 +79,7 @@
     min-width: 0;
     min-height: 48px;
     padding: 0 4px 0 16px;
-    border-radius: 24px;
+    border-radius: var(--radius-xl);
     background: var(--md-chatbar-input-bg);
     transition: background 0.2s;
 }
@@ -118,7 +118,7 @@
     color: var(--md-chatbar-text-muted);
 }
 
-/* 发送按钮 */
+/* 发送按钮（MD3 Filled Tonal Button 风格） */
 .public-page .chat-bar .fab-send,
 .private-page .chat-bar .fab-send {
     display: flex;
@@ -129,7 +129,7 @@
     height: 44px;
     min-width: 44px;
     border: none;
-    border-radius: 50%;
+    border-radius: var(--radius-full);
     background: var(--md-primary);
     color: var(--md-on-primary);
     box-shadow: var(--md-elevation-2);
@@ -186,7 +186,7 @@
     justify-content: center;
     width: 56px;
     height: 56px;
-    border-radius: 50%;
+    border-radius: var(--radius-lg);
     background: var(--md-panel-icon-bg);
     transition: background 0.15s;
 }
@@ -239,7 +239,7 @@
 }
 
 .sub-panel-back:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 .sub-panel-back svg {
@@ -267,7 +267,7 @@
 }
 
 .emoji-scroll::-webkit-scrollbar-thumb {
-    border-radius: 2px;
+    border-radius: var(--radius-xs);
     background: var(--md-outline);
 }
 
@@ -294,7 +294,7 @@
 }
 
 .emoji-item:hover {
-    background: var(--md-ripple);
+    background: var(--md-surface-container-high);
 }
 
 /* 文字特效子面板 */
@@ -409,7 +409,7 @@
     display: none;
     padding: 8px 24px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: var(--md-panel-icon-bg);
     font-size: 0.875rem;
     font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));

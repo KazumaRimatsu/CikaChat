@@ -1,0 +1,613 @@
+/* ==========================================================================
+   profile.css —— 用户资料页 / 编辑资料页 / 图片裁剪器（移植自 MJChat v69）
+   --------------------------------------------------------------------------
+   职责：.ud-* 用户详情页、.ud-menu-* 详情菜单弹层、.ep-* 编辑资料页、
+   .ie-* 图片裁剪编辑器。颜色全部走主题变量，随 tokens.css 主题切换。
+   ========================================================================== */
+
+/* ============ User Detail Page 用户详情页 ============ */
+.user-detail-page {
+    position: relative;
+    background: var(--md-background);
+    overflow: hidden;
+}
+
+.ud-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    z-index: 10;
+}
+
+.ud-bar-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s;
+    color: #fff;
+}
+
+.ud-bar-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.ud-bar-btn svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.ud-bar-actions {
+    display: flex;
+    gap: 0;
+}
+
+.ud-bg {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+.ud-profile-section {
+    display: flex;
+    align-items: flex-end;
+    padding: 0 20px;
+    margin-top: -56px;
+    position: relative;
+    z-index: 5;
+}
+
+.ud-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.ud-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 4px solid var(--md-background);
+    background: var(--md-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    font-weight: 500;
+    color: #fff;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ud-avatar-status {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid var(--md-background);
+}
+
+.ud-avatar-status.online {
+    background: #4CAF50;
+}
+
+.ud-avatar-status.offline {
+    background: #9E9E9E;
+}
+
+.ud-name-section {
+    padding: 16px 20px 0;
+}
+
+.ud-username {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--md-on-surface);
+    word-break: break-all;
+}
+
+.ud-status-text {
+    font-size: 0.875rem;
+    color: var(--md-on-surface-variant);
+    margin-top: 4px;
+}
+
+.ud-divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 20px 0 0;
+}
+
+.ud-info-list {
+    padding: 0 0 32px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ud-info-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 16px 20px;
+    gap: 16px;
+}
+
+.ud-info-icon {
+    width: 24px;
+    height: 24px;
+    fill: var(--md-on-surface-variant);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.ud-info-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ud-info-value {
+    font-size: 1rem;
+    color: var(--md-on-surface);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.ud-info-value.empty {
+    color: var(--md-on-surface-variant);
+}
+
+.ud-info-label {
+    font-size: 0.75rem;
+    color: var(--md-on-surface-variant);
+    margin-top: 2px;
+}
+
+/* ============ User Detail Menu 详情菜单弹层 ============ */
+.ud-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9500;
+    display: none;
+}
+
+.ud-menu-overlay.show {
+    display: flex;
+}
+
+.ud-menu-card {
+    position: absolute;
+    top: 56px;
+    right: 8px;
+    background: var(--md-menu-bg-card);
+    border: var(--md-outline-width) var(--md-outline-style) var(--md-menu-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--md-elevation-5);
+    min-width: 200px;
+    padding: 8px;
+    transform-origin: top right;
+    animation: ud-menu-in 0.18s ease-out;
+}
+
+@keyframes ud-menu-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.ud-menu-card .menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ud-menu-card .menu-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--md-menu-text);
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+
+.ud-menu-card .menu-list li:hover {
+    background: var(--md-menu-item-hover);
+}
+
+.ud-menu-card .menu-list li:active {
+    background: var(--md-menu-item-active);
+}
+
+.ud-menu-card .menu-list li svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.ud-menu-card .menu-list li.danger-item {
+    color: var(--md-error);
+}
+
+.ud-menu-card .menu-list li.danger-item svg {
+    opacity: 1;
+}
+
+/* ============ Edit Profile Page 编辑资料页 ============ */
+.edit-profile-page {
+    background: var(--md-background);
+}
+
+.ep-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0 32px;
+}
+
+.ep-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0 16px;
+    gap: 12px;
+}
+
+.ep-avatar-wrap {
+    position: relative;
+}
+
+.ep-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 500;
+    color: #fff;
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+}
+
+.ep-avatar-edit {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--md-background);
+    cursor: pointer;
+}
+
+.ep-avatar-edit svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.ep-change-text {
+    font-size: 0.875rem;
+    color: var(--md-primary);
+    cursor: pointer;
+}
+
+.ep-bg-section {
+    margin: 0 16px 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    height: 140px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+}
+
+.ep-bg-hint {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+}
+
+.ep-form-card {
+    margin: 0 16px;
+    background: var(--md-surface-container-low);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.ep-form-item {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ep-form-item + .ep-form-item {
+    border-top: 1px solid var(--md-outline-variant);
+}
+
+.ep-form-label {
+    font-size: 0.75rem;
+    color: var(--md-on-surface-variant);
+}
+
+.ep-form-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    color: var(--md-on-surface);
+    outline: none;
+    padding: 0;
+    font-family: inherit;
+}
+
+.ep-form-input:disabled {
+    color: var(--md-on-surface-variant);
+}
+
+/* 日期选择器：日历指示器随主题明暗自动适配（配合 tokens.css 的 color-scheme） */
+.ep-form-input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+/* 邮箱校验错误态 */
+.ep-form-error {
+    display: none;
+    font-size: 0.75rem;
+    color: var(--md-error);
+}
+
+.ep-form-error.show {
+    display: block;
+}
+
+.ep-form-item.error .ep-form-input {
+    color: var(--md-error);
+}
+
+.ep-form-textarea {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    color: var(--md-on-surface);
+    outline: none;
+    padding: 0;
+    resize: none;
+    font-family: inherit;
+    min-height: 60px;
+}
+
+.ep-save-bar {
+    padding: 16px;
+}
+
+.ep-save-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 24px;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.ep-save-btn:hover {
+    opacity: 0.9;
+}
+
+.ep-save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============ Image Editor 图片裁剪编辑器 ============ */
+/* 用 ID 选择器避免被 .chat-main .page { position:relative }（更高特异性）覆盖 */
+#imageEditorPage {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background: #000;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ie-canvas {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ie-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 30px 30px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ie-crop-frame {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+    z-index: 10;
+}
+
+.ie-crop-frame.ratio-1-1 {
+    width: 85vw;
+    height: 85vw;
+    max-width: 400px;
+    max-height: 400px;
+}
+
+.ie-crop-frame.ratio-16-9 {
+    width: 90vw;
+    height: 50.625vw;
+    max-width: 540px;
+    max-height: 304px;
+}
+
+.ie-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform-origin: center center;
+    user-select: none;
+    -webkit-user-drag: none;
+    touch-action: none;
+    will-change: transform;
+    z-index: 1;
+}
+
+.ie-bottom-bar {
+    height: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 24px;
+    background: #000;
+}
+
+.ie-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+}
+
+.ie-btn svg {
+    width: 28px;
+    height: 28px;
+    fill: currentColor;
+}
+
+.ie-confirm-btn {
+    color: #4A9EFF;
+}
+
+/* 缩放控制条（桌面端滚轮/按钮缩放的辅助控件） */
+.ie-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ie-zoom-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.2s;
+}
+
+.ie-zoom-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.ie-zoom-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ie-zoom-value {
+    min-width: 48px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============ 桌面端适配 ============ */
+/* 图片编辑器：宽屏下收敛为居中弹窗，避免裁剪框悬浮在超大黑色区域 */
+@media (min-width: 768px) {
+    #imageEditorPage {
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.85);
+    }
+
+    .ie-canvas {
+        flex: 0 0 auto;
+        width: min(88vw, 760px);
+        height: min(78vh, 620px);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .ie-bottom-bar {
+        width: min(88vw, 760px);
+        border-radius: 0 0 16px 16px;
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+    }
+}
