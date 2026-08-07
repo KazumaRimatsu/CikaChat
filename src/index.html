@@ -159,6 +159,10 @@
         <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></symbol>
         <symbol id="icon-minus" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></symbol>
         <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+        <symbol id="icon-float-window" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h16V5H4zM14 14h5v5h-5z"/></symbol>
+        <symbol id="icon-float-restore" viewBox="0 0 24 24"><path d="M4 3h7v2H6v3H4V3zm16 0v5h-2V5h-5V3h7zM4 21h7v-2H6v-3H4v5zm16-5v5h-7v-2h5v-3h2z"/></symbol>
+        <symbol id="icon-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+        <symbol id="icon-audio" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></symbol>
     </svg>
     <div class="app">
 
@@ -201,6 +205,8 @@
                 </div>
             </div>
             </div>
+
+            <div class="sidebar-resizer" id="sidebarResizer" title="拖动调整宽度"></div>
 
             <div class="chat-main">
             <div class="page public-page" id="publicPage">
@@ -446,32 +452,6 @@
                 </div>
                 <div class="group-files-body" id="groupFilesContainer">
                     <div class="gf-empty">加载中...</div>
-                </div>
-            </div>
-
-            <div class="page media-viewer-page" id="mediaViewerPage">
-                <div class="app-bar media-viewer-bar">
-                    <div class="title-block">
-                        <button class="back-btn" onclick="closeMediaViewer()"><svg viewBox="0 0 24 24"><use href="#icon-back" xlink:href="#icon-back"/></svg></button>
-                        <span class="title" id="mediaViewerTitle">预览</span>
-                    </div>
-                    <div class="media-zoom-controls hidden" id="mediaZoomControls">
-                        <button class="media-zoom-btn" onclick="previewZoomOut()" title="缩小"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13H5v-2h14v2z" fill="currentColor"/></svg></button>
-                        <button class="media-zoom-reset" onclick="previewResetZoom()" title="还原缩放"><span id="mediaZoomLabel">100%</span></button>
-                        <button class="media-zoom-btn" onclick="previewZoomIn()" title="放大"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg></button>
-                    </div>
-                </div>
-                <div class="media-viewer-body" id="mediaViewerBody">
-                    <div class="media-loading hidden" id="mediaLoading">
-                        <span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span>
-                        <span class="media-loading-text" id="mediaLoadingText">视频加载中...</span>
-                    </div>
-                    <img id="previewImg" src="" draggable="false" ondblclick="previewToggleZoom()">
-                    <video id="previewVideo" controls autoplay playsinline></video>
-                    <!-- 文件预览：Office 文档（Office Web Viewer）、代码（highlight.js）、不支持提示 -->
-                    <iframe id="previewOffice" class="hidden" src="" title="文档预览"></iframe>
-                    <pre id="previewCode" class="hidden"><code class="hljs"></code></pre>
-                    <div id="previewUnsupported" class="hidden"><span>该文件不支持预览</span></div>
                 </div>
             </div>
 

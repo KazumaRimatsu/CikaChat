@@ -37,18 +37,12 @@
 /* --- 媒体查看器独立页面（图片/视频浏览） ---
    注意：display 由 base.css 的 .page / .page.active 控制，这里不能写 display，
    否则会覆盖 .page { display:none } 导致页面常驻显示、盖住其他页面 */
-.media-viewer-page {
-    background: #000;
-}
 
+/* 预览窗口标题栏（由 fview.js 动态注入，见下方“文件预览多窗口”） */
 .media-viewer-bar {
     background: rgba(0, 0, 0, 0.85);
     color: #fff;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.media-viewer-bar .back-btn {
-    color: #fff;
 }
 
 .media-viewer-bar .title {
@@ -137,7 +131,7 @@
     color: rgba(255, 255, 255, 0.85);
 }
 
-#previewImg {
+.fview-img {
     max-width: 100%;
     max-height: 100%;
     transform-origin: center;
@@ -149,7 +143,7 @@
     cursor: grab;
 }
 
-.media-viewer-body.dragging #previewImg {
+.media-viewer-body.dragging .fview-img {
     cursor: grabbing;
 }
 
@@ -160,19 +154,19 @@
 }
 
 /* Office 文档：Office Web Viewer 内嵌页面铺满 */
-#previewOffice {
+.fview-office {
     width: 100%;
     height: 100%;
     border: 0;
     background: #fff;
 }
 
-#previewOffice.hidden {
+.fview-office.hidden {
     display: none;
 }
 
 /* 代码文件：highlight.js 高亮，黑底可滚动、可选中 */
-#previewCode {
+.fview-code {
     width: 100%;
     height: 100%;
     margin: 0;
@@ -185,11 +179,11 @@
     user-select: text;
 }
 
-#previewCode.hidden {
+.fview-code.hidden {
     display: none;
 }
 
-#previewCode code.hljs {
+.fview-code code.hljs {
     font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
     font-size: 0.85rem;
     line-height: 1.6;
@@ -198,29 +192,312 @@
 }
 
 /* 不支持的格式：空白页居中提示 */
-#previewUnsupported {
+.fview-unsupported {
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.95rem;
     letter-spacing: 1px;
 }
 
-#previewUnsupported.hidden {
+.fview-unsupported.hidden {
     display: none;
 }
 
-#previewImg.hidden {
+.fview-img.hidden {
     display: none;
 }
 
-#previewVideo {
+.fview-video {
     max-width: 100%;
     max-height: 100%;
     outline: none;
     background: #000;
 }
 
-#previewVideo.hidden {
+.fview-video.hidden {
     display: none;
+}
+
+/* 音频文件预览：固定宽度居中显示，触屏上恢复默认手势以操作控件 */
+.fview-audio {
+    width: min(480px, 92%);
+    outline: none;
+    touch-action: auto;
+}
+
+.fview-audio.hidden {
+    display: none;
+}
+
+/* ==========================================================================
+   文件预览多窗口（由 fview.js 动态注入）
+   --------------------------------------------------------------------------
+   每次打开文件都新建独立窗口，注入顶层容器 #fviewContainer；
+   窗口可拖动 / 8 方向缩放；拖到顶部收缩为顶部胶囊（点击恢复）；
+   关闭按钮只销毁自身窗口，不影响聊天页面与其它窗口。
+   ========================================================================== */
+#fviewContainer {
+    position: fixed;
+    inset: 0;
+    z-index: 700; /* 高于确认弹窗(600)/上下文菜单(500)，低于启动加载页(999) */
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.fview-window {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    min-width: 260px;
+    min-height: 180px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    background: #000;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+    pointer-events: auto;
+}
+
+.fview-window.fview-minimized {
+    display: none;
+}
+
+/* 标题栏作为拖拽手柄 */
+.fview-window .fview-bar {
+    cursor: move;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+}
+
+.fview-window .fview-bar:active {
+    cursor: grabbing;
+}
+
+/* 标题栏文件类型图标 */
+.fview-window .fview-type-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+.fview-window .fview-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fview-window .media-zoom-controls {
+    flex-shrink: 0;
+}
+
+/* 窗口最小化 / 关闭按钮（黑底窗口上需足够亮，保证深色场景可见） */
+.fview-min-btn,
+.fview-close-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.fview-min-btn:hover {
+    background: rgba(255, 255, 255, 0.32);
+    border-color: rgba(255, 255, 255, 0.55);
+}
+
+.fview-close-btn {
+    margin-left: 8px;
+}
+
+.fview-min-btn:active,
+.fview-close-btn:active {
+    transform: scale(0.92);
+}
+
+.fview-close-btn:hover {
+    background: rgba(255, 92, 92, 0.5);
+    border-color: rgba(255, 120, 120, 0.65);
+}
+
+/* 恢复窗口时的缩放入场动画 */
+.fview-window.fview-restoring {
+    animation: fview-win-in 0.22s ease-out;
+}
+
+@keyframes fview-win-in {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 8 方向缩放手柄（始终显示） */
+.fview-handles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fview-handles .mfh {
+    position: absolute;
+    pointer-events: auto;
+    z-index: 3;
+}
+
+.mfh-n {
+    top: 0;
+    left: 10px;
+    right: 10px;
+    height: 5px;
+    cursor: ns-resize;
+}
+
+.mfh-s {
+    bottom: 0;
+    left: 10px;
+    right: 10px;
+    height: 5px;
+    cursor: ns-resize;
+}
+
+.mfh-e {
+    right: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 5px;
+    cursor: ew-resize;
+}
+
+.mfh-w {
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 5px;
+    cursor: ew-resize;
+}
+
+.mfh-ne {
+    top: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+.mfh-nw {
+    top: 0;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+.mfh-se {
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+.mfh-sw {
+    bottom: 0;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+/* 最小化后的胶囊：以文件类型 SVG 图标提示对应窗口，点击恢复、拖动移动 */
+.fview-capsule {
+    position: fixed;
+    top: 10px;
+    z-index: 710;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    max-width: 200px;
+    padding: 0 6px 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 18px;
+    background: #000;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+    pointer-events: auto;
+    transition: background 0.2s;
+    animation: fview-cap-in 0.22s ease-out;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+@keyframes fview-cap-in {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.fview-capsule:active {
+    cursor: grabbing;
+}
+
+.fview-capsule:hover {
+    background: #1a1f2e;
+}
+
+.fview-capsule svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+.fview-cap-title {
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fview-cap-close {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 0;
+}
+
+.fview-cap-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
 }
 
 /* --- 视频消息气泡 --- */

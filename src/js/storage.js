@@ -592,7 +592,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "26.8.603",
+                version: "28.6.701",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

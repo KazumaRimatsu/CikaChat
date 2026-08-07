@@ -12,17 +12,39 @@
     overflow: hidden;
 }
 
-/* 左侧聊天列表栏 */
+/* 左侧聊天列表栏：初始占屏 20%，可拖动调整（宽度经内联样式覆盖后由 min/max 钳制） */
 .chat-sidebar {
     position: relative;
     display: flex;
     flex-direction: column;
-    width: 280px;
-    min-width: 280px;
+    width: 20%;
+    min-width: 200px;
+    max-width: 38%;
     height: 100%;
     overflow: hidden;
     background: var(--md-sidebar-bg);
     border-right: var(--md-outline-width) var(--md-outline-style) var(--md-sidebar-border);
+}
+
+/* 侧边栏与主区之间的拖拽调宽分隔条 */
+.sidebar-resizer {
+    flex-shrink: 0;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.dragging {
+    background: var(--md-primary);
+    opacity: 0.45;
+}
+
+/* 拖拽过程中禁用文本选中，避免干扰 */
+body.sidebar-resizing {
+    user-select: none;
+    cursor: col-resize;
 }
 
 /* 右侧聊天主区 */

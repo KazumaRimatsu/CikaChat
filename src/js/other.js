@@ -445,17 +445,17 @@
                 cancelImageEdit();
                 return;
             }
+            // 预览多窗口：存在打开的预览窗口时，返回键先全部关闭（不影响聊天页面）
+            if (typeof fviewWindows !== 'undefined' && fviewWindows.length > 0) {
+                closeMediaViewer();
+                return;
+            }
             // 用户详情菜单弹层：导航时收起
             const udMenu = document.getElementById('udMenuOverlay');
             if (udMenu && udMenu.classList.contains('show')) {
                 udMenu.classList.remove('show');
             }
             const currentPage = pageHistory[pageHistory.length - 1];
-            // 媒体查看器页：交给 closeMediaViewer 统一清理并返回（优先于私聊判断，避免从私聊打开预览时误退私聊）
-            if (currentPage === 'media') {
-                closeMediaViewer();
-                return;
-            }
             if (privateChatActive) {
                 leavePrivateChatAnimated();
                 return;
@@ -1100,6 +1100,37 @@
             updateFontLabel();
         }
 
+        // 左侧边栏拖动调整宽度：初始 20% 占屏，拖拽改为像素宽，min/max 由 CSS 钳制
+        function initSidebarResizer() {
+            var sidebar = document.querySelector('.chat-sidebar');
+            var resizer = document.getElementById('sidebarResizer');
+            if (!sidebar || !resizer) return;
+
+            resizer.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                var startX = e.clientX;
+                var startW = sidebar.getBoundingClientRect().width;
+                document.body.classList.add('sidebar-resizing');
+                resizer.classList.add('dragging');
+
+                function onMove(ev) {
+                    var w = startW + (ev.clientX - startX);
+                    sidebar.style.width = w + 'px';
+                }
+
+                function onUp() {
+                    document.body.classList.remove('sidebar-resizing');
+                    resizer.classList.remove('dragging');
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
         function init() {
             // v047: safety timeout 保存在外部以便在 enterApp 后清除
             // 未完成初始化并且 loading 页仍可见时，50s 后才强制跳转登录页
@@ -1119,6 +1150,7 @@
             loadTheme();
             loadCustomColor();
             updateFontLabel();
+            initSidebarResizer();
 
             // 主题变更回调：同步设置页 UI，并清除主题色内联覆盖（避免覆盖自定义主题颜色）
             if (window.ThemeManager) {

@@ -14,7 +14,7 @@
         const CHANNEL_PUBLIC = 'chat-room-md';
         const HISTORY_LIMIT = 200;
         const APP_VERSION = 69;
-        const VERSION = '26.8.603';
+        const VERSION = '28.6.701';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护，暂时无法登录。';
         const SALT = 'mjchat_2026_salt_v1';

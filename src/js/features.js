@@ -3,6 +3,7 @@
         // 文件类型分类（模块级常量：图片/视频判定、粘贴识别、群文件共用；fview.js 复用）
         const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
         const VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v', 'avi', 'mkv', 'flv', 'wmv', '3gp', 'mpeg', 'mpg', 'ogv', 'm3u8'];
+        const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'wma', 'amr', 'mid', 'midi'];
 
         // 通用上传：返回公网 URL，失败时提示并返回 null（bucket 未创建给出引导）
         async function uploadToBucket(filePath, blob, contentType, bucket) {

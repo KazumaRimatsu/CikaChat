@@ -9,12 +9,18 @@
     }
 
     .chat-sidebar {
-        width: 100%;
-        min-width: 100%;
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
         height: auto;
         max-height: 45%;
         border-right: none;
         border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-sidebar-border);
+    }
+
+    /* 移动端为上下布局，隐藏横向拖拽条 */
+    .sidebar-resizer {
+        display: none;
     }
 
     .chat-main {
