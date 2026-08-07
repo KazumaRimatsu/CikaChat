@@ -261,6 +261,32 @@
     /* 强调描边（聚焦态 / 回复引用，复合简写，可整体覆盖） */
     --md-focus-border: 2px solid var(--md-primary);
     --md-accent-border: 3px solid var(--md-primary);
+
+    /* === 文件预览多窗口（fview，亮色默认） === */
+    --md-fview-window-bg: var(--md-surface-container-low);
+    --md-fview-window-border: var(--md-outline-variant);
+    --md-fview-shadow: var(--md-elevation-3);
+    --md-fview-bar-bg: var(--md-surface-container);
+    --md-fview-bar-text: var(--md-on-surface);
+    --md-fview-bar-divider: rgba(0, 0, 0, 0.08);
+    --md-fview-body-bg: var(--md-surface-container-lowest);
+    --md-fview-loading-bg: var(--md-surface-container-lowest);
+    --md-fview-loading-text: var(--md-on-surface-variant);
+    --md-fview-btn-bg: rgba(0, 0, 0, 0.06);
+    --md-fview-btn-border: rgba(0, 0, 0, 0.22);
+    --md-fview-btn-text: var(--md-on-surface);
+    --md-fview-btn-hover-bg: rgba(0, 0, 0, 0.14);
+    --md-fview-btn-hover-border: rgba(0, 0, 0, 0.35);
+    --md-fview-close-hover-bg: rgba(211, 47, 47, 0.12);
+    --md-fview-close-hover-border: rgba(211, 47, 47, 0.5);
+    --md-fview-capsule-bg: var(--md-surface-container-lowest);
+    --md-fview-capsule-border: var(--md-outline-variant);
+    --md-fview-capsule-text: var(--md-on-surface);
+    --md-fview-capsule-hover-bg: var(--md-surface-container-high);
+    --md-fview-capsule-shadow: var(--md-elevation-3);
+    --md-fview-cap-close-text: var(--md-on-surface-variant);
+    --md-fview-cap-close-hover-bg: rgba(0, 0, 0, 0.1);
+    --md-fview-unsupported-text: var(--md-on-surface-variant);
 }
 
 [data-theme="dark"] {
@@ -347,4 +373,30 @@
     --md-elevation-3: 0 4px 8px 3px rgba(0, 0, 0, 0.4), 0 1px 3px 0 rgba(0, 0, 0, 0.4);
     --md-elevation-4: 0 6px 10px 4px rgba(0, 0, 0, 0.4), 0 2px 3px 0 rgba(0, 0, 0, 0.4);
     --md-elevation-5: 0 8px 12px 6px rgba(0, 0, 0, 0.4), 0 4px 4px 0 rgba(0, 0, 0, 0.4);
+
+    /* === 文件预览多窗口（fview，暗色覆盖） === */
+    --md-fview-window-bg: #000000;
+    --md-fview-window-border: rgba(255, 255, 255, 0.16);
+    --md-fview-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+    --md-fview-bar-bg: rgba(0, 0, 0, 0.85);
+    --md-fview-bar-text: #FFFFFF;
+    --md-fview-bar-divider: rgba(255, 255, 255, 0.08);
+    --md-fview-body-bg: #000000;
+    --md-fview-loading-bg: #000000;
+    --md-fview-loading-text: rgba(255, 255, 255, 0.85);
+    --md-fview-btn-bg: rgba(255, 255, 255, 0.16);
+    --md-fview-btn-border: rgba(255, 255, 255, 0.35);
+    --md-fview-btn-text: #FFFFFF;
+    --md-fview-btn-hover-bg: rgba(255, 255, 255, 0.32);
+    --md-fview-btn-hover-border: rgba(255, 255, 255, 0.55);
+    --md-fview-close-hover-bg: rgba(255, 92, 92, 0.5);
+    --md-fview-close-hover-border: rgba(255, 120, 120, 0.65);
+    --md-fview-capsule-bg: #000000;
+    --md-fview-capsule-border: rgba(255, 255, 255, 0.18);
+    --md-fview-capsule-text: #FFFFFF;
+    --md-fview-capsule-hover-bg: #1a1f2e;
+    --md-fview-capsule-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --md-fview-cap-close-text: rgba(255, 255, 255, 0.7);
+    --md-fview-cap-close-hover-bg: rgba(255, 255, 255, 0.15);
+    --md-fview-unsupported-text: rgba(255, 255, 255, 0.55);
 }
