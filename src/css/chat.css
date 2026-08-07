@@ -29,6 +29,16 @@
     gap: 8px;
     margin-top: 8px;
     animation: md-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    /* v073 性能优化：视口外消息跳过渲染（历史消息滚动加载时显著提速），
+       contain-intrinsic-size 提供内容未渲染时的占位尺寸避免滚动跳动 */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
+}
+
+/* v073：批量渲染的历史消息不播放入场动画（实时新消息仍保留动画） */
+.public-page .messages .msg-row.no-anim,
+.private-page .messages .msg-row.no-anim {
+    animation: none;
 }
 
 @keyframes md-enter {
@@ -138,13 +148,14 @@
 }
 
 .private-page .messages .msg-row .time {
-    font-size: 0.625rem;
+    /* v073：对齐 MD3 label-small（11px），避免过小字号影响可读性 */
+    font-size: 0.6875rem;
     color: var(--md-chat-time);
 }
 
 /* v069: 私聊消息已读/未读状态 */
 .private-page .messages .msg-row .read-status {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     display: block;
     text-align: right;
     margin-top: 2px;
@@ -194,8 +205,11 @@
 }
 
 .msg-row.own .bubble a {
-    color: var(--md-on-primary);
+    /* v073：own 气泡为 primary-container 底色，链接文字用气泡文字色（on-primary-container）
+       而非 on-primary，避免亮/暗主题下对比度不足 */
+    color: var(--md-bubble-own-text);
     text-decoration: underline;
+    font-weight: var(--app-font-weight-medium, var(--md-font-weight-medium));
 }
 
 .msg-row .bubble s {
@@ -216,7 +230,7 @@
 }
 
 .msg-row.own .bubble .reply-preview-block {
-    border-left-color: var(--md-on-primary);
+    border-left-color: var(--md-bubble-own-text);
     background: var(--md-surface-container-lowest);
     color: var(--md-on-surface-variant);
 }
@@ -423,7 +437,8 @@
 }
 
 .msg-row.own .voice-msg-wrap .voice-wave {
-    background: var(--md-on-primary);
+    /* v073：同链接修复，声波用气泡文字色保证在 primary-container 底色上可见 */
+    background: var(--md-bubble-own-text);
 }
 
 .voice-msg-wrap .voice-dur {

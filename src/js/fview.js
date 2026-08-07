@@ -1,5 +1,6 @@
 /* CikaChat 文件预览器 fview.js
- * 多窗口预览：每次打开文件都新建一个独立的预览窗口（支持多开）。
+ * 多窗口预览：不同文件各自新建独立的预览窗口（支持多开）；
+ * 同一文件（按 url 标识，url 为空时按文件名）只保留一个窗口，重复打开时恢复并置顶已有窗口。
  * 窗口由 JS 动态注入顶层容器 #fviewContainer，可拖动 / 8 方向缩放；
  * 点击最小化按钮在窗口原位收缩为胶囊（用文件类型 SVG 图标提示，可拖动/点击恢复）；
  * 关闭按钮只销毁自身窗口，不影响聊天页面与其它窗口。
@@ -49,12 +50,29 @@
         };
         var OFFICE_VIEWER_BASE = 'https://view.officeapps.live.com/op/view.aspx?src=';
 
+        // v073 性能优化：highlight.js 按需加载（仅打开代码文件时），避免启动时阻塞与常驻内存
+        var _hljsPromise = null;
+        function _ensureHighlightJs() {
+            if (typeof hljs !== 'undefined') return Promise.resolve();
+            if (_hljsPromise) return _hljsPromise;
+            _hljsPromise = new Promise(function(resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js';
+                s.integrity = 'sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp';
+                s.crossOrigin = 'anonymous';
+                s.onload = resolve;
+                s.onerror = function() { _hljsPromise = null; reject(new Error('highlight.js 加载失败')); };
+                document.head.appendChild(s);
+            });
+            return _hljsPromise;
+        }
+
         // ============================================================
         // 多窗口状态
         // ============================================================
         let fviewWindows = []; // 已打开的窗口（含最小化胶囊）
         let fviewWinSeq = 0;   // 窗口自增 id
-        let fviewFocusZ = 700; // 置顶 z-index 基准
+        let fviewFocusZ = 560; // 置顶 z-index 基准
         const FVIEW_MIN_W = 260;
         const FVIEW_MIN_H = 180;
         const FVIEW_DEF_W = 480;
@@ -115,6 +133,7 @@
                 type: type,
                 title: title,
                 url: url,
+                key: url || filename || '', // 文件唯一标识：url 为空时回退到文件名
                 minimized: false,
                 rect: null,
                 zoom: { scale: 1, tx: 0, ty: 0, lastDist: 0, lastX: 0, lastY: 0, touchStart: false },
@@ -652,14 +671,48 @@
         });
 
         // ============================================================
-        // 预览入口：每次调用都新建一个独立窗口（多开）
+        // 预览入口：不同文件各自开窗（多开）；同一文件复用已有窗口
         // ============================================================
+        // 同一文件是否已有窗口：已有则恢复（若最小化）并置顶，返回 true，不再新建
+        function _fviewReuseExisting(url, filename) {
+            const key = url || filename || '';
+            if (!key) return false;
+            const existing = fviewWindows.find(function(w) { return w.key === key; });
+            if (!existing) return false;
+            if (existing.minimized) _fviewRestoreWindow(existing);
+            _fviewFocusWindow(existing);
+            return true;
+        }
+
         function previewImage(url, filename) {
             if (!url) return;
+            if (_fviewReuseExisting(url, filename)) return;
             const win = _fviewCreateWindow('image', url, filename || '');
             const m = win.media;
             m.img.classList.remove('hidden');
-            m.img.src = url;
+            // 优先使用本地图片缓存（未命中时拉取并写入），减少对服务器的重复请求；不可用时直接加载原 url
+            if (typeof getCachedImageUrl === 'function') {
+                getCachedImageUrl(url).then(function(src) {
+                    if (!_fviewAlive(win)) {
+                        // v073：预览窗口已关闭时立即释放缓存 objectURL
+                        if (typeof revokeImageObjectUrl === 'function') revokeImageObjectUrl(src);
+                        return;
+                    }
+                    m.img.src = src || url;
+                    if (src && typeof revokeImageObjectUrl === 'function') {
+                        // v073：加载完成/失败后释放缓存 objectURL，防内存增长
+                        const done = function() {
+                            revokeImageObjectUrl(src);
+                            m.img.removeEventListener('load', done);
+                            m.img.removeEventListener('error', done);
+                        };
+                        m.img.addEventListener('load', done);
+                        m.img.addEventListener('error', done);
+                    }
+                });
+            } else {
+                m.img.src = url;
+            }
         }
 
         // 文件型图片消息点击时复用图片预览
@@ -669,6 +722,7 @@
 
         function openVideoPreview(url, filename) {
             if (!url) return;
+            if (_fviewReuseExisting(url, filename)) return;
             const win = _fviewCreateWindow('video', url, filename || '');
             const m = win.media;
             m.loadingText.textContent = '视频加载中...';
@@ -678,6 +732,7 @@
 
         function openAudioPreview(url, filename) {
             if (!url) return;
+            if (_fviewReuseExisting(url, filename)) return;
             const win = _fviewCreateWindow('audio', url, filename || '');
             const m = win.media;
             m.loadingText.textContent = '音频加载中...';
@@ -700,6 +755,8 @@
 
         // Office 文档：Office Web Viewer
         function _previewOffice(url, filename) {
+            if (!url) return;
+            if (_fviewReuseExisting(url, filename)) return;
             const win = _fviewCreateWindow('office', url, filename || '');
             const m = win.media;
             m.loadingText.textContent = '文档加载中...';
@@ -711,6 +768,8 @@
 
         // 代码文件：highlight.js 高亮
         async function _previewCode(url, filename) {
+            if (!url) return;
+            if (_fviewReuseExisting(url, filename)) return;
             const win = _fviewCreateWindow('code', url, filename || '');
             const m = win.media;
             win.body.classList.add('file-mode');
@@ -724,6 +783,9 @@
                 const ext = (filename.split('.').pop() || '').toLowerCase();
                 const lang = FVIEW_CODE_LANG_MAP[ext] || null;
                 let html;
+                if (typeof hljs === 'undefined') {
+                    try { await _ensureHighlightJs(); } catch (e) { /* 加载失败则走纯文本兜底 */ }
+                }
                 if (typeof hljs !== 'undefined') {
                     if (lang && hljs.getLanguage(lang)) {
                         html = hljs.highlight(text, { language: lang }).value;
@@ -747,6 +809,7 @@
 
         // 不支持的格式：居中提示
         function _previewUnsupported(filename) {
+            if (_fviewReuseExisting('', filename)) return;
             const win = _fviewCreateWindow('unsupported', '', filename || '');
             const m = win.media;
             m.unsupported.querySelector('span').textContent = '该文件不支持预览';

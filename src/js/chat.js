@@ -43,6 +43,13 @@
             { file: 'stpwords/stpword.zz.stpw', label: '政治敏感' }
         ];
         let blockedWordsByLabel = null;
+        // v073 性能优化：词表加载后预编译为分块正则（单次扫描替代 label×词数 的 indexOf 双重循环）
+        let blockedWordsRegexByLabel = null;
+        const WORD_REGEX_CHUNK = 3000;
+
+        function _escapeRegex(s) {
+            return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
 
         async function loadBlockedWords() {
             const lists = {};
@@ -69,15 +76,36 @@
                 } catch (e) { /* 单个词表加载失败不影响其他词表 */ }
             }));
             blockedWordsByLabel = lists;
+            // 预编译分块正则，避免每次消息渲染都做双层 indexOf 遍历
+            blockedWordsRegexByLabel = {};
+            for (var label in lists) {
+                var words = lists[label];
+                if (!words || !words.length) continue;
+                var rex = [];
+                for (var i = 0; i < words.length; i += WORD_REGEX_CHUNK) {
+                    rex.push(new RegExp(words.slice(i, i + WORD_REGEX_CHUNK).map(_escapeRegex).join('|')));
+                }
+                if (rex.length) blockedWordsRegexByLabel[label] = rex;
+            }
         }
 
         // 命中返回对应提示文案（广告/危险网页/黄色 优先于通用不良内容），未命中返回 null
         function checkBlockedWords(text) {
             if (!blockedWordsByLabel || !text) return null;
-            for (var label in blockedWordsByLabel) {
-                var words = blockedWordsByLabel[label];
+            // v073：优先用预编译正则（一次扫描替代 label×词数 的 indexOf 双重循环）
+            if (blockedWordsRegexByLabel) {
+                for (var label in blockedWordsRegexByLabel) {
+                    var rex = blockedWordsRegexByLabel[label];
+                    for (var j = 0; j < rex.length; j++) {
+                        if (rex[j].test(text)) return label;
+                    }
+                }
+                return null;
+            }
+            for (var label2 in blockedWordsByLabel) {
+                var words = blockedWordsByLabel[label2];
                 for (var i = 0; i < words.length; i++) {
-                    if (text.indexOf(words[i]) !== -1) return label;
+                    if (text.indexOf(words[i]) !== -1) return label2;
                 }
             }
             return null;
@@ -385,16 +413,67 @@
 
         // v058: 图片加载占位动画——图片加载完成前显示 MD 圆圈动画（对齐新版 MJChat v055/v056）
         const _mdLoaderSvg = '<span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span>';
+        // 缓存解析前的 1px 透明占位（避免占位图提前触发 onload 隐藏加载动画）
+        const _IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
         function _wrapImgWithLoader(url, extraAttrs, extraStyle) {
             const uid = 'img_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
             const style = extraStyle || '';
             const attrs = extraAttrs || '';
+            // 先渲染占位图，再异步解析本地图片缓存（命中返回 objectURL；未命中拉取并写入缓存；
+            // 缓存不可用/失败时回退原 url 直接加载，行为与旧版一致）
+            _resolveCachedImage(uid, url);
             return '<div class="img-loading-wrap" id="' + uid + '">' + _mdLoaderSvg +
-                '<img src="' + escapeAttr(url) + '" ' + attrs + ' style="' + style + '" ' +
-                'onload="this.classList.add(\'img-loaded\');var w=this.parentNode;w.classList.add(\'loaded\');" ' +
-                'onerror="this.classList.add(\'img-loaded\');this.style.display=\'none\';var w=this.parentNode;w.classList.add(\'loaded\');w.innerHTML+=\'<span style=font-size:0.75rem;color:var(--md-on-surface-variant);padding:4px>图片加载失败</span>\';" ' +
+                '<img src="' + _IMG_PLACEHOLDER + '" ' + attrs + ' style="' + style + '" ' +
                 'draggable="false" oncontextmenu="return false;">' +
                 '</div>';
+        }
+
+        // 异步解析图片缓存并设置真实 src；加载完成/失败时切换加载动画状态
+        // v073 性能优化：批量渲染进 DocumentFragment 时元素尚未入 DOM，
+        // 改为推迟到下一宏任务（渲染与 append 同在一个同步栈，setTimeout 0 必然晚于插入），
+        // 替代原 50ms×40 次的空转轮询
+        function _resolveCachedImage(uid, url) {
+            setTimeout(function() {
+                const wrap = document.getElementById(uid);
+                if (!wrap) return; // 元素已被移除/重渲染，放弃（重渲染会再次调用）
+                const img = wrap.querySelector('img');
+                if (!img) return;
+            const bindLoad = function(src) {
+                if (!img.isConnected) return; // 元素已被移除/重渲染
+                img.addEventListener('load', function() {
+                    img.classList.add('img-loaded');
+                    wrap.classList.add('loaded');
+                    // v073：缓存 objectURL 用后即释放，防止内存持续增长
+                    if (typeof revokeImageObjectUrl === 'function') revokeImageObjectUrl(src);
+                });
+                img.addEventListener('error', function() {
+                    img.classList.add('img-loaded');
+                    img.style.display = 'none';
+                    wrap.classList.add('loaded');
+                    if (typeof revokeImageObjectUrl === 'function') revokeImageObjectUrl(src);
+                    if (!wrap.querySelector('.img-load-fail')) {
+                        const span = document.createElement('span');
+                        span.className = 'img-load-fail';
+                        span.style.cssText = 'font-size:0.75rem;color:var(--md-on-surface-variant);padding:4px';
+                        span.textContent = '图片加载失败';
+                        wrap.appendChild(span);
+                    }
+                });
+                img.src = src || url;
+            };
+            if (typeof getCachedImageUrl === 'function') {
+                getCachedImageUrl(url).then(function(src) {
+                    if (!img.isConnected) {
+                        // v073：元素已被移除时立即释放缓存 objectURL
+                        if (typeof revokeImageObjectUrl === 'function') revokeImageObjectUrl(src);
+                        return;
+                    }
+                    bindLoad(src);
+                });
+            } else {
+                bindLoad(null);
+            }
+            });
         }
 
         // 消息气泡构建辅助（公聊/私聊渲染共用，消除视频/文件气泡 HTML 重复）
@@ -406,8 +485,10 @@
             return `<div class="file-msg" onclick="openFilePreview('${escapeJsString(url)}', '${escapeJsString(name)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(name)}${sizeKb ? ` (${escapeHtml(sizeKb)} KB)` : ''}</span></div>`;
         }
 
-        function renderPublicMessage(msg) {
-            const c = document.getElementById('publicMessages');
+        // v073 性能优化：container 可传 DocumentFragment（批量渲染历史消息），
+        // 传入时对行加 no-anim 类，避免上百条历史消息同时播放入场动画
+        function renderPublicMessage(msg, container) {
+            const c = container || document.getElementById('publicMessages');
             const isOwn = msg.sender === currentUser;
             const isDeleted = msg.sender_deleted || false;
             const isSystem = msg.is_system || false;
@@ -484,10 +565,17 @@
                     bubbleContent = buildVoiceBubbleHtml(mjAttrs.url || msg.audio_url || '', parseInt(mjAttrs.dur) || msg.audio_dur || 0, '请升级到最新版本播放');
                     msgType = 'voice';
                 } else if (mjType === 'link') {
-                    linkUrl = mjAttrs.url || '';
-                    bubbleContent =
-                        `<a href="${escapeAttr(linkUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(mjAttrs.text || linkUrl)}</a>`;
-                    msgType = 'link';
+                    const mjLink = mjAttrs.url || '';
+                    if (isSafeUrl(mjLink)) {
+                        linkUrl = mjLink;
+                        bubbleContent =
+                            `<a href="${escapeAttr(linkUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(mjAttrs.text || linkUrl)}</a>`;
+                        msgType = 'link';
+                    } else {
+                        // v073 安全修复：mjv064 链接未过协议白名单时回退为纯文本，防止 javascript: 注入
+                        bubbleContent = escapeHtml(mjAttrs.text || mjMatch[2] || mjLink);
+                        msgType = 'text';
+                    }
                 } else if (mjType === 'file') {
                     const mjFname = mjAttrs.name || 'file';
                     const mjFsize = mjAttrs.size || '';
@@ -548,7 +636,9 @@
                     const fileName = fileParts ? fileParts[1] : marked.fileInfo;
                     const fileSize = fileParts ? fileParts[2] : '';
                     if (isImageFile(fileName)) {
-                        bubbleContent = `<img src="${escapeAttr(marked.url)}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeJsString(marked.url)}')">`;
+                        const mdImgUid = 'img_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                        _resolveCachedImage(mdImgUid, marked.url);
+                        bubbleContent = `<img src="${_IMG_PLACEHOLDER}" id="${mdImgUid}" alt="${escapeAttr(fileName)}" loading="lazy" style="max-width:280px;max-height:280px;border-radius:12px;cursor:pointer;" onclick="viewImage('${escapeJsString(marked.url)}')">`;
                         msgType = 'image';
                         imageUrl = marked.url;
                     } else if (isVideoFile(fileName)) {
@@ -573,7 +663,7 @@
             const avatarClass = isDeleted ? 'avatar av-' + ci + ' deleted' : 'avatar av-' + ci;
 
             const row = document.createElement('div');
-            row.className = `msg-row ${isOwn ? 'own' : ''}`;
+            row.className = `msg-row ${isOwn ? 'own' : ''}${container ? ' no-anim' : ''}`;
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
             row.dataset.msgText = msg.text || '';
@@ -673,7 +763,10 @@
             const c = document.getElementById('publicMessages');
             c.innerHTML = '';
             publicLastDateLabel = '';
-            publicMessages.forEach(m => renderPublicMessage(m));
+            // v073 性能优化：DocumentFragment 批量插入，避免逐条 append 反复触发布局
+            const frag = document.createDocumentFragment();
+            publicMessages.forEach(m => renderPublicMessage(m, frag));
+            c.appendChild(frag);
             const container = document.getElementById('publicMessages');
             if (container && document.getElementById('publicPage').classList.contains('active')) {
                 setTimeout(() => {
@@ -746,7 +839,8 @@
             document.getElementById('publicSendBtn').disabled = true;
             const payload = { sender: currentUser, text: text || '', msg_version: APP_VERSION, is_system: false };
             if (replyTarget) {
-                const replied = publicMessages.find(m => m.id === replyTarget.id);
+                // v073 性能优化：Map O(1) 查找替代数组线性 find
+                const replied = publicMessageById.get(replyTarget.id);
                 if (replied) {
                     let previewText = '';
                     const rplMjPreview = getMjV064Preview(replied.text);
@@ -944,6 +1038,65 @@
             togglePublicSendBtn();
         }
 
+        // v073 性能优化：长按状态与 document 级监听提升到模块级——
+        // 多个聊天区（公聊/私聊）与多次登录共享同一套状态，document 监听只绑一次
+        let _pressTimer = null;
+        let _pressStartX = 0,
+            _pressStartY = 0;
+        let _pressMoved = false;
+        let _pressTargetRow = null;
+        let _pressChatType = 'public';
+        let _documentPressBound = false;
+
+        function _startPress(e, chatType) {
+            const target = e.target;
+            if (target.closest('.msg-input')) return;
+            const bubble = target.closest('.bubble');
+            if (!bubble) return;
+            const row = bubble.closest('.msg-row');
+            if (!row) return;
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            _pressStartX = cx;
+            _pressStartY = cy;
+            _pressMoved = false;
+            _pressTargetRow = row;
+            _pressChatType = chatType;
+            _pressTimer = setTimeout(() => {
+                if (!_pressMoved && _pressTargetRow) {
+                    showContextMenuForRow(_pressTargetRow, _pressStartX, _pressStartY, _pressChatType);
+                    _pressTargetRow = null;
+                }
+            }, 500);
+        }
+
+        function _movePress(e) {
+            if (!_pressTimer) return;
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            if (Math.abs(cx - _pressStartX) > 10 || Math.abs(cy - _pressStartY) > 10) {
+                _pressMoved = true;
+                clearTimeout(_pressTimer);
+                _pressTimer = null;
+                _pressTargetRow = null;
+            }
+        }
+
+        function _endPress() {
+            if (_pressTimer) {
+                clearTimeout(_pressTimer);
+                _pressTimer = null;
+                _pressTargetRow = null;
+            }
+        }
+
+        function _bindDocumentPressListeners() {
+            if (_documentPressBound) return;
+            _documentPressBound = true;
+            document.addEventListener('mousemove', _movePress);
+            document.addEventListener('mouseup', _endPress);
+        }
+
         function initMessageInteractions(messagesEl, chatType) {
             const isPublic = chatType === 'public';
 
@@ -977,57 +1130,18 @@
                 }
             }, { passive: false });
 
-            let pressTimer = null;
-            let pressStartX = 0,
-                pressStartY = 0;
-            let pressMoved = false;
-            let pressTargetRow = null;
+            // v073 性能优化：长按状态提升为模块级，document 级 mousemove/mouseup
+            // 监听全局只绑定一次（原实现每次登录重复绑定，造成监听器累积泄漏）
+            _bindDocumentPressListeners();
 
-            const startPress = (e) => {
-                const target = e.target;
-                if (target.closest('.msg-input')) return;
-                const bubble = target.closest('.bubble');
-                if (!bubble) return;
-                const row = bubble.closest('.msg-row');
-                if (!row) return;
-                const cx = e.touches ? e.touches[0].clientX : e.clientX;
-                const cy = e.touches ? e.touches[0].clientY : e.clientY;
-                pressStartX = cx;
-                pressStartY = cy;
-                pressMoved = false;
-                pressTargetRow = row;
-                pressTimer = setTimeout(() => {
-                    if (!pressMoved && pressTargetRow) {
-                        showContextMenuForRow(pressTargetRow, pressStartX, pressStartY, chatType);
-                        pressTargetRow = null;
-                    }
-                }, 500);
-            };
-            const movePress = (e) => {
-                if (!pressTimer) return;
-                const cx = e.touches ? e.touches[0].clientX : e.clientX;
-                const cy = e.touches ? e.touches[0].clientY : e.clientY;
-                if (Math.abs(cx - pressStartX) > 10 || Math.abs(cy - pressStartY) > 10) {
-                    pressMoved = true;
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                    pressTargetRow = null;
-                }
-            };
-            const endPress = () => {
-                if (pressTimer) {
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                    pressTargetRow = null;
-                }
-            };
-            messagesEl.addEventListener('touchstart', startPress, { passive: true });
-            messagesEl.addEventListener('touchmove', movePress, { passive: true });
-            messagesEl.addEventListener('touchend', endPress);
-            messagesEl.addEventListener('touchcancel', endPress);
-            messagesEl.addEventListener('mousedown', (e) => { if (e.button === 0) startPress(e); });
-            document.addEventListener('mousemove', (e) => { if (pressTimer && e.button === 0) movePress(e); });
-            document.addEventListener('mouseup', (e) => { if (e.button === 0) endPress(); });
+            messagesEl.addEventListener('touchstart', (e) => {
+                if (e.target.closest('.msg-input')) return;
+                _startPress(e, chatType);
+            }, { passive: true });
+            messagesEl.addEventListener('touchmove', _movePress, { passive: true });
+            messagesEl.addEventListener('touchend', _endPress);
+            messagesEl.addEventListener('touchcancel', _endPress);
+            messagesEl.addEventListener('mousedown', (e) => { if (e.button === 0) _startPress(e, chatType); });
 
             if (isPublic && publicChannel) {
                 publicChannel.on('broadcast', { event: 'poke' }, (p) => {
@@ -1243,12 +1357,18 @@
                             URL.revokeObjectURL(a.href);
                         }).catch(() => showSnackbar('下载失败'));
                     });
-                    addContextMenuItem(menu, '在新标签页打开', icons.open, () => window.open(linkUrl, '_blank'));
+                    addContextMenuItem(menu, '在新标签页打开', icons.open, () => {
+                        // v073 安全修复：打开前统一过协议白名单，并使用 noopener
+                        if (isSafeUrl(linkUrl)) window.open(linkUrl, '_blank', 'noopener');
+                    });
                 }
                 if (canDelete) addDeleteItem();
             } else if (msgType === 'link' || msgType === 'file') {
                 if (linkUrl) {
-                    addContextMenuItem(menu, '打开链接', icons.open, () => window.open(linkUrl, '_blank'));
+                    addContextMenuItem(menu, '打开链接', icons.open, () => {
+                        // v073 安全修复：打开前统一过协议白名单，并使用 noopener
+                        if (isSafeUrl(linkUrl)) window.open(linkUrl, '_blank', 'noopener');
+                    });
                 }
                 const copyText = text || linkUrl;
                 if (copyText) {
@@ -1599,8 +1719,9 @@
             showLoadMoreIndicator('privateMessages', 'privateLoadMoreIndicator', show);
         }
 
-        function renderPrivateMessage(msg) {
-            const c = document.getElementById('privateMessages');
+        // v073 性能优化：同 renderPublicMessage，container 支持 DocumentFragment
+        function renderPrivateMessage(msg, container) {
+            const c = container || document.getElementById('privateMessages');
             const isOwn = msg.sender === currentUser;
             const date = new Date(msg.created_at);
             const dl = date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
@@ -1653,8 +1774,13 @@
                     // v069: mjv064 无 url 时回退到消息 audio_url 字段
                     contentHtml = buildVoiceBubbleHtml(mjUrl || msg.audio_url || '', parseInt(mjAttrs.dur) || msg.audio_dur || 0, '语音消息');
                 } else if (mjType === 'link') {
-                    contentHtml =
-                        `<a href="${escapeAttr(mjUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(mjAttrs.text || mjUrl)}</a>`;
+                    if (isSafeUrl(mjUrl)) {
+                        contentHtml =
+                            `<a href="${escapeAttr(mjUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--md-link);text-decoration:underline;">${escapeHtml(mjAttrs.text || mjUrl)}</a>`;
+                    } else {
+                        // v073 安全修复：未过协议白名单的链接回退为纯文本
+                        contentHtml = escapeHtml(mjAttrs.text || mjUrl);
+                    }
                 } else if (mjType === 'file') {
                     const fsize = mjAttrs.size || '';
                     if (isImageFile(mjFname)) {
@@ -1702,7 +1828,7 @@
             }
 
             const row = document.createElement('div');
-            row.className = `msg-row ${isOwn ? 'own' : ''}`;
+            row.className = `msg-row ${isOwn ? 'own' : ''}${container ? ' no-anim' : ''}`;
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
             row.dataset.msgText = actualContent || '';
@@ -1712,8 +1838,8 @@
             }
             if (mjMatched) {
                 if (mjType === 'voice') { row.dataset.msgType = 'voice'; }
-                else if (mjType === 'link') { row.dataset.msgType = 'link'; row.dataset.linkUrl = mjUrl; }
-                else if (mjType === 'file') { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(mjFname) ? 'video' : 'file'); row.dataset.linkUrl = mjUrl; if (fileIsImage) row.dataset.imageUrl = mjUrl; }
+                else if (mjType === 'link') { row.dataset.msgType = isSafeUrl(mjUrl) ? 'link' : 'text'; if (isSafeUrl(mjUrl)) row.dataset.linkUrl = mjUrl; }
+                else if (mjType === 'file') { row.dataset.msgType = fileIsImage ? 'image' : (isVideoFile(mjFname) ? 'video' : 'file'); if (isSafeUrl(mjUrl)) row.dataset.linkUrl = mjUrl; if (fileIsImage) row.dataset.imageUrl = mjUrl; }
                 else { row.dataset.msgType = 'text'; }
             } else {
                 if (voiceMatch) row.dataset.msgType = 'voice';

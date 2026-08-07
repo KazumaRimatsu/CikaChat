@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "cikachat-tauri",
-  "version": "28.6.701",
+  "version": "26.8.703",
   "identifier": "com.cika.chatapp",
   "build": {
     "frontendDist": "../src"
@@ -10,13 +10,14 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "CikaChat 28.6.701",
+        "title": "CikaChat 26.8.703",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "backgroundColor": "#1A1C1E"
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; connect-src 'self' https: wss: blob: data:; media-src 'self' data: blob: https:; font-src 'self' data:; object-src 'none'; frame-src https:; base-uri 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {

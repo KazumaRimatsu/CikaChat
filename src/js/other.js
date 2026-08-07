@@ -299,8 +299,8 @@
                 for (const attr of allowed) {
                     if (node.hasAttribute(attr)) {
                         const val = node.getAttribute(attr);
-                        if ((attr === 'href' || attr === 'src') && val.toLowerCase().startsWith('javascript:'))
-                            continue;
+                        // v073 安全修复：src/href 统一协议白名单（src 额外允许 data:image/ 与 blob:）
+                        if ((attr === 'href' || attr === 'src') && !/^(https?:|data:image\/|blob:)/i.test(val)) continue;
                         if (attr === 'href' && !val.match(/^(https?:|mailto:|tel:|#|\/)/i)) continue;
                         newNode.setAttribute(attr, val);
                     }
@@ -321,11 +321,12 @@
             return result;
         }
 
+        // v073 安全修复：用户名严格字符白名单（字母/数字/下划线/中文，2-15 位），
+        // 禁止 / \ . 与任意控制字符 —— 防止用户名作为存储路径时造成路径穿越
         function isSafeUsername(username) {
             if (!username) return false;
-            if (username.length > 15) return false;
-            const cleaned = cleanHtml(username);
-            return cleaned === username.trim();
+            if (username.length < 2 || username.length > 15) return false;
+            return /^[A-Za-z0-9_\u4e00-\u9fa5]{2,15}$/.test(username);
         }
 
         function showConfirm(title, message, callback) {

@@ -249,14 +249,15 @@
     --md-online-dot: var(--md-success);
 
     /* 头像调色板（.av-0 ~ .av-7，主题文件可整体更换配色） */
-    --md-avatar-0: #4A9EFF;
-    --md-avatar-1: #BA68C8;
-    --md-avatar-2: #4DB6AC;
-    --md-avatar-3: #4FC3F7;
-    --md-avatar-4: #FF8A65;
-    --md-avatar-5: #A1887F;
-    --md-avatar-6: #90A4AE;
-    --md-avatar-7: #F06292;
+    /* v073：头像底色色板加深为标准 800 色阶，保证白色头像文字对比度 ≥ 4.5:1 */
+    --md-avatar-0: #1565C0;
+    --md-avatar-1: #6A1B9A;
+    --md-avatar-2: #00695C;
+    --md-avatar-3: #0277BD;
+    --md-avatar-4: #E65100;
+    --md-avatar-5: #5D4037;
+    --md-avatar-6: #455A64;
+    --md-avatar-7: #C2185B;
 
     /* 强调描边（聚焦态 / 回复引用，复合简写，可整体覆盖） */
     --md-focus-border: 2px solid var(--md-primary);

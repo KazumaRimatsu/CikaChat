@@ -889,9 +889,17 @@
             _loadGroupFiles();
         }
 
-        async function _loadGroupFiles() {
+        // v073 性能优化：群文件列表短期缓存（TTL 30s），频繁进入页面时跳过重复的 14 个并行请求
+        let _groupFilesCache = null;
+        const _GROUP_FILES_TTL = 30 * 1000;
+
+        async function _loadGroupFiles(force) {
             const container = document.getElementById('groupFilesContainer');
             if (!container) return;
+            if (!force && _groupFilesCache && Date.now() - _groupFilesCache.at < _GROUP_FILES_TTL) {
+                _renderGroupFiles(_groupFilesCache.items);
+                return;
+            }
             container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px;"><span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span></div>';
             try {
                 // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶，并行请求
@@ -907,6 +915,8 @@
                             .catch(() => ({ bk, prefix, res: null }))
                     ))
                 ));
+                // 去重：同一文件可能被多个前缀列出（防御性）
+                const seen = new Set();
                 const allFiles = [];
                 for (const bucketResult of listResults) {
                     for (const { bk, prefix, res } of bucketResult) {
@@ -918,59 +928,70 @@
                                 if (f.name === '.emptyFolderPlaceholder') continue;
                                 // 文件夹无 metadata，跳过
                                 if (!f.metadata) continue;
+                                const fk = bk + '/' + prefix + f.name;
+                                if (seen.has(fk)) continue;
+                                seen.add(fk);
                                 f._bucket = bk;
                                 f._prefix = prefix;
+                                f._ts = Date.parse(f.created_at) || 0; // 排序时间戳缓存
                                 allFiles.push(f);
                             }
                         }
                     }
                 }
                 allFiles.sort(function(a, b) {
-                    return new Date(b.created_at) - new Date(a.created_at);
+                    return b._ts - a._ts;
                 });
-                if (allFiles.length === 0) {
-                    container.innerHTML = '<div class="gf-empty">暂无群文件</div>';
-                    return;
-                }
-                let html = '';
-                for (let idx = 0; idx < allFiles.length; idx++) {
-                    const file = allFiles[idx];
-                    const sizeStr = file.metadata && file.metadata.size
-                        ? (file.metadata.size > 1048576
-                            ? (file.metadata.size / 1048576).toFixed(1) + ' MB'
-                            : (file.metadata.size / 1024).toFixed(1) + ' KB')
-                        : '';
-                    const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString('zh-CN') : '';
-                    const pf = file._prefix || '';
-                    const bk = file._bucket || STORAGE_BUCKET;
-                    // 图片/视频：点击在预览器直接预览；其余文件：点击进入文件预览器（Office/代码/不支持）
-                    const ext = (file.name.split('.').pop() || '').toLowerCase();
-                    const isImage = IMAGE_EXTS.includes(ext);
-                    const isVideo = VIDEO_EXTS.includes(ext);
-                    if (isImage || isVideo) {
-                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
-                        const fileUrl = urlData ? urlData.publicUrl : '';
-                        if (isImage) {
-                            html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeJsString(fileUrl) + '\')">';
-                            html += '<div class="gf-file-icon"><img src="' + escapeAttr(fileUrl) + '" loading="lazy" onerror="this.style.display=\'none\'"></div>';
-                        } else {
-                            html += '<div class="gf-file-item" onclick="openVideoPreview(\'' + escapeJsString(fileUrl) + '\')">';
-                            html += '<div class="gf-file-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 8.5v7l6-3.5-6-3.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></div>';
-                        }
-                    } else {
-                        const iconHtml = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' + getFileIconSvg(file.name) + '</svg>';
-                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
-                        const fileUrl = urlData ? urlData.publicUrl : '';
-                        html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeJsString(fileUrl) + '\', \'' + escapeJsString(file.name) + '\')">';
-                        html += '<div class="gf-file-icon">' + iconHtml + '</div>';
-                    }
-                    html += '<div class="gf-file-info"><div class="gf-file-name">' + escapeHtml(file.name) + '</div>';
-                    html += '<div class="gf-file-meta">' + (sizeStr ? sizeStr + ' · ' : '') + dateStr + '</div></div></div>';
-                }
-                container.innerHTML = html || '<div class="gf-empty">暂无群文件</div>';
+                _groupFilesCache = { at: Date.now(), items: allFiles };
+                _renderGroupFiles(allFiles);
             } catch (e) {
-                container.innerHTML = '<div class="gf-empty">加载失败: ' + (e.message || '未知错误') + '</div>';
+                container.innerHTML = '<div class="gf-empty">加载失败: ' + escapeHtml(e.message || '未知错误') + '</div>';
             }
+        }
+
+        function _renderGroupFiles(allFiles) {
+            const container = document.getElementById('groupFilesContainer');
+            if (!container) return;
+            if (!allFiles || allFiles.length === 0) {
+                container.innerHTML = '<div class="gf-empty">暂无群文件</div>';
+                return;
+            }
+            let html = '';
+            for (let idx = 0; idx < allFiles.length; idx++) {
+                const file = allFiles[idx];
+                const sizeStr = file.metadata && file.metadata.size
+                    ? (file.metadata.size > 1048576
+                        ? (file.metadata.size / 1048576).toFixed(1) + ' MB'
+                        : (file.metadata.size / 1024).toFixed(1) + ' KB')
+                    : '';
+                const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString('zh-CN') : '';
+                const pf = file._prefix || '';
+                const bk = file._bucket || STORAGE_BUCKET;
+                // 图片/视频：点击在预览器直接预览；其余文件：点击进入文件预览器（Office/代码/不支持）
+                const ext = (file.name.split('.').pop() || '').toLowerCase();
+                const isImage = IMAGE_EXTS.includes(ext);
+                const isVideo = VIDEO_EXTS.includes(ext);
+                if (isImage || isVideo) {
+                    const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
+                    const fileUrl = urlData ? urlData.publicUrl : '';
+                    if (isImage) {
+                        html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeJsString(fileUrl) + '\')">';
+                        html += '<div class="gf-file-icon"><img src="' + escapeAttr(fileUrl) + '" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                    } else {
+                        html += '<div class="gf-file-item" onclick="openVideoPreview(\'' + escapeJsString(fileUrl) + '\')">';
+                        html += '<div class="gf-file-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 8.5v7l6-3.5-6-3.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></div>';
+                    }
+                } else {
+                    const iconHtml = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' + getFileIconSvg(file.name) + '</svg>';
+                    const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
+                    const fileUrl = urlData ? urlData.publicUrl : '';
+                    html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeJsString(fileUrl) + '\', \'' + escapeJsString(file.name) + '\')">';
+                    html += '<div class="gf-file-icon">' + iconHtml + '</div>';
+                }
+                html += '<div class="gf-file-info"><div class="gf-file-name">' + escapeHtml(file.name) + '</div>';
+                html += '<div class="gf-file-meta">' + (sizeStr ? sizeStr + ' · ' : '') + dateStr + '</div></div></div>';
+            }
+            container.innerHTML = html;
         }
 
         function closeAgentList() {
