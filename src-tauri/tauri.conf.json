@@ -1,8 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+<<<<<<< HEAD
   "productName": "knockchat-tauri",
   "version": "1.0.0",
   "identifier": "com.knockchat.chatapp",
+=======
+  "productName": "cikachat-tauri",
+  "version": "26.8.703",
+  "identifier": "com.cika.chatapp",
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
   "build": {
     "frontendDist": "../src"
   },
@@ -10,13 +16,18 @@
     "withGlobalTauri": true,
     "windows": [
       {
+<<<<<<< HEAD
         "title": "KnockChat",
+=======
+        "title": "CikaChat 26.8.703",
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
         "width": 800,
-        "height": 600
+        "height": 600,
+        "backgroundColor": "#1A1C1E"
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; connect-src 'self' https: wss: blob: data:; media-src 'self' data: blob: https:; font-src 'self' data:; object-src 'none'; frame-src https:; base-uri 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {

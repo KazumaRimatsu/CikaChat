@@ -14,7 +14,11 @@
         //   config/               云控等全局配置（预留）
         const HISTORY_LIMIT = 200;
         const APP_VERSION = 69;
+<<<<<<< HEAD
         const VERSION = '1.0.0';
+=======
+        const VERSION = '26.8.703';
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护，暂时无法登录。';
         const SALT = 'mjchat_2026_salt_v1';

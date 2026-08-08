@@ -11,11 +11,18 @@
         function getLastLoginTime() {
             try { return localStorage.getItem('mjchat_last_login_time') || ''; } catch (e) { return ''; }
         }
+        // v073 性能优化：未读状态高频变更（每条新消息到达）防抖合并落盘，
+        // 避免对整份用户设置反复做 JSON.stringify + AES-GCM 加密 + localStorage 全量写入
+        let _unreadSyncTimer = null;
         function saveUnreadState(state) {
             // Update encrypted settings cache
             if (_userSettingsCache) {
                 _userSettingsCache.unread = state;
-                syncSettingsToEncryptedStore();
+                if (_unreadSyncTimer) clearTimeout(_unreadSyncTimer);
+                _unreadSyncTimer = setTimeout(function() {
+                    _unreadSyncTimer = null;
+                    syncSettingsToEncryptedStore();
+                }, 800);
             }
         }
         function markPublicRead(timestamp) {
@@ -120,8 +127,57 @@
             return bytes;
         }
 
-        // Derive AES-GCM encryption key from password hash (hex string)
-        async function deriveEncryptionKey(passwordHash) {
+        // ============================================
+        // AES 密钥派生（v073 安全升级）
+        // 原实现：静态盐 SHA-256 的 hex 字节直接作 AES 密钥 —— 无 KDF，弱密码可被离线爆破。
+        // 新实现：PBKDF2-HMAC-SHA256（10 万次迭代）+ 每用户随机盐（meta 存 localStorage）。
+        // 存量数据一次性迁移：先用旧派生方式解密，成功即用新密钥重加密落盘。
+        // ============================================
+        const PBKDF2_ITERATIONS = 100000;
+        const KEY_META_PREFIX = 'mjchat_keymeta_';
+
+        function _keyMetaKey(username) {
+            return KEY_META_PREFIX + (username || (currentUser || ''));
+        }
+
+        function loadKeyMeta(username) {
+            try {
+                const raw = localStorage.getItem(_keyMetaKey(username));
+                if (raw) {
+                    const m = JSON.parse(raw);
+                    if (m && m.salt) return { salt: m.salt, iterations: m.iterations || PBKDF2_ITERATIONS };
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        function saveKeyMeta(username, meta) {
+            try { localStorage.setItem(_keyMetaKey(username), JSON.stringify(meta)); } catch (e) {}
+        }
+
+        // 生成 16 字节随机盐（base64 字符串）
+        function _generateKeySalt() {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            return btoa(String.fromCharCode.apply(null, salt));
+        }
+
+        // PBKDF2 派生 AES-GCM 密钥（新格式，passwordHash 为客户端 SHA-256 预哈希串）
+        async function _pbkdf2DeriveKey(passwordHash, saltB64, iterations) {
+            const saltBytes = new Uint8Array(atob(saltB64).split('').map(function(c) { return c.charCodeAt(0); }));
+            const baseKey = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(passwordHash), 'PBKDF2', false, ['deriveKey']
+            );
+            return await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: saltBytes, iterations: iterations || PBKDF2_ITERATIONS, hash: 'SHA-256' },
+                baseKey,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        // 旧派生方式（SHA-256 hex 字节直作 AES 密钥），仅用于存量数据一次性迁移
+        async function _legacyDeriveKey(passwordHash) {
             const keyBytes = hexToBytes(passwordHash);
             return await crypto.subtle.importKey(
                 'raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
@@ -154,6 +210,8 @@
         // In-memory cache: holds decrypted settings for the current user
         let _userSettingsCache = null;
         let _encryptionKey = null;
+        // v073：迁移期保留的旧派生密钥（仅当本次登录解密过旧格式加密数据时存在）
+        let _legacyEncryptionKey = null;
         // AI 设置解密缓存（模型/翻译），登录时从加密存储加载
         let _aiSettingsCache = null;
 
@@ -172,22 +230,45 @@
 
         // Initialize user settings: derive key, decrypt config, migrate old data if needed
         async function initUserSettings(passwordHash, username) {
-            // Derive encryption key from password hash
-            _encryptionKey = await deriveEncryptionKey(passwordHash);
-
+            // v073：密钥派生升级为 PBKDF2 + 每用户随机盐；旧密钥加密的存量数据自动迁移
+            _legacyEncryptionKey = null;
             const allConfigs = loadAllUserConfigs();
             let userConfig = null;
+            let legacyFallback = false;
 
             if (allConfigs[username]) {
-                // Decrypt existing config for this user
-                try {
-                    const encrypted = allConfigs[username];
-                    const plaintext = await decryptData(_encryptionKey, encrypted.iv, encrypted.data);
-                    userConfig = JSON.parse(plaintext);
-                } catch (e) {
-                    // Decryption failed (wrong password or corrupted data) - start fresh
-                    console.warn('Failed to decrypt settings for', username, '- starting fresh');
+                const encrypted = allConfigs[username];
+                // 1) 优先用新密钥（PBKDF2 + 已保存的每用户盐）解密
+                const keyMeta = loadKeyMeta(username);
+                if (keyMeta) {
+                    try {
+                        _encryptionKey = await _pbkdf2DeriveKey(passwordHash, keyMeta.salt, keyMeta.iterations);
+                        userConfig = JSON.parse(await decryptData(_encryptionKey, encrypted.iv, encrypted.data));
+                    } catch (e) { _encryptionKey = null; }
                 }
+                // 2) 迁移路径：新密钥解不开时回退旧派生方式，成功后本次会话保留旧密钥供其余密文迁移
+                if (!userConfig) {
+                    try {
+                        const legacyKey = await _legacyDeriveKey(passwordHash);
+                        userConfig = JSON.parse(await decryptData(legacyKey, encrypted.iv, encrypted.data));
+                        _legacyEncryptionKey = legacyKey;
+                        legacyFallback = true;
+                    } catch (e2) {
+                        // 新老密钥均失败（密码错误或数据损坏）— 视为新用户处理
+                        console.warn('Failed to decrypt settings for', username, '- starting fresh');
+                        userConfig = null;
+                    }
+                }
+            }
+
+            // 3) 确保会话使用新密钥：无 meta 时生成每用户随机盐并落盘
+            let keyMeta = loadKeyMeta(username);
+            if (!keyMeta) {
+                keyMeta = { salt: _generateKeySalt(), iterations: PBKDF2_ITERATIONS };
+                saveKeyMeta(username, keyMeta);
+            }
+            if (legacyFallback || !_encryptionKey) {
+                _encryptionKey = await _pbkdf2DeriveKey(passwordHash, keyMeta.salt, keyMeta.iterations);
             }
 
             let wasMigrated = false;
@@ -228,7 +309,8 @@
 
             // v057 修复：迁移/新建出的配置立即加密落盘，
             // 否则下次启动解不到配置，设置（主题色、通知等）会退回默认
-            if (wasMigrated) {
+            // v073：旧密钥迁移成功时同样立即用新密钥重加密
+            if (wasMigrated || legacyFallback) {
                 await syncSettingsToEncryptedStore();
             }
 
@@ -300,6 +382,7 @@
         // Clear encryption key and settings cache from memory
         function clearEncryptionKey() {
             _encryptionKey = null;
+            _legacyEncryptionKey = null;
             _userSettingsCache = null;
             _aiSettingsCache = null;
             // 清空聊天记录缓存的内存态（localStorage 中的加密数据保留，重新登录可恢复）
@@ -314,7 +397,8 @@
         // 与用户设置共用 AES-GCM 密钥；旧版明文在下次登录时自动迁移为加密格式
         // ============================================
 
-        // 读取并解密单个 AI 设置键；旧版明文数据自动加密迁移
+        // 读取并解密单个 AI 设置键；旧版明文自动加密迁移；
+        // v073：旧密钥加密的存量数据回退用迁移期旧密钥解密并转新密钥落盘
         async function decryptAISettingsValue(key, raw) {
             if (!raw) return null;
             let obj = null;
@@ -325,7 +409,21 @@
                 try {
                     const plain = await decryptData(_encryptionKey, obj.iv, obj.data);
                     return JSON.parse(plain);
-                } catch (e) { return null; }
+                } catch (e) {
+                    if (_legacyEncryptionKey) {
+                        try {
+                            const plain = await decryptData(_legacyEncryptionKey, obj.iv, obj.data);
+                            const parsed = JSON.parse(plain);
+                            // 迁移：立即用新密钥重写
+                            try {
+                                const enc = await encryptData(_encryptionKey, JSON.stringify(parsed));
+                                localStorage.setItem(key, JSON.stringify(enc));
+                            } catch (e3) {}
+                            return parsed;
+                        } catch (e2) { return null; }
+                    }
+                    return null;
+                }
             }
             // 旧版明文：用当前密钥加密迁移
             if (_encryptionKey) {
@@ -337,18 +435,17 @@
             return obj;
         }
 
-        // 加密写入单个 AI 设置键；密钥未就绪时降级为明文（下次登录自动迁移）
+        // 加密写入单个 AI 设置键；v073：密钥未就绪时不再明文降级，
+        // 避免 API Key 等敏感数据以明文落盘（此函数仅在登录后调用，密钥必已就绪）
         async function encryptAISettingsValue(key, obj) {
             if (obj === null || obj === undefined) { localStorage.removeItem(key); return; }
-            const json = JSON.stringify(obj);
-            if (_encryptionKey) {
-                try {
-                    const enc = await encryptData(_encryptionKey, json);
-                    localStorage.setItem(key, JSON.stringify(enc));
-                    return;
-                } catch (e) {}
+            if (!_encryptionKey) return;
+            try {
+                const enc = await encryptData(_encryptionKey, JSON.stringify(obj));
+                localStorage.setItem(key, JSON.stringify(enc));
+            } catch (e) {
+                console.warn('AI 设置加密保存失败:', e);
             }
-            localStorage.setItem(key, json);
         }
 
         // 登录时解密全部 AI 设置到内存缓存
@@ -422,6 +519,32 @@
             return MSG_CACHE_PREFIX + (currentUser || '');
         }
 
+        // 消息时间戳（解析失败按 0 处理，避免影响排序）
+        function _msgTimeOf(m) {
+            const t = m && m.created_at ? new Date(m.created_at).getTime() : NaN;
+            return isNaN(t) ? 0 : t;
+        }
+
+        // 消息 id 数值化（用于同一时间戳时的兜底排序；bigint 字符串可能超出安全整数，仅作近似比较）
+        function _msgIdNum(m) {
+            const id = m ? m.id : undefined;
+            const n = (typeof id === 'number') ? id : Number(id);
+            return isNaN(n) ? null : n;
+        }
+
+        // 消息统一按时间正序排序（时间戳相同按 id 兜底），不信任服务端/缓存原有顺序，
+        // 避免旧消息被排到列表底部；返回新数组，不改动入参
+        function _sortMsgAsc(msgs) {
+            if (!Array.isArray(msgs)) return msgs || [];
+            return msgs.slice().sort(function(a, b) {
+                const ta = _msgTimeOf(a), tb = _msgTimeOf(b);
+                if (ta !== tb) return ta - tb;
+                const ia = _msgIdNum(a), ib = _msgIdNum(b);
+                if (ia !== null && ib !== null) return ia - ib;
+                return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+            });
+        }
+
         // 读取并解密当前用户的聊天记录缓存；返回 { public, private, sessions } 或 null
         async function loadChatMessageCache() {
             if (!_encryptionKey || !currentUser) return null;
@@ -430,21 +553,30 @@
                 if (!raw) return null;
                 const obj = JSON.parse(raw);
                 if (!obj || !obj.iv || !obj.data) return null;
-                const plain = await decryptData(_encryptionKey, obj.iv, obj.data);
+                let plain = null;
+                try {
+                    plain = await decryptData(_encryptionKey, obj.iv, obj.data);
+                } catch (e) {
+                    // v073：旧密钥加密的缓存，迁移期用旧密钥读取（下次保存时自然用新密钥重写）
+                    if (_legacyEncryptionKey) {
+                        try { plain = await decryptData(_legacyEncryptionKey, obj.iv, obj.data); }
+                        catch (e2) { return null; }
+                    } else { return null; }
+                }
                 const cache = JSON.parse(plain);
                 if (!cache || typeof cache !== 'object') return null;
                 _privateMsgCacheMap = {};
                 _privateMsgCacheOrder = [];
                 if (cache.private && typeof cache.private === 'object') {
                     Object.keys(cache.private).forEach(sid => {
-                        _privateMsgCacheMap[sid] = (Array.isArray(cache.private[sid]) ? cache.private[sid] : [])
-                            .map(_trimMsg).filter(Boolean);
+                        _privateMsgCacheMap[sid] = _sortMsgAsc((Array.isArray(cache.private[sid]) ? cache.private[sid] : [])
+                            .map(_trimMsg).filter(Boolean));
                         _privateMsgCacheOrder.push(sid);
                     });
                 }
                 _cachedSessions = Array.isArray(cache.sessions) ? cache.sessions : null;
                 return {
-                    public: (Array.isArray(cache.public) ? cache.public : []).map(_trimMsg).filter(Boolean),
+                    public: _sortMsgAsc((Array.isArray(cache.public) ? cache.public : []).map(_trimMsg).filter(Boolean)),
                     private: _privateMsgCacheMap,
                     sessions: _cachedSessions
                 };
@@ -459,7 +591,7 @@
             if (!_encryptionKey || !currentUser) return;
             try {
                 const pub = (typeof publicMessages !== 'undefined' && Array.isArray(publicMessages))
-                    ? publicMessages.slice(-MSG_CACHE_PUBLIC_LIMIT).map(_trimMsg).filter(Boolean) : [];
+                    ? _sortMsgAsc(publicMessages.slice(-MSG_CACHE_PUBLIC_LIMIT)).map(_trimMsg).filter(Boolean) : [];
                 const priv = {};
                 _privateMsgCacheOrder.slice(0, MSG_CACHE_MAX_SESSIONS).forEach(sid => {
                     const list = _privateMsgCacheMap[sid];
@@ -500,7 +632,7 @@
         // 覆盖某个私聊会话的缓存（参数为时间正序消息数组）
         function upsertPrivateMsgCache(sessionId, msgs) {
             if (!sessionId) return;
-            const list = (Array.isArray(msgs) ? msgs : []).map(_trimMsg).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
+            const list = _sortMsgAsc(msgs).map(_trimMsg).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
             if (!list.length && !_privateMsgCacheMap[sessionId]) return;
             _privateMsgCacheMap[sessionId] = list;
             const i = _privateMsgCacheOrder.indexOf(sessionId);
@@ -514,7 +646,7 @@
             if (!sessionId || !msg || !msg.id) return;
             let list = _privateMsgCacheMap[sessionId] || [];
             if (list.some(function(m) { return m.id === msg.id; })) return;
-            list = list.concat([_trimMsg(msg)]).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
+            list = _sortMsgAsc(list.concat([_trimMsg(msg)])).filter(Boolean).slice(-MSG_CACHE_PRIVATE_LIMIT);
             _privateMsgCacheMap[sessionId] = list;
             const i = _privateMsgCacheOrder.indexOf(sessionId);
             if (i >= 0) _privateMsgCacheOrder.splice(i, 1);
@@ -575,30 +707,71 @@
             }
         }
 
-        // 页面关闭/隐藏前立即落盘防抖中的缓存
+        // v073: 注销账号时彻底清除本地数据——
+        // AI 设置（含 API Key）、用户配置、密钥盐、聊天记录缓存全部移除，
+        // 防止同名同密码重新注册后旧数据（旧 API Key）"复活"
+        function clearAllUserLocalData() {
+            try { localStorage.removeItem('cika_ai_model_settings'); } catch (e) {}
+            try { localStorage.removeItem('cika_ai_translate_settings'); } catch (e) {}
+            try { localStorage.removeItem('mjchat_user_configs'); } catch (e) {}
+            if (currentUser) {
+                try { localStorage.removeItem(_keyMetaKey(currentUser)); } catch (e) {}
+            }
+            clearChatMessageCache();
+            clearEncryptionKey();
+        }
+
+        // 页面关闭/隐藏前立即落盘防抖中的缓存（含未读状态），补上防抖间隙
         if (typeof window !== 'undefined') {
-            window.addEventListener('pagehide', function() { flushMessageCacheSave(); });
+            window.addEventListener('pagehide', function() {
+                flushMessageCacheSave();
+                if (_unreadSyncTimer) {
+                    clearTimeout(_unreadSyncTimer);
+                    _unreadSyncTimer = null;
+                    syncSettingsToEncryptedStore();
+                }
+            });
         }
 
         // ============================================
         // 设置导入导出
         // ============================================
 
-        // 导出设置：应用设置（主题/通知等）+ AI 设置（含 API Key）打包为 JSON 文件
+        // v073 安全修复：导出前对 AI API Key 脱敏，防止备份文件泄露密钥
+        function _maskApiKey(key) {
+            if (!key || typeof key !== 'string') return '';
+            if (key.length <= 8) return '••••••••';
+            return key.slice(0, 4) + '••••••••' + key.slice(-4);
+        }
+
+        function _sanitizeAIForExport(s) {
+            const copy = Object.assign({}, s);
+            if (copy.apiKey) copy.apiKey = _maskApiKey(copy.apiKey);
+            copy.apiKeyExported = false; // 标记：导入时识别为脱敏值，保留本机密钥
+            return copy;
+        }
+
+        // 导出设置：应用设置（主题/通知等）+ AI 设置（API Key 脱敏）打包为 JSON 文件
         function exportSettings() {
             if (!_userSettingsCache) { showSnackbar('设置尚未加载'); return; }
             const userSettings = Object.assign({}, _userSettingsCache);
             delete userSettings.unread; // 未读状态属设备临时数据，不随设置迁移
+            const aiModel = getAIModelSettings() || null;
+            const aiTranslate = getAITranslateSettings() || null;
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
+<<<<<<< HEAD
                 version: "1.0.0",
+=======
+                version: "26.8.703",
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {
                     user: userSettings,
-                    aiModel: getAIModelSettings() || null,
-                    aiTranslate: getAITranslateSettings() || null
+                    aiModel: aiModel ? _sanitizeAIForExport(aiModel) : null,
+                    aiTranslate: aiTranslate ? _sanitizeAIForExport(aiTranslate) : null
                 }
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -610,7 +783,7 @@
             a.click();
             a.remove();
             setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-            showSnackbar('设置已导出，文件包含 AI API Key，请妥善保管');
+            showSnackbar('设置已导出（AI API Key 已脱敏，导入后需重新输入）');
         }
 
         // 导入设置：选择 JSON 文件并确认后恢复设置
@@ -649,9 +822,20 @@
                 applyUserSettings();
             }
             if (settings.aiModel) {
+                // v073：导入文件中的密钥为脱敏值（apiKeyExported === false）时保留本机密钥
+                if (settings.aiModel.apiKeyExported === false) {
+                    const cur = getAIModelSettings() || {};
+                    if (cur.apiKey) settings.aiModel.apiKey = cur.apiKey;
+                    else settings.aiModel.apiKey = '';
+                }
                 await saveAIModelSettings(settings.aiModel);
             }
             if (settings.aiTranslate) {
+                if (settings.aiTranslate.apiKeyExported === false) {
+                    const cur = getAITranslateSettings() || {};
+                    if (cur.apiKey) settings.aiTranslate.apiKey = cur.apiKey;
+                    else settings.aiTranslate.apiKey = '';
+                }
                 await saveAITranslateSettings(settings.aiTranslate);
             }
             showSnackbar('设置导入成功');

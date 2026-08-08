@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CikaChat</title>
+<<<<<<< HEAD
+=======
+    <!-- v073: supabase-js 锁定精确版本并加 SRI 完整性校验（防 CDN 投毒/浮动版本漂移） -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js" integrity="sha384-B2duOBIryCXbX4eDE4BdJwtNkQMRQde3o6IsjfPW28E6aH1CYE96hHeZRG3zY56O" crossorigin="anonymous">
+    </script>
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
     <script>
         /* === Global Control Flag === */
         var IS_DEV = true;
@@ -131,7 +137,7 @@
     <link rel="stylesheet" href="css/ai.css">
     <link rel="stylesheet" href="css/responsive.css">
     <!-- highlight.js：代码文件预览高亮主题（dark，配合预览器黑底） -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH" crossorigin="anonymous">
 </head>
 <body>
     <!-- 图标符号表：页面中重复出现的 SVG 图标统一在此定义一次，其余位置通过 <use> 引用 -->
@@ -468,7 +474,7 @@
                     <div class="about-version" id="aboutVersion">版本 v57</div>
                     <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v57</div>
                     <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat" target="_blank" rel="noopener noreferrer">KazumaRimatsu/CikaChat</a></div>
-                    <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer"> MJChat </a>及其他<a href="javascript:void(0)" onclick="showOpensourceDialog()"> 开源项目 </a></div>
+                    <div class="about-opensource">基于<a href="https://github.com/ManJuanAll/MJChat" target="_blank" rel="noopener noreferrer"> MJChat </a>及其他<a role="button" tabindex="0" onclick="showOpensourceDialog()"> 开源项目 </a></div>
                 </div>
             </div>
             <div class="page user-detail-page" id="userDetailPage">
@@ -984,14 +990,14 @@
     <script src="js/s3.js"></script>
     <script src="js/api.js"></script>
     <script src="js/stpwords-data.js"></script>
+    <!-- 图片字节缓存：供 chat.js / profile.js / fview.js 使用 -->
+    <script src="js/imgcache.js"></script>
     <script src="js/chat.js"></script>
     <script src="js/features.js"></script>
     <script src="js/other.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/ai.js"></script>
-    <!-- highlight.js：代码文件预览高亮 -->
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-    <!-- 文件预览器：图片/视频/Office/代码文件统一预览 -->
+    <!-- 文件预览器：图片/视频/Office/代码文件统一预览（highlight.js 在 fview.js 中按需加载） -->
     <script src="js/fview.js"></script>
 </body>
 </html>

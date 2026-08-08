@@ -159,7 +159,8 @@
     width: 100%;
     height: 100%;
     border: 0;
-    background: #fff;
+    /* v073：容器背景随主题（文档加载完成后由 Office 白底覆盖） */
+    background: var(--md-surface-container-lowest);
 }
 
 .fview-office.hidden {
@@ -239,7 +240,7 @@
 #fviewContainer {
     position: fixed;
     inset: 0;
-    z-index: 700; /* 高于确认弹窗(600)/上下文菜单(500)，低于启动加载页(999) */
+    z-index: 550; /* 高于确认弹窗(600)/上下文菜单(500)，低于启动加载页(999) */
     overflow: hidden;
     pointer-events: none;
 }
@@ -427,7 +428,7 @@
 .fview-capsule {
     position: fixed;
     top: 10px;
-    z-index: 710;
+    z-index: 560;
     display: flex;
     align-items: center;
     gap: 6px;

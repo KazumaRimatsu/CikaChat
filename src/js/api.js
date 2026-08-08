@@ -884,24 +884,78 @@
         function setupGlobalPrivateListener() {
             if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
 
+<<<<<<< HEAD
             // 已移除 Supabase Realtime 广播（private_msg_notification / avatar_changed / session_deleted）：
             // 私聊新消息与会话更新统一由下方轮询驱动（loadPrivateSessions 变更检测 + loadPrivateMessages 增量）。
+=======
 
+            if (publicChannel) {
+                publicChannel.on('broadcast', { event: 'private_msg_notification' }, (p) => {
+                    try {
+                        const data = p.payload;
+                        if (!data || !data.session_id) return;
+                        handlePrivateNotification(data.session_id, data.sender);
+                    } catch (e) { /* ignore */ }
+                });
+                publicChannel.on('broadcast', { event: 'avatar_changed' }, (p) => {
+                    const data = p.payload;
+                    if (!data || !data.username) return;
+                    // v073 安全修复：头像 URL 统一净化（防 CSS 注入）
+                    userAvatarCache[data.username] = sanitizeAvatarUrl(data.avatar_url) || '';
+                    const selName = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(data.username) : data.username.replace(/["\\]/g, '');
+                    document.querySelectorAll('[data-sender="' + selName + '"]').forEach(el => {
+                        applyAvatarToElement(el, data.username);
+                    });
+                    document.querySelectorAll('[data-username="' + selName + '"]').forEach(el => {
+                        applyAvatarToElement(el, data.username);
+                    });
+                    renderPrivateList();
+                    renderOnlineUsers();
+                });
+                publicChannel.on('broadcast', { event: 'session_deleted' }, (p) => {
+                    try {
+                        const data = p.payload;
+                        if (!data || !data.session_id) return;
+                        if (data.target === currentUser && privateSessionId === data.session_id && privateChatActive) {
+                            showSnackbar(`${data.deleted_by} 删除了你们的聊天`);
+                            leavePrivateChat();
+                        }
+                        window.privateSessions = (window.privateSessions || []).filter(s => s.id !== data.session_id);
+                        renderPrivateList();
+                    } catch (e) { /* ignore */ }
+                });
+            }
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
+
+            // v073 性能优化：私聊轮询改为指纹对比——每 10s 只计算会话列表的 FNV-1a 指纹，
+            // 不再构造 id:updated_at:last_message 字符串数组再 JSON.stringify 全量对比（省内存与 GC）
             privatePollTimer = setInterval(async () => {
                 if (!currentUser) return;
                 try {
-                    const prev = window.privateSessions ?
-                        window.privateSessions.map(s => s.id + ':' + (s.updated_at || '') + ':' + (s.last_message || '')) : [];
+                    const prevSig = window._privateSessionsSig || '';
                     await loadPrivateSessions();
-                    const curr = window.privateSessions ?
-                        window.privateSessions.map(s => s.id + ':' + (s.updated_at || '') + ':' + (s.last_message || '')) : [];
-                    if (JSON.stringify(prev) !== JSON.stringify(curr)) {
+                    if (prevSig !== (window._privateSessionsSig || '')) {
                         if (privateChatActive && privateSessionId) {
                             await loadPrivateMessages(privateSessionId, true);
                         }
                     }
                 } catch (e) { /* ignore */ }
             }, 10000);
+        }
+
+        // 会话列表指纹：FNV-1a 双重哈希（id/updated_at/last_message 参与计算）
+        function _hashPrivateSessions(sessions) {
+            if (!sessions || !sessions.length) return '';
+            let h1 = 0x811c9dc5, h2 = 0x811c9dc5;
+            for (let i = 0; i < sessions.length; i++) {
+                const s = sessions[i] || {};
+                const str = s.id + '|' + (s.updated_at || '') + '|' + (s.last_message || '');
+                for (let j = 0; j < str.length; j++) {
+                    h1 = Math.imul(h1 ^ str.charCodeAt(j), 16777619) >>> 0;
+                }
+                h2 = Math.imul(h2 ^ h1, 16777619) >>> 0;
+            }
+            return h1.toString(36) + ':' + h2.toString(36);
         }
 
         async function broadcastSystemMsg(text) {
@@ -967,6 +1021,7 @@
                         }
                     }
                 }
+<<<<<<< HEAD
                 var res = await s3.rpc('get_public_messages', {
                     p_after_id: lastId,
                     p_limit: 20
@@ -981,6 +1036,26 @@
                     if (!isUserScrolledUp && container) {
                         scrollToBottom(container);
                         updateScrollButton(container);
+=======
+                var query = sb.from(TABLE_PUBLIC_MSG)
+                    .select('id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system')
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+                if (latestTime) query = query.gt('created_at', latestTime);
+                var result = await query;
+                if (result.error || !result.data || !Array.isArray(result.data)) return;
+                if (result.data.length === 0) return;
+                _sortMsgAsc(result.data).forEach(function(msg) {
+                    // v073 性能优化：用 Map 做 O(1) 去重，替代数组线性 some
+                    if (!publicMessageById.has(msg.id)) {
+                        handlePublicMessage(msg);
+                        updatePublicEntry();
+                        var container = document.getElementById('publicMessages');
+                        if (!isUserScrolledUp && container) {
+                            scrollToBottom(container);
+                            updateScrollButton(container);
+                        }
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     }
                 });
             } catch (e) { /* silent fail */ }
@@ -1008,7 +1083,7 @@
                     return;
                 }
                 publicHasMore = data.length >= HISTORY_LIMIT;
-                data.reverse().forEach(m => handlePublicMessage(m, true));
+                _sortMsgAsc(data).forEach(m => handlePublicMessage(m, true));
                 const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
                 await loadUserAvatars(senders);
                 document.querySelectorAll('#publicMessages .msg-row .avatar').forEach(av => {
@@ -1047,8 +1122,13 @@
                 }
                 const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
                 await loadUserAvatars(senders);
+<<<<<<< HEAD
                 const newMsgs = data.reverse().map(msg => ({
                     id: msg.id, sender: msg.sender, sender_uid: msg.sender_uid || 0, text: msg.text || '',
+=======
+                const newMsgs = _sortMsgAsc(data).map(msg => ({
+                    id: msg.id, sender: msg.sender, text: msg.text || '',
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     image_url: msg.image_url || null, audio_url: msg.audio_url || null,
                     audio_dur: msg.audio_dur || 0, msg_version: msg.msg_version || null,
                     created_at: msg.created_at, reply_to_id: msg.reply_to_id || null,
@@ -1062,9 +1142,14 @@
                 const container = document.getElementById('publicMessages');
                 const prevScrollHeight = container.scrollHeight;
                 const prevScrollTop = container.scrollTop;
-                container.innerHTML = '';
-                publicLastDateLabel = '';
-                publicMessages.forEach(m => renderPublicMessage(m));
+                // v073 性能优化：仅渲染新增的旧消息并批量插入（DocumentFragment），
+                // 不再整列表销毁重建（保留已渲染消息的 DOM、图片加载态与滚动状态）
+                const frag = document.createDocumentFragment();
+                if (filtered.length) {
+                    publicLastDateLabel = '';
+                    filtered.forEach(m => renderPublicMessage(m, frag));
+                }
+                container.insertBefore(frag, container.firstChild);
                 requestAnimationFrame(() => {
                     container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
                 });
@@ -1118,12 +1203,30 @@
                     }
                 } catch (e) { /* RPC not found, fallback */ }
                 if (!sessions) {
+<<<<<<< HEAD
                     // v070: 离线回退——用本地加密缓存恢复会话列表
                     const cachedSessions = getCachedSessions();
                     if (cachedSessions && cachedSessions.length) {
                         window.privateSessions = cachedSessions;
                         renderPrivateList();
                         return window.privateSessions;
+=======
+                    const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS)
+                        .select('id, user1, user2, updated_at, deleted_by_user1, deleted_by_user2, last_message')
+                        .or(`user1.eq.${currentUser},user2.eq.${currentUser}`)
+                        .order('updated_at', { ascending: false });
+                    if (error) {
+                        console.error('loadPrivateSessions error:', error);
+                        // v070: 离线回退——用本地加密缓存恢复会话列表
+                        const cachedSessions = getCachedSessions();
+                        if (cachedSessions && cachedSessions.length) {
+                            window.privateSessions = cachedSessions;
+                            window._privateSessionsSig = _hashPrivateSessions(cachedSessions);
+                            renderPrivateList();
+                            return window.privateSessions;
+                        }
+                        return;
+>>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     }
                     return;
                 }
@@ -1140,6 +1243,7 @@
                     return false;
                 });
                 window.privateSessions = filtered;
+                window._privateSessionsSig = _hashPrivateSessions(filtered);
                 // v070: 缓存会话列表，供离线时恢复私聊入口
                 setCachedSessions(filtered);
                 const otherUsers = filtered.map(s => {
@@ -1233,14 +1337,28 @@
                         });
                     }
                 }
-                // RPC 返回倒序，本地缓存为正序，统一转换为正序
-                privateMessages = usedCache ? messages.slice() : messages.reverse();
-                privateHasMore = usedCache ? false : privateMessages.length === PAGE_SIZE;
+                if (notifyNew && privateMessages.length > 0) {
+                    // v073: 轮询改为增量合并——保留上滑已加载的更早消息，只并入新拉到/缓存的消息，
+                    // 避免轮询整体替换把列表截断回最新一页
+                    const mergedById = new Map(privateMessages.map(m => [m.id, m]));
+                    messages.forEach(function(m) {
+                        if (m && m.id && !mergedById.has(m.id)) mergedById.set(m.id, m);
+                    });
+                    privateMessages = _sortMsgAsc(Array.from(mergedById.values()));
+                } else {
+                    // 服务端返回顺序不做信任（RPC 可能是升序/非确定序），统一按时间正序排序，
+                    // 避免旧消息被 reverse 后跑到列表底部（离线缓存同样正序排序）
+                    privateMessages = _sortMsgAsc(messages);
+                    privateHasMore = usedCache ? false : privateMessages.length === PAGE_SIZE;
+                }
                 const c = document.getElementById('privateMessages');
                 c.innerHTML = '';
                 privateLastDateLabel = '';
                 if (privateMessages.length > 0) {
-                    privateMessages.forEach(m => renderPrivateMessage(m));
+                    // v073 性能优化：DocumentFragment 批量插入，避免逐条 append 反复触发布局
+                    const frag = document.createDocumentFragment();
+                    privateMessages.forEach(m => renderPrivateMessage(m, frag));
+                    c.appendChild(frag);
                     const senders = [...new Set(privateMessages.map(m => m.sender))];
                     await loadUserAvatars(senders);
                     document.querySelectorAll('#privateMessages .msg-row .avatar').forEach(av => {
@@ -1300,15 +1418,19 @@
                 }
                 const senders = [...new Set(moreMessages.map(m => m.sender))];
                 await loadUserAvatars(senders);
-                const unique = moreMessages.reverse().filter(m => !privateMessages.some(e => e.id === m.id));
+                const unique = _sortMsgAsc(moreMessages).filter(m => !privateMessages.some(e => e.id === m.id));
                 privateMessages = unique.concat(privateMessages);
                 upsertPrivateMsgCache(sessionId, privateMessages);
                 const container = document.getElementById('privateMessages');
                 const prevScrollHeight = container.scrollHeight;
                 const prevScrollTop = container.scrollTop;
-                container.innerHTML = '';
-                privateLastDateLabel = '';
-                privateMessages.forEach(m => renderPrivateMessage(m));
+                // v073 性能优化：仅渲染新增的更早消息并批量插入，保留已渲染消息与滚动状态
+                const frag = document.createDocumentFragment();
+                if (unique.length) {
+                    privateLastDateLabel = '';
+                    unique.forEach(m => renderPrivateMessage(m, frag));
+                }
+                container.insertBefore(frag, container.firstChild);
                 requestAnimationFrame(() => {
                     container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
                 });
@@ -1682,8 +1804,8 @@
                 if (overlay) overlay.remove();
                 localStorage.removeItem('mjchat_session');
                 // v070: 账号注销时同步清除本地聊天记录缓存
-                clearChatMessageCache();
-                clearEncryptionKey();
+                // v073: 升级为彻底清除本地数据（AI 设置含 API Key、用户配置、密钥盐、消息缓存）
+                clearAllUserLocalData();
                 showSnackbar('账号已彻底注销');
                 setTimeout(function() {
                     location.reload();

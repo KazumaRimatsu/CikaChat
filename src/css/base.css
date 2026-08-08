@@ -61,11 +61,13 @@ body {
     height: 100%;
     overflow: hidden;
     background: var(--md-surface);
-    will-change: transform, opacity;
 }
 
+/* v073 性能优化：will-change 只在页面切换动画期间对当前页生效，
+   避免所有页面常驻 GPU 合成层浪费显存 */
 .page.active {
     display: flex;
+    will-change: opacity;
 }
 
 /* --- 工具类 --- */
