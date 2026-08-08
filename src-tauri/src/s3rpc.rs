@@ -1,4 +1,4 @@
-//! CikaChat S3 业务命令层。
+//! KnockChat S3 业务命令层。
 //! 前端通过 Tauri invoke 调用 `s3rpc_<rpc名>`，参数统一为 `{ params: {...} }`（serde_json::Value），
 //! 返回 `serde_json::Value`（与旧 Supabase RPC 的结构保持一致，前端改动最小）。
 
@@ -113,7 +113,18 @@ fn valid_username(u: &str) -> bool {
         return false;
     }
     !u.chars().any(|c| {
+        // 空白 / 控制字符（C0/C1 与 Unicode Cc）/
+        // 零宽及不可见格式字符（Cf）：U+00AD 软连字符、U+061C 阿拉伯字母数字符号、
+        // U+200B-200F 零宽空格/连接符/分隔符、U+202A-202E 双向文本、U+2060-2064/2066-2069 隐形格式、U+FEFF BOM
         c.is_whitespace()
+            || c.is_control()
+            || matches!(
+                c,
+                '\u{00AD}' | '\u{061C}' | '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{200E}' | '\u{200F}'
+                    | '\u{202A}' | '\u{202B}' | '\u{202C}' | '\u{202D}' | '\u{202E}' | '\u{2060}' | '\u{2061}'
+                    | '\u{2062}' | '\u{2063}' | '\u{2064}' | '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'
+                    | '\u{FEFF}'
+            )
             || matches!(
                 c,
                 '<' | '>' | '&' | '"' | '\'' | '\\' | '/' | '#' | '?' | ':' | '%'
@@ -269,13 +280,13 @@ pub async fn s3rpc_check_username_exists(params: Value) -> Result<Value, String>
 
 async fn do_register(s3: &Arc<S3>, username: &str, password_hash: &str) -> Result<Value, String> {
     if !valid_username(username) {
-        return Ok(json!({ "success": false, "message": "用户名不合法（2-15 个字符）" }));
+        return Ok(json!({ "success": false, "message": "昵称不合法（2-15 个字符）" }));
     }
     if password_hash.len() < 10 {
         return Ok(json!({ "success": false, "message": "密码哈希无效" }));
     }
     if get_user_by_name(s3, username).await?.is_some() {
-        return Ok(json!({ "success": false, "message": "该用户名已被使用" }));
+        return Ok(json!({ "success": false, "message": "该昵称已被使用" }));
     }
     let uid = next_uid(s3).await?;
     save_user(s3, uid, &default_user(username, password_hash, uid)).await?;
@@ -295,10 +306,10 @@ pub async fn s3rpc_register_user(params: Value) -> Result<Value, String> {
 
 async fn do_login(s3: &Arc<S3>, username: &str, password_hash: &str) -> Result<Value, String> {
     let Some(user) = get_user_by_name(s3, username).await? else {
-        return Ok(json!({ "success": false, "message": "用户名或密码错误" }));
+        return Ok(json!({ "success": false, "message": "昵称或密码错误" }));
     };
     if user["password_hash"].as_str().unwrap_or("") != password_hash {
-        return Ok(json!({ "success": false, "message": "用户名或密码错误" }));
+        return Ok(json!({ "success": false, "message": "昵称或密码错误" }));
     }
     if user["banned"].as_bool().unwrap_or(false) {
         return Ok(json!({ "success": true, "banned": true, "message": "您的账户已被封禁，无法登录" }));
@@ -802,6 +813,112 @@ pub async fn s3rpc_upsert_user_profile(params: Value) -> Result<Value, String> {
     Ok(json!({ "success": true }))
 }
 
+/// 昵称（用户名）每日可修改次数上限
+const MAX_USERNAME_RENAMES_PER_DAY: u64 = 5;
+
+/// 修改昵称（用户名）——用户文件 renames 字段记录 {date, count} 实现每日限次；
+/// 主键为 users/<uid>.json，私聊会话 id 基于 uid，改名只需重建 users/by_name/ 反向索引。
+pub async fn s3rpc_update_username(params: Value) -> Result<Value, String> {
+    let s = s3()?;
+    let uid = params["p_uid"].as_u64().unwrap_or(0);
+    let new_name = params["p_new_username"].as_str().unwrap_or("").trim().to_string();
+    if uid == 0 {
+        return err("缺少用户标识");
+    }
+    if new_name.is_empty() || !valid_username(&new_name) {
+        return Ok(json!({ "success": false, "message": "昵称不合法（2-15 个字符，不含特殊字符）" }));
+    }
+    let Some(mut user) = get_user(&s, uid).await? else {
+        return Ok(json!({ "success": false, "message": "用户不存在" }));
+    };
+    let old_name = user["username"].as_str().unwrap_or("").to_string();
+    if old_name == new_name {
+        return Ok(json!({ "success": false, "message": "昵称未变化" }));
+    }
+    // 新昵称不得被其他用户占用
+    if let Some(owner) = uid_by_name(&s, &new_name).await? {
+        if owner != uid {
+            return Ok(json!({ "success": false, "message": "该昵称已被使用" }));
+        }
+    }
+    // 每日修改次数限制
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let mut rename_count: u64 = 0;
+    if let Some(r) = user["renames"].as_object() {
+        if r.get("date").and_then(|v| v.as_str()) == Some(today.as_str()) {
+            rename_count = r.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
+        }
+    }
+    if rename_count >= MAX_USERNAME_RENAMES_PER_DAY {
+        return Ok(json!({ "success": false, "message": "今日昵称修改次数已达上限（每天 5 次）" }));
+    }
+    // 执行改名：更新用户文件 + 重建反向索引
+    user["username"] = json!(new_name);
+    user["renames"] = json!({ "date": today, "count": rename_count + 1 });
+    save_user(&s, uid, &user).await?;
+    if !old_name.is_empty() {
+        let _ = s.delete_object(&user_name_index(&old_name)).await;
+    }
+    json_put(&s, &user_name_index(&new_name), &json!({ "uid": uid })).await?;
+    Ok(json!({
+        "success": true,
+        "username": new_name,
+        "renames_left": MAX_USERNAME_RENAMES_PER_DAY.saturating_sub(rename_count + 1)
+    }))
+}
+
+/// 云端设置单条上限（客户端打包为单个加密 JSON，远小于该值）
+const MAX_CLOUD_SETTINGS_BYTES: usize = 16 * 1024;
+
+/// 读取云端用户设置（cloud_settings 字段）。
+/// 内容由客户端用「密码派生密钥」AES-GCM 加密，服务端只见密文，无法解读。
+/// 需验权：仅登录会话所有者可读取自己的设置。
+pub async fn s3rpc_get_user_settings(params: Value) -> Result<Value, String> {
+    let s = s3()?;
+    let uid = params["p_uid"].as_u64().unwrap_or(0);
+    let token = params["p_token"].as_str().or_else(|| params["p_session_token"].as_str()).unwrap_or("");
+    if uid == 0 {
+        return Ok(json!({ "success": false, "message": "缺少用户标识" }));
+    }
+    if !verify_session(&s, uid, token).await? {
+        return Ok(json!({ "success": false, "message": "请重新登录" }));
+    }
+    let user = get_user(&s, uid).await?.unwrap_or_else(|| json!({}));
+    let cs = user["cloud_settings"].clone();
+    if cs.is_null() {
+        return Ok(json!({ "success": true, "settings": Value::Null }));
+    }
+    Ok(json!({ "success": true, "settings": cs }))
+}
+
+/// 覆盖写入云端用户设置（cloud_settings 字段，整体替换，云端为权威）。
+/// 内容为客户端加密密文，服务端仅做大小与结构校验。
+pub async fn s3rpc_update_user_settings(params: Value) -> Result<Value, String> {
+    let s = s3()?;
+    let uid = params["p_uid"].as_u64().unwrap_or(0);
+    let token = params["p_token"].as_str().or_else(|| params["p_session_token"].as_str()).unwrap_or("");
+    if uid == 0 {
+        return Ok(json!({ "success": false, "message": "缺少用户标识" }));
+    }
+    if !verify_session(&s, uid, token).await? {
+        return Ok(json!({ "success": false, "message": "请重新登录" }));
+    }
+    let settings = &params["p_settings"];
+    if !settings.is_object() {
+        return Ok(json!({ "success": false, "message": "缺少设置数据" }));
+    }
+    let serialized = serde_json::to_string(settings).map_err(|e| format!("设置序列化失败: {}", e))?;
+    if serialized.len() > MAX_CLOUD_SETTINGS_BYTES {
+        return Ok(json!({ "success": false, "message": "设置数据过大" }));
+    }
+    let Some(mut user) = get_user(&s, uid).await? else {
+        return Ok(json!({ "success": false, "message": "用户不存在" }));
+    };
+    user["cloud_settings"] = settings.clone();
+    save_user(&s, uid, &user).await?;
+    Ok(json!({ "success": true, "updated_at": now_iso() }))
+}
+
 pub async fn s3rpc_search_users(params: Value) -> Result<Value, String> {
     let s = s3()?;
     let query = params["p_query"].as_str().unwrap_or("").trim().to_lowercase();
@@ -930,6 +1047,25 @@ fn media_key_of(params: &Value) -> Result<String, String> {
     Ok(key)
 }
 
+/// 媒体上传大小限制（按用途前缀，单位字节）——服务端权威校验，
+/// 即使绕过前端直接调 RPC，超大文件也会在上传前被拦截，防止刷流量/占存储
+fn media_upload_limit(key: &str) -> usize {
+    const MB: usize = 1024 * 1024;
+    // media_key_of 会补 media/ 前缀，这里去掉前缀再按用途判断
+    let k = key.strip_prefix("media/").unwrap_or(key);
+    if k.starts_with("avatars/") {
+        5 * MB // 头像：前端裁剪压缩后通常 100-200KB
+    } else if k.starts_with("background/") {
+        8 * MB // 背景图
+    } else if k.starts_with("chat/") {
+        8 * MB // 公聊图片
+    } else if k.starts_with("public/") || k.starts_with("private/") {
+        32 * MB // 公/私聊文件（含语音）
+    } else {
+        8 * MB // 未知用途保守限制
+    }
+}
+
 pub async fn s3rpc_upload_media(params: Value) -> Result<Value, String> {
     let s = s3()?;
     let key = media_key_of(&params)?;
@@ -939,8 +1075,17 @@ pub async fn s3rpc_upload_media(params: Value) -> Result<Value, String> {
     if bytes.is_empty() {
         return err("文件内容为空");
     }
-    if bytes.len() > 50 * 1024 * 1024 {
-        return err("文件超过 50MB 限制");
+    // 按用途前缀限制大小（服务端强制，前端校验仅作首道防线）
+    let limit = media_upload_limit(&key);
+    if bytes.len() > limit {
+        return Err(format!("文件超过 {}MB 限制", limit / (1024 * 1024)));
+    }
+    // 头像/背景/聊天图片用途仅允许图片类型
+    let k = key.strip_prefix("media/").unwrap_or(&key);
+    if (k.starts_with("avatars/") || k.starts_with("background/") || k.starts_with("chat/"))
+        && !content_type.starts_with("image/")
+    {
+        return err("该用途仅允许上传图片");
     }
     s.put_object(&key, bytes, content_type).await?;
     let url = s.public_url(&key);
@@ -1061,7 +1206,11 @@ pub async fn s3rpc_call(name: String, params: Value) -> Result<Value, String> {
         // ==== 用户资料 ====
         "get_user_profile" => s3rpc_get_user_profile(params).await,
         "update_avatar" => s3rpc_update_avatar(params).await,
+        "update_username" => s3rpc_update_username(params).await,
         "upsert_user_profile" => s3rpc_upsert_user_profile(params).await,
+        // ==== 云设置同步 ====
+        "get_user_settings" => s3rpc_get_user_settings(params).await,
+        "update_user_settings" => s3rpc_update_user_settings(params).await,
         "search_users" => s3rpc_search_users(params).await,
         "toggle_block_user" => s3rpc_toggle_block_user(params).await,
         "get_blocked_users" => s3rpc_get_blocked_users(params).await,

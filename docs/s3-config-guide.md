@@ -1,6 +1,6 @@
-# CikaChat 服务端存储桶配置指南
+# KnockChat 服务端存储桶配置指南
 
-CikaChat 已弃用 Supabase 数据库，改为使用兼容 AWS S3 API的存储桶作为唯一数据后端。
+KnockChat 已弃用 Supabase 数据库，改为使用兼容 AWS S3 API的存储桶作为唯一数据后端。
 全部业务数据（用户、会话、消息、媒体、智能体、云控配置）均存放在**同一个存储桶**中，通过对象 Key 前缀区分。
 
 > 核心约定：**服务端只有一个存储桶**，任何数据都写入这个桶。
@@ -35,11 +35,11 @@ CikaChat 已弃用 Supabase 数据库，改为使用兼容 AWS S3 API的存储�
 
 ## 2. 存储桶目录结构
 
-S3 没有真正的"文件夹"，前缀 `xxx/` 即视为目录。CikaChat 约定如下（应用运行时自动创建，**无需手动建目录**）：
+S3 没有真正的"文件夹"，前缀 `xxx/` 即视为目录。KnockChat 约定如下（应用运行时自动创建，**无需手动建目录**）：
 
 ```
 cikachat（存储桶名，可在雨云控制台自由命名）
-├── users/                    用户资料（用户名 → 密码哈希、邮箱、简介、封禁状态等）
+├── users/                    用户资料（昵称 → 密码哈希、邮箱、简介、封禁状态等；含 cloud_settings 云设置密文）
 │     └── <用户名>.json
 ├── sessions/                 登录会话（会话 Token → 用户名）
 │     └── <token>.json
@@ -52,8 +52,9 @@ cikachat（存储桶名，可在雨云控制台自由命名）
 │     └── messages/           私聊消息
 │           └── <session_id>/<毫秒时间戳十六进制>.json
 ├── media/                    所有媒体文件（图片 / 语音 / 文件 / 头像 / 背景）
-│     ├── public/             公聊附件与语音
+│     ├── public/             公聊文件与语音
 │     ├── private/            私聊附件与语音
+│     ├── chat/               公聊聊天图片
 │     ├── avatars/            用户头像
 │     └── background/         个人主页背景
 ├── agents/                   智能体配置（预留，当前未开放）
@@ -77,9 +78,9 @@ cikachat（存储桶名，可在雨云控制台自由命名）
    - **EndPoint（地域节点）**：形如 `https://cos.ap-shanghai.myqcloud.com`（雨云通常提供兼容 AWS S3 的 Endpoint）
    - **Region**：如 `ap-shanghai`（一般可从 Endpoint 推断）
    - **Bucket 名称**
-3. 创建一组 **AccessKey / SecretKey**（API 密钥），注意 SecretKey 只显示一次，请立即保存。
+   - Access密钥和Secret密钥
 
-> 无需在控制台预建任何"文件夹"。CikaChat 运行时会按前缀自动写入。
+> 无需在控制台预建任何"文件夹"。KnockChat 运行时会按前缀自动写入。
 
 ***
 
@@ -88,8 +89,6 @@ cikachat（存储桶名，可在雨云控制台自由命名）
 Tauri 后端按以下顺序加载配置：
 
 ### 方式一：s3-config.json（推荐，随应用分发）
-
-仓库已随附配置模板 [`src-tauri/s3-config.json`](../src-tauri/s3-config.json)（AccessKey/SecretKey 留空，应用视为"未配置"）。
 
 **首次部署**：直接编辑该模板文件，填入你的 Endpoint / AccessKey / SecretKey 保存即可，无需重编译；
 也可以把模板复制到应用配置目录 `app_config_dir` 再填写（优先级低于运行目录，便于已安装的应用使用）。
@@ -165,17 +164,78 @@ S3 存储桶未配置。请在 src-tauri 目录放置 s3-config.json 或设置 C
 
 ***
 
-## 6. 运维建议
+## 6. 云端用户设置同步（跨设备）
+
+用户设置（通知、屏蔽词、外观主题/字体、AI 模型/翻译设置含 API Key）会加密后同步到云端，实现换设备登录自动恢复。
+
+### 存储位置
+
+- 字段：`users/<uid>.json` 的 `cloud_settings`（可选，缺省为 null）。
+- 内容为**客户端加密密文**：`{version, salt, iterations, updated_at, iv, data}`，其中 `data` 为 AES-GCM 密文（内含 `app` / `blockword` / `ai` 三部分设置）。
+- **服务端只见密文**：加密密钥由「账号级随机盐 + 客户端密码预哈希」PBKDF2（10 万次迭代）派生，S3 侧无法解读，也不参与加解密。
+
+### 相关 RPC（`src-tauri/src/s3rpc.rs`）
+
+| RPC | 参数 | 说明 |
+| --- | --- | --- |
+| `get_user_settings` | `p_uid`、`p_token`（或 `p_session_token`） | 读取本账号 `cloud_settings`，返回 `{success, settings}`；需会话验证 |
+| `update_user_settings` | `p_uid`、`p_token`、`p_settings` | **整体覆盖**写入 `cloud_settings`（云端为权威）；需会话验证；单条 ≤ 16KB |
+
+### 同步策略
+
+- **云端为权威**：登录/会话恢复后客户端拉取云端设置覆盖本地；本地设置变更后防抖（1.2s）推送。
+- 首次使用云同步（云端无数据）时，客户端以当前设备设置为种子上传。
+- 修改密码后旧密文无法解密，客户端以当前设备设置为准重新加密上传（旧密文对新密码不可读，等同丢弃）。
+- 同步范围、加密细节见 `docs/local-storage-guide.md` 第 11 节；实现见 `src/js/cloudsync.js`。
+
+***
+
+## 7. 上传大小与类型限制
+
+为防止刷流量与占用大量存储空间，上传做了**双重限制**：前端本地先校验、通过后才发起上传；后端按用途前缀强制拦截，即使绕过前端直接调 RPC 也无效。
+
+### 后端强制限制（权威校验，见 `src-tauri/src/s3rpc.rs` 的 `media_upload_limit`）
+
+| 用途前缀          | 大小上限 | 类型限制 |
+| ------------- | ---- | ---- |
+| `avatars/`    | 5MB  | 仅图片  |
+| `background/` | 8MB  | 仅图片  |
+| `chat/`       | 8MB  | 仅图片  |
+| `public/`     | 32MB | 不限   |
+| `private/`    | 32MB | 不限   |
+| 其他/未知前缀       | 8MB  | 不限   |
+
+> 服务端在 base64 解码后按对象 Key 前缀判断，超限返回错误、不写桶；`avatars/`、`background/`、`chat/` 用途仅接受 `image/*` 类型。
+
+### 前端限制（本地先校验，通过再上传）
+
+| 上传项                  | 原图/原文件限制       | 最终上传限制（压缩/裁剪后） |
+| -------------------- | -------------- | -------------- |
+| 头像（`avatars/`）       | 5MB            | ≤ 1MB          |
+| 主页背景图（`background/`） | 8MB            | ≤ 3MB          |
+| 公聊图片（`chat/`）        | 8MB            | 压缩后仍 ≤ 8MB     |
+| 公聊文件（`public/`）      | 32MB           | -              |
+| 私聊文件（`private/`）     | 32MB           | -              |
+| 语音                   | 8MB / 最长 120 秒 | 超时自动停止录制       |
+
+- 前端所有入口统一调用 `fileSizeError(fileOrBlob, maxBytes, label)` 校验（`src/js/features.js`），超限直接提示并中止，**不发起任何网络请求**。
+- 头像/背景等会经过压缩、裁剪的图片，上传前会对最终 Blob **二次校验**，防止压缩后仍超限。
+- 语音消息与私聊图片走 `public/` / `private/` 前缀（后端上限 32MB），但前端进一步限定语音 ≤ 8MB、≤ 120 秒，到点自动停止录制。
+- 修改限制时需**同步修改** `src/js/constants.js` 的常量与 `src-tauri/src/s3rpc.rs` 的 `media_upload_limit`。
+
+***
+
+## 8. 运维建议
 
 - **备份**：`users/`、`sessions/`、`private/` 是核心数据，建议在雨云开启版本控制或定期导出。
-- **清理**：`media/` 可能累积大文件，建议按前缀设置生命周期规则（如 `media/private/` 保留 N 天）或手动归档。
+- **清理**：`media/` 可能累积大文件，建议按前缀设置生命周期规则（如 `media/private/`、`media/chat/` 保留 N 天）或手动归档。
 - **监控**：关注雨云控制台的请求量/流量计费，公聊轮询默认每 5\~10 秒一次，量小无压力。
 - **迁移**：旧 Supabase 数据可按本指南的目录结构，把各表导出为 JSON 后按 Key 写入对应前缀即可平滑迁移。
 
 ***
 
-## 7. 单桶约束说明
+## 9. 单桶约束说明
 
 - 应用假设**只有一个存储桶**，所有 Key 都不含桶名，代码中 `bucket` 仅用于寻址。
-- 如你后续在雨云新建了其他桶，业务数据仍只写入配置中的这个桶，其他桶不影响 CikaChat。
+- 如你后续在雨云新建了其他桶，业务数据仍只写入配置中的这个桶，其他桶不影响 KnockChat。
 

@@ -1,4 +1,4 @@
-/* CikaChat 主题系统 v1.1
+/* KnockChat 主题系统 v1.1
  *
  * 模块化主题状态管理，按职责分离：
  *   1) 主题配置（config）：内置主题定义、主题文件校验规则、变量命名空间白名单
@@ -26,7 +26,7 @@
     // ============================================================
     // 常量与白名单
     // ============================================================
-    var STORAGE_KEY = 'cika_theme_store_v1';
+    var STORAGE_KEY = LS_KEYS.THEME_STORE;
     var STYLE_ID = 'cika-custom-theme-style';
     var THEME_TYPE = '#theme#';
     var APP_TAG = 'com.cika.chatapp';

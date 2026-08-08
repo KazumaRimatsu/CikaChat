@@ -1,4 +1,4 @@
-/* CikaChat 其他：通用 UI 工具、导航、菜单、主题、应用初始化 */
+/* KnockChat 其他：通用 UI 工具、导航、菜单、主题、应用初始化 */
 
         let confirmCallback = null;
         function escapeHtml(t) { if (t == null) return ''; const d = document.createElement('div');
@@ -76,23 +76,6 @@
                 return `<div class="voice-msg-wrap" data-audio="${escapeAttr(audioUrl)}" data-dur="${Number(duration) || 0}" onclick="toggleVoicePlay(this, event)"><button class="voice-play-btn">${ICON_PLAY}</button><div class="voice-waves">${buildVoiceWaves()}</div><span class="voice-dur">${durStr}</span></div>`;
             }
             return `<div class="voice-msg-wrap"><span class="voice-dur">${durStr}</span><span style="font-size:0.75rem;color:var(--md-on-surface-variant);margin-left:8px;">${escapeHtml(noUrlText || '请升级到最新版本播放')}</span></div>`;
-        }
-
-        // 提取所有在线用户的用户名（onlineUsers 兼容数组/对象两种取值形态）
-        function getOnlineUsernames() {
-            const names = [];
-            const vals = Object.values(onlineUsers);
-            for (let i = 0; i < vals.length; i++) {
-                const v = vals[i];
-                if (Array.isArray(v)) {
-                    for (let j = 0; j < v.length; j++) {
-                        if (v[j] && v[j].name) names.push(v[j].name);
-                    }
-                } else if (v && v.name) {
-                    names.push(v.name);
-                }
-            }
-            return names;
         }
 
         // 填充用户头像元素：有 URL 用背景图，否则显示首字母
@@ -409,7 +392,7 @@
                 pushPageHistory('search');
                 switchPage('searchPage', true);
                 document.getElementById('searchInput').value = '';
-                document.getElementById('searchResults').innerHTML = '<div class="empty">输入用户名开始搜索</div>';
+                document.getElementById('searchResults').innerHTML = '<div class="empty">输入昵称开始搜索</div>';
             } else if (page === 'settings') {
                 pushPageHistory('settings');
                 switchPage('settingsPage', true);
@@ -535,7 +518,7 @@
             avatar.className = 'user-avatar av-' + idx;
             fillUserAvatar(avatar, currentUser, currentAvatarUrl);
             name.textContent = currentUser;
-            // Current user is always online (they are logged in); green dot unless banned.
+            // 头像圆点仅反映账号状态（封禁/注销）；在线状态已随 Realtime 移除
             applyCurrentUserStatus(dot, avatar);
         }
 
@@ -562,7 +545,7 @@
             avatar.className = 'user-avatar av-' + idx;
             fillUserAvatar(avatar, currentUser, currentAvatarUrl);
             name.textContent = currentUser;
-            // Current user is always online (they are logged in); green dot unless banned.
+            // 头像圆点仅反映账号状态（封禁/注销）；在线状态已随 Realtime 移除
             applyCurrentUserStatus(dot, avatar);
             refreshNotifySettingsUI();
             // v053: 更新群聊免打扰标签
@@ -596,9 +579,7 @@
             fillUserAvatar(avatar, privateOtherUser, userAvatarCache[privateOtherUser]);
             name.textContent = privateOtherUser;
             const labelEl = document.getElementById('privateBlockLabel');
-            // Reflect the other user's status on the avatar dot (green=online,
-            // grey=banned/deleted, none=offline). Reuses the same logic as the
-            // private chat status text.
+            // 头像圆点仅反映账号状态（封禁/注销），与私聊头部状态逻辑一致
             resolveUserStatus(privateOtherUser).then(status => setAvatarStatusDot(dot, avatar, status));
             try {
                 const { data: rpcData, error: rpcError } = await s3.rpc('check_blocked', {
@@ -632,8 +613,6 @@
             const name = document.getElementById('profileDialogUsername');
             const role = document.getElementById('profileDialogRole');
             const status = document.getElementById('profileDialogStatus');
-            const onlineStatus = document.getElementById('profileDialogOnline');
-            const onlineItem = document.getElementById('profileDialogOnlineItem');
             const idx = hashStr(currentUser) % 8;
             avatar.className = 'profile-avatar av-' + idx;
             fillUserAvatar(avatar, currentUser, currentAvatarUrl);
@@ -649,10 +628,6 @@
                 } catch (e) { /* ignore */ }
                 status.textContent = '正常';
             })();
-            const onlineUsernames = getOnlineUsernames();
-            const isOnline = onlineUsernames.includes(currentUser);
-            onlineStatus.textContent = isOnline ? '在线' : '离线';
-            onlineItem.style.display = 'flex';
             document.getElementById('profileDialog').classList.remove('hidden');
         }
 
@@ -1204,7 +1179,7 @@
             // Only show it for returning users who need session verification
             var savedSession = null;
             try {
-                savedSession = localStorage.getItem('mjchat_session');
+                savedSession = localStorage.getItem(LS_KEYS.SESSION);
             } catch (e) { /* ignore */ }
 
             if (savedSession) {
@@ -1215,7 +1190,7 @@
                     var loadingEl = document.getElementById('globalLoading');
                     if (loadingEl && loadingEl.classList.contains('hidden')) return;
                     console.warn('Session verification timeout, showing login');
-                    try { localStorage.removeItem('mjchat_session'); } catch (e) {}
+                    try { localStorage.removeItem(LS_KEYS.SESSION); } catch (e) {}
                     hideGlobalLoading();
                     showLogin();
                 }, 10000);
@@ -1229,7 +1204,7 @@
         }
 
         function restoreSession(timeoutId) {
-            const saved = localStorage.getItem('mjchat_session');
+            const saved = localStorage.getItem(LS_KEYS.SESSION);
             if (!saved) {
                 if (timeoutId) clearTimeout(timeoutId);
                 hideGlobalLoading();
@@ -1240,7 +1215,7 @@
             try {
                 const session = JSON.parse(saved);
                 if (!session.username || !session.token) {
-                    localStorage.removeItem('mjchat_session');
+                    localStorage.removeItem(LS_KEYS.SESSION);
                     if (timeoutId) clearTimeout(timeoutId);
                     hideGlobalLoading();
                     showLogin();
@@ -1266,7 +1241,7 @@
                     try { userData = await verifyWithSecure(); } catch (e) { /* ignore */ }
                     if (!userData) {
                         try { userData = await verifyWithLegacy(); } catch (e) {
-                            localStorage.removeItem('mjchat_session');
+                            localStorage.removeItem(LS_KEYS.SESSION);
                             if (timeoutId) clearTimeout(timeoutId);
                             hideGlobalLoading();
                             showLogin();
@@ -1276,7 +1251,7 @@
                     if (timeoutId) clearTimeout(timeoutId);
                     if (isEntered) return;
                     if (userData.banned) {
-                        localStorage.removeItem('mjchat_session');
+                        localStorage.removeItem(LS_KEYS.SESSION);
                         hideGlobalLoading();
                         showLogin();
                         showEl('loginError', '您已被封禁');
@@ -1316,13 +1291,13 @@
                         }, 2000);
                     }
                 })().catch(() => {
-                    localStorage.removeItem('mjchat_session');
+                    localStorage.removeItem(LS_KEYS.SESSION);
                     if (timeoutId) clearTimeout(timeoutId);
                     hideGlobalLoading();
                     showLogin();
                 });
             } catch (e) {
-                localStorage.removeItem('mjchat_session');
+                localStorage.removeItem(LS_KEYS.SESSION);
                 if (timeoutId) clearTimeout(timeoutId);
                 hideGlobalLoading();
                 showLogin();

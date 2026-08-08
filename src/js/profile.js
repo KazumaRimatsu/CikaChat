@@ -1,4 +1,4 @@
-/* CikaChat 用户资料模块：用户详情页 / 编辑资料页 / 图片裁剪编辑器（移植自 MJChat v69） */
+/* KnockChat 用户资料模块：用户详情页 / 编辑资料页 / 图片裁剪编辑器（移植自 MJChat v69） */
 
         // ============ 状态与本地缓存 ============
         let _udTargetUser = null;
@@ -7,9 +7,9 @@
         let _udProfileData = null;
         let _udUserData = null;
 
-        const _AVATAR_LS_PREFIX = 'mjchat_avatar_';
+        const _AVATAR_LS_PREFIX = LS_KEYS.AVATAR_PREFIX;
         const _AVATAR_CACHE_MAX = 200;        // v073：头像缓存条目上限，超出按写入顺序淘汰最旧
-        const _AVATAR_INDEX_KEY = 'mjchat_avatar_index';
+        const _AVATAR_INDEX_KEY = LS_KEYS.AVATAR_INDEX;
 
         function _avatarIndex() {
             try {
@@ -59,7 +59,7 @@
         }
 
         // v073：背景缓存 TTL（30 天），避免他人更换背景后本地长期显示陈旧 URL
-        const _BG_CACHE_PREFIX = 'mjchat_ud_bg_';
+        const _BG_CACHE_PREFIX = LS_KEYS.BG_PREFIX;
         const _BG_CACHE_TTL = 30 * 24 * 3600 * 1000;
         function _bgCacheKey(user) { return _BG_CACHE_PREFIX + user; }
         function _getBgCache(user) {
@@ -141,7 +141,6 @@
             const avatarEl = document.getElementById('udAvatar');
             const nameEl = document.getElementById('udUsername');
             const statusEl = document.getElementById('udStatusText');
-            const statusDot = document.getElementById('udAvatarStatus');
             const bgEl = document.getElementById('udBg');
             const infoList = document.getElementById('udInfoList');
             const editBtn = document.getElementById('udEditBtn');
@@ -154,7 +153,6 @@
             avatarEl.textContent = '';
             nameEl.textContent = _udTargetUser;
             statusEl.textContent = '';
-            statusDot.className = 'ud-avatar-status offline';
             // Info list 加载动画
             infoList.innerHTML = '<div style="text-align:center;padding:40px;"><div class="md-circular-loader" style="width:32px;height:32px;margin:0 auto;"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"/></svg></div></div>';
             editBtn.style.display = _udTargetIsSelf ? 'flex' : 'none';
@@ -245,22 +243,19 @@
 
                 nameEl.textContent = _udTargetUser;
 
-                const isOnline = getOnlineUsernames().includes(_udTargetUser) || _udTargetIsSelf;
-                statusDot.className = 'ud-avatar-status ' + (isOnline ? 'online' : 'offline');
                 const banned = !!profileData.banned;
                 if (banned) {
                     statusEl.textContent = '已封禁';
                     statusEl.style.color = 'var(--md-error)';
                 } else {
-                    statusEl.textContent = isOnline ? '在线' : '离线';
+                    statusEl.textContent = '正常';
                     statusEl.style.color = '';
                 }
 
                 const email = profileData.email || '';
                 const birthday = profileData.birthday || '';
                 const bio = profileData.bio || '';
-                const tags = profileData.tags || '';
-                _udProfileData = { email: email, birthday: birthday, bio: bio, tags: tags };
+                _udProfileData = { email: email, birthday: birthday, bio: bio };
 
                 const items = [];
                 items.push({
@@ -287,12 +282,6 @@
                     value: bio || '未设置',
                     label: '个人简介',
                     isEmpty: !bio
-                });
-                items.push({
-                    icon: '<path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>',
-                    value: tags || '未设置',
-                    label: '标签',
-                    isEmpty: !tags
                 });
 
                 let html = '';
@@ -336,7 +325,6 @@
             const epEmail = document.getElementById('epEmail');
             const epBirthday = document.getElementById('epBirthday');
             const epBio = document.getElementById('epBio');
-            const epTags = document.getElementById('epTags');
 
             _epAvatarFile = null;
             _epBgFile = null;
@@ -347,7 +335,8 @@
             epEmail.value = '';
             epBirthday.value = '';
             epBio.value = '';
-            epTags.value = '';
+            // 昵称输入时即时清除错误提示
+            epUsername.oninput = clearEpUsernameError;
 
             // 生日选择器：上限为今天，禁止选择未来日期
             const _today = new Date();
@@ -392,7 +381,6 @@
                         epEmail.value = rpcData.email || '';
                         epBirthday.value = normalizeDateToISO(rpcData.birthday) || '';
                         epBio.value = rpcData.bio || '';
-                        epTags.value = rpcData.tags || '';
                         const rpcBgUrl = rpcData.bg_url || '';
                         if (rpcBgUrl && rpcBgUrl !== _epExistingBgUrl) {
                             _epExistingBgUrl = rpcBgUrl;
@@ -408,7 +396,8 @@
             const file = e.target.files && e.target.files[0];
             if (!file) return;
             if (!file.type.startsWith('image/')) { showSnackbar('请选择图片'); return; }
-            if (file.size > 10 * 1024 * 1024) { showSnackbar('图片不能超过10MB'); return; }
+            const sizeErr = fileSizeError(file, MAX_AVATAR_SIZE, '图片');
+            if (sizeErr) { showSnackbar(sizeErr); return; }
             const reader = new FileReader();
             reader.onload = function(ev) {
                 openImageEditor(ev.target.result, '1-1', function(blob) {
@@ -429,7 +418,8 @@
             const file = e.target.files && e.target.files[0];
             if (!file) return;
             if (!file.type.startsWith('image/')) { showSnackbar('请选择图片'); return; }
-            if (file.size > 10 * 1024 * 1024) { showSnackbar('图片不能超过10MB'); return; }
+            const sizeErr = fileSizeError(file, MAX_BG_SIZE, '图片');
+            if (sizeErr) { showSnackbar(sizeErr); return; }
             const reader = new FileReader();
             reader.onload = function(ev) {
                 openImageEditor(ev.target.result, '16-9', function(blob) {
@@ -476,12 +466,31 @@
             if (err) { err.textContent = ''; err.classList.remove('show'); }
         }
 
+        function showEpUsernameError(msg) {
+            const err = document.getElementById('epUsernameError');
+            if (err) { err.textContent = msg; err.classList.add('show'); }
+        }
+
+        function clearEpUsernameError() {
+            const err = document.getElementById('epUsernameError');
+            if (err) { err.textContent = ''; err.classList.remove('show'); }
+        }
+
         async function saveEditProfile() {
             const btn = document.getElementById('epSaveBtn');
+            const newName = document.getElementById('epUsername').value.trim();
             const email = document.getElementById('epEmail').value.trim();
             const birthday = document.getElementById('epBirthday').value.trim();
             const bio = document.getElementById('epBio').value.trim();
-            const tags = document.getElementById('epTags').value.trim();
+
+            // 昵称校验：与注册一致（isSafeUsername 白名单），仅改动时才校验
+            clearEpUsernameError();
+            if (newName !== currentUser) {
+                if (!newName) { showEpUsernameError('请输入昵称'); showSnackbar('请输入昵称'); return; }
+                if (newName.length < 2 || newName.length > 15) { showEpUsernameError('昵称需 2-15 个字符'); showSnackbar('昵称需 2-15 个字符'); return; }
+                if (HIDDEN_UNICODE_RE.test(newName)) { showEpUsernameError('昵称不能包含零宽或控制字符'); showSnackbar('昵称不能包含零宽或控制字符'); return; }
+                if (!isSafeUsername(newName)) { showEpUsernameError('昵称包含不安全字符'); showSnackbar('昵称包含不安全字符'); return; }
+            }
 
             // 邮箱校验：非空必须为合法邮箱
             clearEpEmailError();
@@ -507,8 +516,22 @@
                 let newAvatarUrl = _epExistingAvatarUrl;
                 let newBgUrl = _epExistingBgUrl;
 
-                // 头像有改动才上传（已在裁剪器压缩为 512x512）
+                // 昵称有改动先改昵称（最易受每日 5 次限制影响，失败则中止后续保存）
+                let renameDone = false;
+                const oldName = currentUser;
+                if (newName !== currentUser) {
+                    const { data: unData, error: unErr } = await s3.rpc('update_username', { p_uid: currentUid, p_new_username: newName });
+                    if (unErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('修改昵称失败: ' + unErr.message); return; }
+                    if (unData && unData.success === false) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar(unData.message || '修改昵称失败'); return; }
+                    renameDone = true;
+                    migrateLocalIdentity(oldName, newName);
+                    showSnackbar('昵称已修改' + (unData && unData.renames_left != null ? '，今日剩余 ' + unData.renames_left + ' 次' : ''));
+                }
+
+                // 头像有改动才上传（已在裁剪器压缩为 512x512）；裁剪后最终 blob 二次校验
                 if (_epAvatarFile) {
+                    const avErr = fileSizeError(_epAvatarFile, MAX_AVATAR_FINAL_SIZE, '头像');
+                    if (avErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar(avErr); return; }
                     const avPath = 'avatars/' + hashStr(currentUser) + '-' + Date.now() + '.jpg';
                     const uploadedAvatarUrl = await uploadToBucket(avPath, _epAvatarFile, 'image/jpeg');
                     if (!uploadedAvatarUrl) { if (overlay) overlay.remove(); btn.disabled = false; return; }
@@ -524,23 +547,15 @@
                     // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
                 }
 
-                // 背景有改动才上传（已在裁剪器压缩为 1920x1080）
+                // 背景有改动才上传（已在裁剪器压缩为 1920x1080）；裁剪后最终 blob 二次校验
                 if (_epBgFile) {
-<<<<<<< HEAD
+                    const bgErr = fileSizeError(_epBgFile, MAX_BG_FINAL_SIZE, '背景图');
+                    if (bgErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar(bgErr); return; }
                     const bgPath = 'background/' + currentUser + '_' + Date.now() + '.jpg';
                     const uploadedBgUrl = await uploadToBucket(bgPath, _epBgFile, 'image/jpeg');
                     if (!uploadedBgUrl) { if (overlay) overlay.remove(); btn.disabled = false; return; }
                     newBgUrl = uploadedBgUrl;
-                    try { localStorage.setItem('mjchat_ud_bg_' + currentUser, newBgUrl); } catch (ex) { }
-=======
-                    // v073: 背景路径改用哈希（与头像一致），防止用户名含特殊字符时路径穿越
-                    const bgPath = 'Public/background/' + hashStr(currentUser) + '_' + Date.now() + '.jpg';
-                    const { error: bgErr } = await sb.storage.from(STORAGE_BUCKET).upload(bgPath, _epBgFile, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
-                    if (bgErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('背景上传失败: ' + bgErr.message); return; }
-                    const { data: bgUrl } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(bgPath);
-                    newBgUrl = bgUrl.publicUrl;
-                    _setBgCache(currentUser, newBgUrl);
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
+                    try { localStorage.setItem(LS_KEYS.BG_PREFIX + currentUser, newBgUrl); } catch (ex) { }
                 }
 
                 // 保存资料（含背景）
@@ -549,7 +564,6 @@
                     p_email: email,
                     p_birthday: birthdayISO,
                     p_bio: bio,
-                    p_tags: tags,
                     p_bg_url: newBgUrl || ''
                 });
                 if (saveErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('保存失败: ' + saveErr.message); return; }
@@ -557,12 +571,64 @@
 
                 if (overlay) overlay.remove();
                 navigateBack();
-                setTimeout(function() { loadUserDetailPage(); }, 100);
+                setTimeout(function() {
+                    loadUserDetailPage();
+                    // 昵称已变更：刷新侧边栏/主页菜单等展示昵称的位置
+                    if (renameDone) {
+                        if (typeof loadPrivateSessions === 'function') loadPrivateSessions();
+                        if (typeof updateHomeMenu === 'function') updateHomeMenu();
+                        if (typeof updatePublicMenu === 'function') updatePublicMenu();
+                        if (typeof updatePublicEntry === 'function') updatePublicEntry();
+                    }
+                }, 100);
             } catch (e) {
                 if (overlay) overlay.remove();
                 showSnackbar('保存失败: ' + (e.message || ''));
             }
             btn.disabled = false;
+        }
+
+        // 改名成功后迁移本地身份相关缓存（头像/设置/背景/会话），保证下次启动不丢
+        function migrateLocalIdentity(oldName, newName) {
+            const avatarUrl = currentAvatarUrl || userAvatarCache[oldName] || '';
+            if (avatarUrl) {
+                userAvatarCache[newName] = avatarUrl;
+                _lsSetAvatar(newName, avatarUrl);
+            }
+            delete userAvatarCache[oldName];
+            try {
+                const key = _AVATAR_LS_PREFIX + encodeURIComponent(oldName);
+                localStorage.removeItem(key);
+            } catch (e) {}
+            // 本地加密设置 key 迁移（mjchat_user_configs + keymeta）
+            try {
+                const configs = loadAllUserConfigs();
+                if (configs[oldName]) {
+                    configs[newName] = configs[oldName];
+                    delete configs[oldName];
+                    saveAllUserConfigs(configs);
+                }
+            } catch (e) {}
+            try {
+                const km = localStorage.getItem(LS_KEYS.KEYMETA_PREFIX + oldName);
+                if (km) { localStorage.setItem(LS_KEYS.KEYMETA_PREFIX + newName, km); localStorage.removeItem(LS_KEYS.KEYMETA_PREFIX + oldName); }
+            } catch (e) {}
+            // 背景缓存迁移
+            try {
+                const bg = _getBgCache(oldName);
+                if (bg) _setBgCache(newName, bg);
+                localStorage.removeItem(_bgCacheKey(oldName));
+            } catch (e) {}
+            // 登录会话记录（mjchat_session 的 username）
+            try {
+                const sess = JSON.parse(localStorage.getItem(LS_KEYS.SESSION) || '{}');
+                sess.username = newName;
+                localStorage.setItem(LS_KEYS.SESSION, JSON.stringify(sess));
+            } catch (e) {}
+            // 全局身份
+            currentUser = newName;
+            // 详情页目标同步为新名，避免改名后按旧名索引查不到用户
+            if (_udTargetUser === oldName) _udTargetUser = newName;
         }
 
         // ============ 图片裁剪编辑器 ============

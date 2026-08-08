@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>CikaChat</title>
-<<<<<<< HEAD
-=======
+    <title>KnockChat 敲敲</title>
     <!-- v073: supabase-js 锁定精确版本并加 SRI 完整性校验（防 CDN 投毒/浮动版本漂移） -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js" integrity="sha384-B2duOBIryCXbX4eDE4BdJwtNkQMRQde3o6IsjfPW28E6aH1CYE96hHeZRG3zY56O" crossorigin="anonymous">
     </script>
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
     <script>
         /* === Global Control Flag === */
         var IS_DEV = true;
@@ -183,8 +180,7 @@
             <div class="chat-sidebar">
             <div class="page home-page active" id="homePage">
                 <div class="app-bar">
-                    <div class="title-block"><span class="title">CikaChat</span></div>
-                    <div class="online-indicator" id="onlineIndicator" onclick="showOnlineList()"><span class="dot"></span><span id="onlineCount">0</span></div>
+                    <div class="title-block"><span class="title">敲敲</span></div>
                     <button class="icon-button" id="homeMenuBtn" onclick="toggleHomeMenu()" title="菜单">
                         <svg viewBox="0 0 24 24"><use href="#icon-menu" xlink:href="#icon-menu"/></svg>
                     </button>
@@ -355,8 +351,8 @@
                         <span class="title">搜索用户</span>
                     </div>
                 </div>
-                <div class="search-box"><input type="text" id="searchInput" placeholder="输入用户名搜索..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value)"></div>
-                <div class="search-results" id="searchResults"><div class="empty">输入用户名开始搜索</div></div>
+                <div class="search-box"><input type="text" id="searchInput" placeholder="输入昵称搜索..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value)"></div>
+                <div class="search-results" id="searchResults"><div class="empty">输入昵称开始搜索</div></div>
             </div>
 
             <div class="page settings-page" id="settingsPage">
@@ -468,9 +464,9 @@
                 </div>
                 <div class="about-scroll">
                     <div class="about-logo">
-                        <img src="assets/logo.png" alt="CikaChat" style="width:96px;height:96px;">
+                        <img src="assets/logo.png" alt="KnockChat" style="width:96px;height:96px;">
                     </div>
-                    <div class="about-name">CikaChat</div>
+                    <div class="about-name">KnockChat 敲敲</div>
                     <div class="about-version" id="aboutVersion">版本 v57</div>
                     <div class="about-mjchat-version" id="aboutMjchatVersion">MJChat内核版本 v57</div>
                     <div class="about-github">Github:<a href="https://github.com/KazumaRimatsu/CikaChat" target="_blank" rel="noopener noreferrer">KazumaRimatsu/CikaChat</a></div>
@@ -489,12 +485,11 @@
                 <div class="ud-profile-section">
                     <div class="ud-avatar-wrap">
                         <div class="ud-avatar" id="udAvatar">U</div>
-                        <div class="ud-avatar-status offline" id="udAvatarStatus"></div>
                     </div>
                 </div>
                 <div class="ud-name-section">
                     <div class="ud-username" id="udUsername">-</div>
-                    <div class="ud-status-text" id="udStatusText">离线</div>
+                    <div class="ud-status-text" id="udStatusText">正常</div>
                 </div>
                 <div class="ud-divider"></div>
                 <div class="ud-info-list" id="udInfoList">
@@ -527,8 +522,9 @@
                     </div>
                     <div class="ep-form-card">
                         <div class="ep-form-item">
-                            <span class="ep-form-label">用户名</span>
-                            <input class="ep-form-input" id="epUsername" type="text" disabled>
+                            <span class="ep-form-label">昵称</span>
+                            <input class="ep-form-input" id="epUsername" type="text" maxlength="15">
+                            <div class="ep-form-error" id="epUsernameError"></div>
                         </div>
                         <div class="ep-form-item" id="epEmailItem">
                             <span class="ep-form-label">邮箱</span>
@@ -542,10 +538,6 @@
                         <div class="ep-form-item">
                             <span class="ep-form-label">个人简介</span>
                             <textarea class="ep-form-textarea" id="epBio" placeholder="未设置"></textarea>
-                        </div>
-                        <div class="ep-form-item">
-                            <span class="ep-form-label">标签</span>
-                            <input class="ep-form-input" id="epTags" type="text" placeholder="未设置">
                         </div>
                     </div>
                     <div class="ep-save-bar">
@@ -592,7 +584,7 @@
                     <div class="auth-logo">
                         <svg viewBox="0 0 24 24"><use href="#icon-chat" xlink:href="#icon-chat"/></svg>
                     </div>
-                    <div class="auth-brand">CikaChat</div>
+                    <div class="auth-brand">敲敲</div>
                 </div>
                 <!-- v040: 快速登录区域（一键登录——对齐新版 MJChat） -->
                 <div class="quick-login-area hidden" id="quickLoginInfo">
@@ -603,7 +595,7 @@
                 </div>
                 <div class="auth-form" id="loginNormalForm">
                     <div class="auth-error" id="loginError"></div>
-                    <div class="wc-input"><input type="text" id="loginUsername" placeholder="用户名" onkeypress="if(event.key==='Enter')doLogin()"></div>
+                    <div class="wc-input"><input type="text" id="loginUsername" placeholder="昵称" onkeypress="if(event.key==='Enter')doLogin()"></div>
                     <div class="wc-input"><input type="password" id="loginPassword" placeholder="密码" onkeypress="if(event.key==='Enter')doLogin()"></div>
                     <button class="wc-btn" onclick="doLogin()">登录</button>
                 </div>
@@ -614,12 +606,12 @@
                     <div class="auth-logo">
                         <svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-1V8H4v3H1v2h3v3h2v-3h3v-2H6zm9 3c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg>
                     </div>
-                    <div class="auth-brand">CikaChat</div>
+                    <div class="auth-brand">敲敲</div>
                 </div>
                 <div class="auth-form">
                     <div class="auth-error" id="regError"></div>
                     <div class="auth-success" id="regSuccess"></div>
-                    <div class="wc-input"><input type="text" id="regUsername" placeholder="用户名（≤15字符）" maxlength="15"></div>
+                    <div class="wc-input"><input type="text" id="regUsername" placeholder="昵称（≤15字符）" maxlength="15"></div>
                     <div class="wc-input"><input type="password" id="regPassword" placeholder="密码"></div>
                     <div class="wc-input"><input type="password" id="regPassword2" placeholder="确认密码"></div>
                     <button class="wc-btn" onclick="doRegister()">注册</button>
@@ -629,22 +621,14 @@
         </div>
 
 
-        <div class="dialog-overlay hidden online-list-modal" id="onlineListModal" onclick="if(event.target===this)closeOnlineList()">
-            <div class="md-dialog">
-                <div class="dialog-header"><h2>在线用户</h2><button onclick="closeOnlineList()" class="theme-dialog-close">✕</button></div>
-                <div class="online-list" id="onlineListContainer"></div>
-            </div>
-        </div>
-
         <div class="dialog-overlay hidden profile-dialog" id="profileDialog" onclick="if(event.target===this)closeProfileDialog()">
             <div class="md-dialog">
                 <div class="dialog-header"><h2>账号信息</h2><button onclick="closeProfileDialog()" class="theme-dialog-close">✕</button></div>
-                <div class="profile-avatar" id="profileDialogAvatar" onclick="showAvatarMenu()">U</div>
+                <div class="profile-avatar" id="profileDialogAvatar">U</div>
                 <div class="profile-info">
-                    <div class="item"><span class="label">用户名</span><span class="value" id="profileDialogUsername">-</span></div>
+                    <div class="item"><span class="label">昵称</span><span class="value" id="profileDialogUsername">-</span></div>
                     <div class="item"><span class="label">身份</span><span class="value" id="profileDialogRole">-</span></div>
                     <div class="item"><span class="label">状态</span><span class="value" id="profileDialogStatus">-</span></div>
-                    <div class="item" id="profileDialogOnlineItem"><span class="label">在线状态</span><span class="value" id="profileDialogOnline">-</span></div>
                 </div>
                 <div class="action-buttons">
                     <button class="md-button primary" onclick="closeProfileDialog();showChangePasswordDialog();">更改密码</button>
@@ -665,21 +649,13 @@
             </div>
         </div>
 
-        <div class="avatar-menu hidden" id="avatarMenu">
-            <div class="menu-item" onclick="setDefaultAvatar()"><svg viewBox="0 0 24 24"><use href="#icon-user" xlink:href="#icon-user"/></svg>默认头像（随机颜色）</div>
-            <div class="menu-item" onclick="uploadAvatarFromMenu()"><svg viewBox="0 0 24 24"><use href="#icon-image" xlink:href="#icon-image"/></svg>从相册上传</div>
-            <div class="cancel-btn" onclick="closeAvatarMenu()">取消</div>
-        </div>
-
         <div class="dialog-overlay hidden profile-modal" id="userProfileModal" onclick="if(event.target===this)closeUserProfile()">
             <div class="md-dialog">
                 <div class="dialog-header"><h2>用户信息</h2><button onclick="closeUserProfile()" class="theme-dialog-close">✕</button></div>
                 <div class="profile-avatar" id="userProfileAvatar">U</div>
                 <div class="profile-info">
-                    <div class="item"><span class="label">用户名</span><span class="value" id="userProfileUsername">-</span></div>
-                    <div class="item"><span class="label">身份</span><span class="value" id="userProfileRole">-</span></div>
+                    <div class="item"><span class="label">昵称</span><span class="value" id="userProfileUsername">-</span></div>
                     <div class="item"><span class="label">用户状态</span><span class="value" id="userProfileStatus">-</span></div>
-                    <div class="item" id="userProfileOnlineItem"><span class="label">在线状态</span><span class="value" id="userProfileOnline">-</span></div>
                 </div>
                 <button class="md-button primary" id="userProfileViewBtn" onclick="openUserDetailFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;text-align:left;border-bottom:1px solid var(--md-outline);">查看资料</button>
                 <button class="md-button primary" id="userProfileChatBtn" onclick="startPrivateChatFromProfile()" style="width:100%;padding:14px 16px;border:none;border-radius:0;font-weight:400;cursor:pointer;background:transparent;color:var(--md-primary);font-size:0.9375rem;margin-top:8px;text-align:left;border-bottom:1px solid var(--md-outline);">发起私聊</button>
@@ -988,6 +964,8 @@
     <script src="js/fonts.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/s3.js"></script>
+    <!-- 云端设置同步：登录后拉取云端设置、本地设置变更防抖推送 -->
+    <script src="js/cloudsync.js"></script>
     <script src="js/api.js"></script>
     <script src="js/stpwords-data.js"></script>
     <!-- 图片字节缓存：供 chat.js / profile.js / fview.js 使用 -->

@@ -1,11 +1,7 @@
 {
   "name": "cikachat-tauri",
   "private": true,
-<<<<<<< HEAD
-  "version": "1.0.0",
-=======
   "version": "26.8.703",
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
   "type": "module",
   "scripts": {
     "tauri": "tauri"

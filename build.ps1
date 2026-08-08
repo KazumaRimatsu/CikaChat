@@ -1,7 +1,7 @@
-# CikaChat Tauri Build Script
-# ÓÃ·¨: .\build.ps1 [-OutputDir <Êä³öÄ¿Â¼>]
-# Ê¾Àý: .\build.ps1 -OutputDir "E:\Release"
-#       .\build.ps1                       # Ä¬ÈÏÊä³öµ½ .\dist
+# KnockChat Tauri Build Script
+# ï¿½Ã·ï¿½: .\build.ps1 [-OutputDir <ï¿½ï¿½ï¿½Ä¿Â¼>]
+# Ê¾ï¿½ï¿½: .\build.ps1 -OutputDir "E:\Release"
+#       .\build.ps1                       # Ä¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ .\dist
 
 param(
     [string]$OutputDir = (Join-Path $PSScriptRoot "dist")
@@ -9,79 +9,79 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ¶ÁÈ¡²úÆ·Ãû³Æ
+# ï¿½ï¿½È¡ï¿½ï¿½Æ·ï¿½ï¿½ï¿½ï¿½
 $configPath = Join-Path $PSScriptRoot "src-tauri\tauri.conf.json"
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 $productName = $config.productName
 
 Write-Host "==============================" -ForegroundColor Cyan
-Write-Host "  CikaChat Tauri Build Script" -ForegroundColor Cyan
+Write-Host "  KnockChat Tauri Build Script" -ForegroundColor Cyan
 Write-Host "==============================" -ForegroundColor Cyan
-Write-Host "²úÆ·Ãû³Æ: $productName"
-Write-Host "Êä³öÄ¿Â¼: $OutputDir"
+Write-Host "ï¿½ï¿½Æ·ï¿½ï¿½ï¿½ï¿½: $productName"
+Write-Host "ï¿½ï¿½ï¿½Ä¿Â¼: $OutputDir"
 Write-Host "==============================" -ForegroundColor Cyan
 
-# ´´½¨Êä³öÄ¿Â¼
+# ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
-    Write-Host "ÒÑ´´½¨Êä³öÄ¿Â¼: $OutputDir" -ForegroundColor Green
+    Write-Host "ï¿½Ñ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼: $OutputDir" -ForegroundColor Green
 }
 
-# Ê±¼ä´Á£¬ÓÃÓÚÇåÀí¾ÉÎÄ¼þ
+# Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $buildDir = Join-Path $OutputDir $timestamp
 
-Write-Host "`n¿ªÊ¼±àÒë..." -ForegroundColor Yellow
+Write-Host "`nï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½..." -ForegroundColor Yellow
 
-# ÉèÖÃ TAURI_OUTPUT_DIR »·¾³±äÁ¿²¢Ö´ÐÐ¹¹½¨
+# ï¿½ï¿½ï¿½ï¿½ TAURI_OUTPUT_DIR ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¹ï¿½ï¿½ï¿½
 $env:TAURI_OUTPUT_DIR = $OutputDir
 
 Push-Location $PSScriptRoot
 try {
     npm run tauri build
     if ($LASTEXITCODE -ne 0) {
-        throw "Tauri ¹¹½¨Ê§°Ü£¬ÍË³öÂë: $LASTEXITCODE"
+        throw "Tauri ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½Ë³ï¿½ï¿½ï¿½: $LASTEXITCODE"
     }
-    Write-Host "`n±àÒëÍê³É!" -ForegroundColor Green
+    Write-Host "`nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½!" -ForegroundColor Green
 }
 finally {
     Pop-Location
     $env:TAURI_OUTPUT_DIR = $null
 }
 
-# ÊÕ¼¯¹¹½¨²úÎïµ½´øÊ±¼ä´ÁµÄ×ÓÄ¿Â¼
+# ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ïµ½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼
 New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 
 $sourceBundle = Join-Path $PSScriptRoot "src-tauri\target\release\bundle"
 
 if (Test-Path $sourceBundle) {
-    # msi °²×°°ü
+    # msi ï¿½ï¿½×°ï¿½ï¿½
     $msiDir = Join-Path $sourceBundle "msi"
     if (Test-Path $msiDir) {
         Copy-Item "$msiDir\*.msi" $buildDir -ErrorAction SilentlyContinue
     }
 
-    # nsis °²×°°ü
+    # nsis ï¿½ï¿½×°ï¿½ï¿½
     $nsisDir = Join-Path $sourceBundle "nsis"
     if (Test-Path $nsisDir) {
         Copy-Item "$nsisDir\*.exe" $buildDir -ErrorAction SilentlyContinue
     }
 
-    # ²úÎï exe£¨release Ä¿Â¼ÏÂµÄ¿ÉÖ´ÐÐÎÄ¼þ£©
+    # ï¿½ï¿½ï¿½ï¿½ exeï¿½ï¿½release Ä¿Â¼ï¿½ÂµÄ¿ï¿½Ö´ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
     $releaseDir = Join-Path $PSScriptRoot "src-tauri\target\release"
     if (Test-Path $releaseDir) {
         Copy-Item "$releaseDir\$productName.exe" $buildDir -ErrorAction SilentlyContinue
     }
 
-    Write-Host "¹¹½¨²úÎïÒÑ¸´ÖÆµ½: $buildDir" -ForegroundColor Green
+    Write-Host "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¸ï¿½ï¿½Æµï¿½: $buildDir" -ForegroundColor Green
 }
 else {
-    # TAURI_OUTPUT_DIR ÉúÐ§Ê±Ö±½Ó¼ì²éÊä³öÄ¿Â¼
-    Write-Host "¹¹½¨²úÎïÔÚÊä³öÄ¿Â¼ÖÐ: $OutputDir" -ForegroundColor Green
+    # TAURI_OUTPUT_DIR ï¿½ï¿½Ð§Ê±Ö±ï¿½Ó¼ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼
+    Write-Host "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½: $OutputDir" -ForegroundColor Green
 }
 
-# ÏÔÊ¾²úÎïÁÐ±í
-Write-Host "`n²úÎïÁÐ±í:" -ForegroundColor Cyan
+# ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½
+Write-Host "`nï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½:" -ForegroundColor Cyan
 $outputFiles = Get-ChildItem -Path $OutputDir -Recurse -File |
     Where-Object { $_.Extension -match '\.(exe|msi)$' }
 foreach ($file in $outputFiles) {
@@ -89,12 +89,12 @@ foreach ($file in $outputFiles) {
     Write-Host "  $($file.FullName) ($sizeMB MB)" -ForegroundColor White
 }
 
-Write-Host "`nÍê³É!" -ForegroundColor Cyan
+Write-Host "`nï¿½ï¿½ï¿½!" -ForegroundColor Cyan
 
-# ÇåÀí±àÒë»º´æ
+# ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë»ºï¿½ï¿½
 $targetDir = Join-Path $PSScriptRoot "src-tauri\target"
 if (Test-Path $targetDir) {
-    Write-Host "`nÇåÀí±àÒë»º´æ..." -ForegroundColor Yellow
+    Write-Host "`nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë»ºï¿½ï¿½..." -ForegroundColor Yellow
     Remove-Item -Path $targetDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "±àÒë»º´æÒÑÇåÀí: $targetDir" -ForegroundColor Green
+    Write-Host "ï¿½ï¿½ï¿½ë»ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: $targetDir" -ForegroundColor Green
 }

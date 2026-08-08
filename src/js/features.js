@@ -1,4 +1,4 @@
-/* CikaChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
+/* KnockChat 功能模块：语音、图片、文件、链接、表情、文本特效、通知音、Agent、头像、搜索 */
 
         // 文件类型分类（模块级常量：图片/视频判定、粘贴识别、群文件共用；fview.js 复用）
         const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'psd'];
@@ -44,11 +44,19 @@
             }
         }
 
+        // 统一文件大小校验（本地首道防线，先校验再上传）：超限返回提示文案，未超限返回空串。
+        // 所有上传入口（头像/背景/公私聊图片/文件/语音）共用此方法，避免各入口校验分散不一致。
+        function fileSizeError(fileOrBlob, maxBytes, label) {
+            const size = fileOrBlob && typeof fileOrBlob.size === 'number' ? fileOrBlob.size : 0;
+            if (size > maxBytes) return `${label}不能超过 ${(maxBytes / 1024 / 1024).toFixed(0)}MB`;
+            return '';
+        }
+
         // 语音录制工厂：公聊/私聊共用同一套录音、计时、上传流程
         function createVoiceRecorder(config) {
             const RECORD_MIC_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>';
             const RECORD_STOP_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-            const state = { recorder: null, chunks: [], startTime: null, timerInterval: null };
+            const state = { recorder: null, chunks: [], startTime: null, timerInterval: null, maxTimer: null };
 
             function reset() {
                 const btn = document.getElementById(config.ids.btn);
@@ -61,6 +69,7 @@
                 hint.textContent = '点击开始录音';
                 stopBtn.classList.remove('show');
                 if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+                if (state.maxTimer) { clearTimeout(state.maxTimer); state.maxTimer = null; }
             }
 
             async function toggle() {
@@ -83,11 +92,25 @@
                                 reset();
                                 return;
                             }
+                            // 语音大小上限校验（先校验再上传）
+                            const sizeErr = fileSizeError(audioBlob, MAX_VOICE_SIZE, '语音');
+                            if (sizeErr) {
+                                showSnackbar(sizeErr);
+                                reset();
+                                return;
+                            }
                             await upload(audioBlob, mimeType || 'audio/webm');
                             reset();
                         };
                         state.recorder.start();
                         state.startTime = Date.now();
+                        // 最长录制时长：到点自动停止（onstop 内还会做大小校验）
+                        state.maxTimer = setTimeout(() => {
+                            if (state.recorder && state.recorder.state === 'recording') {
+                                showSnackbar(`语音最长 ${MAX_VOICE_DURATION} 秒`);
+                                state.recorder.stop();
+                            }
+                        }, MAX_VOICE_DURATION * 1000);
                         btn.classList.add('recording');
                         btn.innerHTML = RECORD_STOP_ICON;
                         hint.textContent = '正在录音...';
@@ -455,7 +478,8 @@
             }
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                if (file.size > MAX_IMAGE_SIZE) { showSnackbar(`图片 ${file.name} 超过 ${MAX_IMAGE_SIZE / 1024 / 1024}MB`); return; }
+                const sizeErr = fileSizeError(file, MAX_IMAGE_SIZE, `图片 ${file.name}`);
+                if (sizeErr) { showSnackbar(sizeErr); return; }
                 if (!file.type.startsWith('image/')) { showSnackbar(`文件 ${file.name} 不是图片`); return; }
             }
 
@@ -482,6 +506,9 @@
                         console.warn('[v069] 图片压缩失败，使用原图:', e);
                     }
                 }
+                // 压缩/GIF 后最终 blob 二次校验（先校验再上传）
+                const finalErr = fileSizeError(blobToUpload, MAX_IMAGE_SIZE, `图片 ${file.name}（压缩后）`);
+                if (finalErr) { showSnackbar(finalErr); continue; }
                 const filePath = (isPrivate ? `private/${privateSessionId}/` : 'chat/') + `${Date.now()}-${generateId()}-${i}.${ext}`;
                 try {
                     const url = await uploadToBucket(filePath, blobToUpload, contentType);
@@ -597,7 +624,8 @@
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
-            if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
+            const sizeErr = fileSizeError(file, MAX_FILE_SIZE, '文件');
+            if (sizeErr) { showSnackbar(sizeErr); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `public/${Date.now()}-${generateId()}.${ext}`;
@@ -838,7 +866,8 @@
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
-            if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
+            const sizeErr = fileSizeError(file, MAX_FILE_SIZE, '文件');
+            if (sizeErr) { showSnackbar(sizeErr); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
             const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}.${ext}`;
@@ -857,7 +886,7 @@
         async function doSearch(query) {
             const container = document.getElementById('searchResults');
             if (!query.trim()) {
-                container.innerHTML = '<div class="empty">输入用户名开始搜索</div>';
+                container.innerHTML = '<div class="empty">输入昵称开始搜索</div>';
                 return;
             }
             try {
@@ -874,10 +903,8 @@
                     container.innerHTML = '<div class="empty">未找到用户</div>';
                     return;
                 }
-                var onlineUsernames = getOnlineUsernames();
                 container.innerHTML = users.map(u => {
                     const idx = hashStr(u.username) % 8;
-                    const isOnline = onlineUsernames.includes(u.username);
                     let avatarStyle = '';
                     if (u.avatar_url) {
                         avatarStyle = 'background-image:url(' + escapeAttr(sanitizeAvatarUrl(u.avatar_url)) + ');background-size:cover;background-position:center;';
@@ -885,7 +912,6 @@
                     return `<div class="result-item" onclick="showUserProfile('${escapeJsString(u.username)}')">
                                 <div class="av av-${idx}" style="${avatarStyle}">${u.avatar_url ? '' : escapeHtml(u.username.charAt(0).toUpperCase())}</div>
                                 <span class="name">${escapeHtml(u.username)}</span>
-                                <span class="status">${isOnline ? '在线' : '离线'}</span>
                             </div>`;
                 }).join('');
             } catch (e) { container.innerHTML = '<div class="empty">搜索出错</div>'; }
@@ -918,7 +944,6 @@
             }
             container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px;"><span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span></div>';
             try {
-<<<<<<< HEAD
                 const { data: files, error } = await s3.rpc('list_media', { p_prefix: '' });
                 if (error) {
                     container.innerHTML = '<div class="gf-empty">加载失败: ' + (error.message || '未知错误') + '</div>';
@@ -967,50 +992,6 @@
                     html += '<div class="gf-file-meta">' + (sizeStr ? sizeStr + ' · ' : '') + dateStr + '</div></div></div>';
                 }
                 container.innerHTML = html || '<div class="gf-empty">暂无群文件</div>';
-=======
-                // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶，并行请求
-                const buckets = [STORAGE_BUCKET, FILES_BUCKET];
-                const prefixes = ['', 'chat/', 'files/', 'audio/', 'avatars/', 'Public/', 'Public/avatars/'];
-                const listResults = await Promise.all(buckets.map(bk =>
-                    Promise.all(prefixes.map(prefix =>
-                        sb.storage.from(bk).list(prefix, {
-                            limit: 100,
-                            offset: 0,
-                            sortBy: { column: 'created_at', order: 'desc' }
-                        }).then(res => ({ bk, prefix, res }))
-                            .catch(() => ({ bk, prefix, res: null }))
-                    ))
-                ));
-                // 去重：同一文件可能被多个前缀列出（防御性）
-                const seen = new Set();
-                const allFiles = [];
-                for (const bucketResult of listResults) {
-                    for (const { bk, prefix, res } of bucketResult) {
-                        if (!res) continue;
-                        const { data: files, error } = res;
-                        if (!error && files) {
-                            for (let fi = 0; fi < files.length; fi++) {
-                                const f = files[fi];
-                                if (f.name === '.emptyFolderPlaceholder') continue;
-                                // 文件夹无 metadata，跳过
-                                if (!f.metadata) continue;
-                                const fk = bk + '/' + prefix + f.name;
-                                if (seen.has(fk)) continue;
-                                seen.add(fk);
-                                f._bucket = bk;
-                                f._prefix = prefix;
-                                f._ts = Date.parse(f.created_at) || 0; // 排序时间戳缓存
-                                allFiles.push(f);
-                            }
-                        }
-                    }
-                }
-                allFiles.sort(function(a, b) {
-                    return b._ts - a._ts;
-                });
-                _groupFilesCache = { at: Date.now(), items: allFiles };
-                _renderGroupFiles(allFiles);
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
             } catch (e) {
                 container.innerHTML = '<div class="gf-empty">加载失败: ' + escapeHtml(e.message || '未知错误') + '</div>';
             }
@@ -1121,84 +1102,4 @@
                 } catch (e) { /* ignore */ }
                 return agentName || '智能体';
             } catch (e) { return '智能体'; }
-        }
-
-        function showAvatarMenu() {
-            document.getElementById('avatarMenu').classList.remove('hidden');
-            const overlay = document.createElement('div');
-            overlay.id = 'avatarMenuOverlay';
-            overlay.style.position = 'fixed';
-            overlay.style.inset = '0';
-            overlay.style.zIndex = '140';
-            overlay.style.background = 'var(--md-scrim)';
-            overlay.onclick = function() { closeAvatarMenu(); };
-            document.body.appendChild(overlay);
-        }
-
-        function closeAvatarMenu() {
-            document.getElementById('avatarMenu').classList.add('hidden');
-            const overlay = document.getElementById('avatarMenuOverlay');
-            if (overlay) overlay.remove();
-        }
-
-        function setDefaultAvatar() {
-            const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            s3.rpc('update_avatar', { p_uid: currentUid, p_avatar_url: null })
-                .then(() => {
-                    currentAvatarUrl = '';
-                    userAvatarCache[currentUser] = '';
-                    // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
-                    updateAllAvatars();
-                    updateHomeMenu();
-                    updatePublicMenu();
-                    const avatarEl = document.getElementById('profileDialogAvatar');
-                    avatarEl.style.backgroundImage = '';
-                    avatarEl.textContent = currentUser.charAt(0).toUpperCase();
-                    avatarEl.style.backgroundColor = color;
-                    showSnackbar('已设置为默认头像');
-                    closeAvatarMenu();
-                })
-                .catch(e => { showSnackbar('设置失败: ' + e.message); });
-        }
-
-        function uploadAvatarFromMenu() {
-            closeAvatarMenu();
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                if (file.size > MAX_IMAGE_SIZE) { showSnackbar('图片不能超过 5MB'); return; }
-                showSnackbar('上传头像中...');
-                let blob = file;
-                if (file.size > COMPRESS_THRESHOLD) {
-                    blob = await compressImage(file, 256, 0.8);
-                }
-                const filePath = `avatars/${hashStr(currentUser)}-${Date.now()}.jpg`;
-                try {
-                    const url = await uploadToBucket(filePath, blob, 'image/jpeg');
-                    if (!url) return;
-                    const { error: upError } = await s3.rpc('update_avatar', {
-                        p_uid: currentUid,
-                        p_avatar_url: url
-                    });
-                    if (upError) {
-                        showSnackbar('更新失败: ' + upError.message);
-                        return;
-                    }
-                    currentAvatarUrl = url;
-                    userAvatarCache[currentUser] = url;
-                    // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
-                    updateAllAvatars();
-                    updateHomeMenu();
-                    updatePublicMenu();
-                    const avatarEl = document.getElementById('profileDialogAvatar');
-                    avatarEl.style.backgroundImage = `url(${url})`;
-                    avatarEl.textContent = '';
-                    showSnackbar('头像已更新');
-                } catch (e) { showSnackbar('上传失败'); }
-            };
-            input.click();
         }

@@ -1,4 +1,4 @@
-/* CikaChat 存储与加密：SHA-256 加密、用户加密配置存取、未读/会话状态持久化 */
+/* KnockChat 存储与加密：SHA-256 加密、用户加密配置存取、未读/会话状态持久化 */
 
         function getUnreadState() {
             // Read from encrypted settings cache
@@ -9,7 +9,7 @@
         }
         // v058: 上次登录时间（mjchat_last_login_time），作为未读计数的兜底基准
         function getLastLoginTime() {
-            try { return localStorage.getItem('mjchat_last_login_time') || ''; } catch (e) { return ''; }
+            try { return localStorage.getItem(LS_KEYS.LAST_LOGIN_TIME) || ''; } catch (e) { return ''; }
         }
         // v073 性能优化：未读状态高频变更（每条新消息到达）防抖合并落盘，
         // 避免对整份用户设置反复做 JSON.stringify + AES-GCM 加密 + localStorage 全量写入
@@ -134,7 +134,7 @@
         // 存量数据一次性迁移：先用旧派生方式解密，成功即用新密钥重加密落盘。
         // ============================================
         const PBKDF2_ITERATIONS = 100000;
-        const KEY_META_PREFIX = 'mjchat_keymeta_';
+        const KEY_META_PREFIX = LS_KEYS.KEYMETA_PREFIX;
 
         function _keyMetaKey(username) {
             return KEY_META_PREFIX + (username || (currentUser || ''));
@@ -218,14 +218,14 @@
         // Load the raw per-user configs object from localStorage
         function loadAllUserConfigs() {
             try {
-                const raw = localStorage.getItem('mjchat_user_configs');
+                const raw = localStorage.getItem(LS_KEYS.USER_CONFIGS);
                 return raw ? JSON.parse(raw) : {};
             } catch (e) { return {}; }
         }
 
         // Save the raw per-user configs object to localStorage
         function saveAllUserConfigs(configs) {
-            try { localStorage.setItem('mjchat_user_configs', JSON.stringify(configs)); } catch (e) {}
+            try { localStorage.setItem(LS_KEYS.USER_CONFIGS, JSON.stringify(configs)); } catch (e) {}
         }
 
         // Initialize user settings: derive key, decrypt config, migrate old data if needed
@@ -275,8 +275,8 @@
             if (!userConfig) {
                 // No encrypted config yet - migrate from old localStorage keys (one-time)
                 userConfig = {
-                    theme: localStorage.getItem('mjchat_theme') || 'dark',
-                    themeColor: localStorage.getItem('mjchat_theme_color') || '',
+                    theme: localStorage.getItem(LS_KEYS.LEGACY_THEME) || 'dark',
+                    themeColor: localStorage.getItem(LS_KEYS.LEGACY_THEME_COLOR) || '',
                     unread: { publicLastRead: null, privateLastRead: {} },
                     dismissedPrivacyBanners: [],
                     notify: Object.assign({}, DEFAULT_NOTIFY),
@@ -285,23 +285,23 @@
                 wasMigrated = true;
                 // Migrate old unread state if it exists
                 try {
-                    const oldUnread = JSON.parse(localStorage.getItem('mjchat_unread'));
+                    const oldUnread = JSON.parse(localStorage.getItem(LS_KEYS.LEGACY_UNREAD));
                     if (oldUnread) {
                         userConfig.unread = oldUnread;
                     }
                 } catch (e) {}
                 // Migrate old dismissed banners
                 try {
-                    const oldBanners = JSON.parse(localStorage.getItem('dismissedPrivacyBanners'));
+                    const oldBanners = JSON.parse(localStorage.getItem(LS_KEYS.LEGACY_BANNERS));
                     if (oldBanners) {
                         userConfig.dismissedPrivacyBanners = oldBanners;
                     }
                 } catch (e) {}
                 // Delete old unencrypted data after migration
-                try { localStorage.removeItem('mjchat_theme'); } catch (e) {}
-                try { localStorage.removeItem('mjchat_theme_color'); } catch (e) {}
-                try { localStorage.removeItem('mjchat_unread'); } catch (e) {}
-                try { localStorage.removeItem('dismissedPrivacyBanners'); } catch (e) {}
+                try { localStorage.removeItem(LS_KEYS.LEGACY_THEME); } catch (e) {}
+                try { localStorage.removeItem(LS_KEYS.LEGACY_THEME_COLOR); } catch (e) {}
+                try { localStorage.removeItem(LS_KEYS.LEGACY_UNREAD); } catch (e) {}
+                try { localStorage.removeItem(LS_KEYS.LEGACY_BANNERS); } catch (e) {}
             }
 
             // Cache decrypted settings in memory
@@ -325,6 +325,23 @@
 
             // 解密 AI 设置（模型/翻译）到内存缓存
             await loadAISettingsToCache();
+
+            // 兜底清理旧版迁移遗留键：此时旧数据已并入加密用户配置（无配置时上面已迁移并删除），
+            // 残留旧键仅是无用垃圾，删除避免占位（曾存在“已有配置但旧键未清”的过渡版本）
+            try { localStorage.removeItem(LS_KEYS.LEGACY_THEME); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.LEGACY_THEME_COLOR); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.LEGACY_UNREAD); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.LEGACY_BANNERS); } catch (e) {}
+
+            // 云端设置同步：本地设置就绪后拉取云端设置并应用（云端为权威）。
+            // 云同步模块 cloudsync.js 可能尚未加载（老版本客户端），做存在性检查。
+            try {
+                if (window.CloudSync && typeof window.CloudSync.onLocalSettingsReady === 'function') {
+                    window.CloudSync.onLocalSettingsReady();
+                }
+            } catch (e) {
+                console.warn('cloud settings pull hook failed:', e);
+            }
         }
 
         // Apply cached settings to the app state
@@ -365,6 +382,16 @@
             refreshNotifySettingsUI();
         }
 
+        // 云设置同步通知：本地可同步设置变更后交给 cloudsync.js 防抖推送
+        // （cloudsync.js 加载于 s3.js 之后；未登录/未初始化时内部自行跳过）
+        function notifyCloudSettingsChanged() {
+            try {
+                if (window.CloudSync && typeof window.CloudSync.onLocalSettingsChanged === 'function') {
+                    window.CloudSync.onLocalSettingsChanged();
+                }
+            } catch (e) {}
+        }
+
         // Sync in-memory settings to encrypted localStorage
         async function syncSettingsToEncryptedStore() {
             if (!_encryptionKey || !_userSettingsCache || !currentUser) return;
@@ -377,6 +404,7 @@
             } catch (e) {
                 console.warn('Failed to sync encrypted settings:', e);
             }
+            notifyCloudSettingsChanged();
         }
 
         // Clear encryption key and settings cache from memory
@@ -451,8 +479,8 @@
         // 登录时解密全部 AI 设置到内存缓存
         async function loadAISettingsToCache() {
             _aiSettingsCache = {
-                model: await decryptAISettingsValue('cika_ai_model_settings', localStorage.getItem('cika_ai_model_settings')),
-                translate: await decryptAISettingsValue('cika_ai_translate_settings', localStorage.getItem('cika_ai_translate_settings'))
+                model: await decryptAISettingsValue(LS_KEYS.AI_MODEL_SETTINGS, localStorage.getItem(LS_KEYS.AI_MODEL_SETTINGS)),
+                translate: await decryptAISettingsValue(LS_KEYS.AI_TRANSLATE_SETTINGS, localStorage.getItem(LS_KEYS.AI_TRANSLATE_SETTINGS))
             };
         }
 
@@ -470,14 +498,16 @@
         async function saveAIModelSettings(settings) {
             if (!_aiSettingsCache) _aiSettingsCache = { model: null, translate: null };
             _aiSettingsCache.model = settings || null;
-            await encryptAISettingsValue('cika_ai_model_settings', _aiSettingsCache.model);
+            await encryptAISettingsValue(LS_KEYS.AI_MODEL_SETTINGS, _aiSettingsCache.model);
+            notifyCloudSettingsChanged();
         }
 
         // 保存 AI 翻译设置（更新缓存 + 加密落盘）
         async function saveAITranslateSettings(settings) {
             if (!_aiSettingsCache) _aiSettingsCache = { model: null, translate: null };
             _aiSettingsCache.translate = settings || null;
-            await encryptAISettingsValue('cika_ai_translate_settings', _aiSettingsCache.translate);
+            await encryptAISettingsValue(LS_KEYS.AI_TRANSLATE_SETTINGS, _aiSettingsCache.translate);
+            notifyCloudSettingsChanged();
         }
 
         // ============================================
@@ -486,7 +516,7 @@
         // 仅缓存消息文本与媒体 URL，媒体文件本身不缓存。
         // 数据按用户隔离（mjchat_msgcache_<username>）；登出保留（加密保存，同密码重新登录可恢复），注销账号时清除。
         // ============================================
-        const MSG_CACHE_PREFIX = 'mjchat_msgcache_';
+        const MSG_CACHE_PREFIX = LS_KEYS.MSG_CACHE_PREFIX;
         const MSG_CACHE_PUBLIC_LIMIT = 200;
         const MSG_CACHE_PRIVATE_LIMIT = 200;
         const MSG_CACHE_MAX_SESSIONS = 20;
@@ -711,9 +741,9 @@
         // AI 设置（含 API Key）、用户配置、密钥盐、聊天记录缓存全部移除，
         // 防止同名同密码重新注册后旧数据（旧 API Key）"复活"
         function clearAllUserLocalData() {
-            try { localStorage.removeItem('cika_ai_model_settings'); } catch (e) {}
-            try { localStorage.removeItem('cika_ai_translate_settings'); } catch (e) {}
-            try { localStorage.removeItem('mjchat_user_configs'); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.AI_MODEL_SETTINGS); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.AI_TRANSLATE_SETTINGS); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.USER_CONFIGS); } catch (e) {}
             if (currentUser) {
                 try { localStorage.removeItem(_keyMetaKey(currentUser)); } catch (e) {}
             }
@@ -761,11 +791,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-<<<<<<< HEAD
                 version: "1.0.0",
-=======
-                version: "26.8.703",
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {
@@ -801,7 +827,7 @@
                         data = JSON.parse(reader.result);
                     } catch (e) { showSnackbar('导入失败: 文件解析错误'); return; }
                     if (!data || data.type !== '#settings#' || !data.settings) {
-                        showSnackbar('导入失败: 不是有效的 CikaChat 设置文件');
+                        showSnackbar('导入失败: 不是有效的 KnockChat 设置文件');
                         return;
                     }
                     showConfirm('导入设置', '导入后将覆盖当前的主题、通知与 AI 设置，是否继续？', function() {

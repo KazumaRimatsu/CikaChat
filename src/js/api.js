@@ -1,4 +1,4 @@
-/* CikaChat API 请求：S3 RPC、轮询驱动、认证登录、云控、数据加载 */
+/* KnockChat API 请求：S3 RPC、轮询驱动、认证登录、云控、数据加载 */
 
         let currentUser = '';
         // v080: uid 是区分用户的唯一身份标记（类 QQ 号，从 1 递增）；username 仅作展示。
@@ -10,8 +10,6 @@
         var _prevLoginBlocked = false;
         let clientId = '';
         let isEntered = false;
-        let presenceSynced = false;
-        let presenceReady = false;
         let _publicPollTimer = null;
         let _publicBackupPollTimer = null;
         let _publicRetryCount = 0;
@@ -21,9 +19,9 @@
         let _mutePerPrivateSession = {};
         // v053: 恢复静音状态
         try {
-            var _savedMutePublic = localStorage.getItem('mjchat_public_muted');
+            var _savedMutePublic = localStorage.getItem(LS_KEYS.PUBLIC_MUTED);
             if (_savedMutePublic === '1') _mutePublic = true;
-            var _savedPrivateMuted = localStorage.getItem('mjchat_private_muted');
+            var _savedPrivateMuted = localStorage.getItem(LS_KEYS.PRIVATE_MUTED);
             if (_savedPrivateMuted) _mutePerPrivateSession = JSON.parse(_savedPrivateMuted);
         } catch(e) {}
 
@@ -48,7 +46,7 @@
         var _csrfToken = '';
         function getCsrfToken() {
             if (!_csrfToken) {
-                _csrfToken = sessionStorage.getItem('mjchat_csrf') || '';
+                _csrfToken = sessionStorage.getItem(LS_KEYS.CSRF) || '';
                 if (!_csrfToken) {
                     var arr = new Uint8Array(32);
                     if (window.crypto && window.crypto.getRandomValues) {
@@ -57,7 +55,7 @@
                         for (var i = 0; i < 32; i++) arr[i] = Math.floor(Math.random() * 256);
                     }
                     _csrfToken = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-                    sessionStorage.setItem('mjchat_csrf', _csrfToken);
+                    sessionStorage.setItem(LS_KEYS.CSRF, _csrfToken);
                 }
             }
             return _csrfToken;
@@ -70,7 +68,7 @@
 
         function getSessionToken() {
             try {
-                const session = JSON.parse(localStorage.getItem('mjchat_session'));
+                const session = JSON.parse(localStorage.getItem(LS_KEYS.SESSION));
                 return (session && session.token) ? session.token : '';
             } catch (e) { return ''; }
         }
@@ -178,8 +176,8 @@
         // v058: 记录上次登录账号与时间（对齐新版 MJChat 的 mjchat_last_login），
         // 快捷登录界面展示用；mjchat_last_login_time 作为未读计数的时间兜底基准
         function recordLastLogin(username) {
-            try { localStorage.setItem('mjchat_last_login', username); } catch (e) {}
-            try { localStorage.setItem('mjchat_last_login_time', new Date().toISOString()); } catch (e) {}
+            try { localStorage.setItem(LS_KEYS.LAST_LOGIN, username); } catch (e) {}
+            try { localStorage.setItem(LS_KEYS.LAST_LOGIN_TIME, new Date().toISOString()); } catch (e) {}
         }
 
         async function getClientIP() {
@@ -222,10 +220,10 @@
             } catch (e) { /* ignore */ }
 
             var lastLogin = '';
-            try { lastLogin = localStorage.getItem('mjchat_last_login') || ''; } catch (e) {}
+            try { lastLogin = localStorage.getItem(LS_KEYS.LAST_LOGIN) || ''; } catch (e) {}
             var savedSession = null;
             try {
-                var raw = localStorage.getItem('mjchat_session');
+                var raw = localStorage.getItem(LS_KEYS.SESSION);
                 if (raw) savedSession = JSON.parse(raw);
             } catch (e) {}
 
@@ -251,8 +249,8 @@
         // v040: 切换到普通登录表单（可预填用户名，用于旧会话缺少 pwhash 的场景）
         function showLoginForm(prefillUser) {
             // 切换账号时清除上次登录记录（对齐新版 MJChat）
-            try { localStorage.removeItem('mjchat_last_login'); } catch (e) {}
-            try { localStorage.removeItem('mjchat_last_login_time'); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.LAST_LOGIN); } catch (e) {}
+            try { localStorage.removeItem(LS_KEYS.LAST_LOGIN_TIME); } catch (e) {}
             var quickInfo = document.getElementById('quickLoginInfo');
             var normalForm = document.getElementById('loginNormalForm');
             var loginHeader = document.getElementById('loginAuthHeader');
@@ -282,7 +280,7 @@
             var quickAvatarEl = document.getElementById('quickLoginAvatar');
             var loginHeader = document.getElementById('loginAuthHeader');
             var lastLogin = '';
-            try { lastLogin = localStorage.getItem('mjchat_last_login') || ''; } catch (e) {}
+            try { lastLogin = localStorage.getItem(LS_KEYS.LAST_LOGIN) || ''; } catch (e) {}
             if (lastLogin) {
                 if (quickInfo) quickInfo.classList.remove('hidden');
                 if (normalForm) normalForm.classList.add('hidden');
@@ -339,16 +337,14 @@
             const username = document.getElementById('regUsername').value.trim();
             const password = document.getElementById('regPassword').value;
             const password2 = document.getElementById('regPassword2').value;
-            if (!username) return showEl('regError', '请输入用户名');
-            if (username.length < 2) return showEl('regError', '用户名至少 2 个字符');
-            if (username.length > 15) return showEl('regError', '用户名最多 15 个字符');
-            for (const word of FORBIDDEN_WORDS) {
-                if (username.includes(word)) {
-                    return showEl('regError', '存在敏感词，请更换用户名');
-                }
+            if (!username) return showEl('regError', '请输入昵称');
+            if (username.length < 2) return showEl('regError', '昵称至少 2 个字符');
+            if (username.length > 15) return showEl('regError', '昵称最多 15 个字符');
+            if (HIDDEN_UNICODE_RE.test(username)) {
+                return showEl('regError', '昵称不能包含零宽或控制字符');
             }
             if (!isSafeUsername(username)) {
-                return showEl('regError', '用户名包含不安全字符，请重新输入');
+                return showEl('regError', '昵称包含不安全字符，请重新输入');
             }
             if (password.length < 6) return showEl('regError', '密码至少 6 个字符');
             if (password !== password2) return showEl('regError', '两次密码不一致');
@@ -366,7 +362,7 @@
                         if (rpcData && rpcData.success !== false) usernameExists = true;
                     } catch (e) { /* RPC not found */ }
                 }
-                if (usernameExists) return showEl('regError', '该用户名已被使用');
+                if (usernameExists) return showEl('regError', '该昵称已被使用');
 
                 const passwordHash = await hashPassword(password);
                 let regError = null;
@@ -392,7 +388,7 @@
                     });
                     if (error) {
                         if (error.message.includes('duplicate') || error.message.includes('unique')) return showEl(
-                            'regError', '该用户名已被使用');
+                            'regError', '该昵称已被使用');
                         return showEl('regError', '注册失败: ' + error.message);
                     }
                 }
@@ -412,7 +408,7 @@
                 } catch (ccErr) { /* ignore */ }
                 recordLastLogin(username);
                 const sessionToken = regSessionToken || generateLocalNonce();
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
+                localStorage.setItem(LS_KEYS.SESSION, JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key (new user, starts fresh)
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 showEl('regSuccess', '注册成功！正在进入...');
@@ -437,7 +433,7 @@
             hideEl('loginError');
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
-            if (!username) return showEl('loginError', '请输入用户名');
+            if (!username) return showEl('loginError', '请输入昵称');
             if (!password) return showEl('loginError', '请输入密码');
             if (!checkRateLimit('login', 5, 60000)) {
                 showEl('loginError', '登录尝试过于频繁，请1分钟后再试');
@@ -537,7 +533,7 @@
                 if (!userData || userData.success === false) {
                     clearTimeout(_loginTimeout);
                     hideGlobalLoading();
-                    return showEl('loginError', (userData && userData.message) || '用户名或密码错误');
+                    return showEl('loginError', (userData && userData.message) || '昵称或密码错误');
                 }
                 if (userData.banned) {
                     clearTimeout(_loginTimeout);
@@ -549,7 +545,7 @@
                 currentAvatarUrl = userData.avatar_url || '';
                 userAvatarCache[currentUser] = currentAvatarUrl;
                 const sessionToken = userData.session_token || await hashPassword(passwordHash);
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
+                localStorage.setItem(LS_KEYS.SESSION, JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 document.getElementById('loginPassword').value = '';
@@ -734,7 +730,7 @@
                 closeBtn.style.cssText = 'background:none;border:none;color:var(--md-primary, #4A9EFF);font-size:0.875rem;padding:8px 16px;cursor:pointer;font-weight:500;';
                 closeBtn.addEventListener('click', function() {
                     hideAuthBannerDynamic();
-                    sessionStorage.setItem('mjchat_banner_dismissed', '1');
+                    sessionStorage.setItem(LS_KEYS.BANNER_DISMISSED, '1');
                     window._bannerManuallyDismissed = true;
                 });
                 actionsDiv.appendChild(closeBtn);
@@ -795,7 +791,7 @@
                     var except = data.force_logout_except || '';
                     if (currentUser && currentUser !== except) {
                         _forceLogoutAllProcessed = true;
-                        localStorage.removeItem('mjchat_session');
+                        localStorage.removeItem(LS_KEYS.SESSION);
                         alert('您已被强制下线，请重新登录');
                         window.location.reload();
                         return true;
@@ -817,7 +813,7 @@
                     var allowClose = data.banner_show_close !== false;
 
                     if (data.banner_enabled) {
-                        var dismissed = sessionStorage.getItem('mjchat_banner_dismissed');
+                        var dismissed = sessionStorage.getItem(LS_KEYS.BANNER_DISMISSED);
                         if (dismissed !== '1' || isBlocked) {
                             showBanner = true;
                         }
@@ -884,48 +880,8 @@
         function setupGlobalPrivateListener() {
             if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
 
-<<<<<<< HEAD
             // 已移除 Supabase Realtime 广播（private_msg_notification / avatar_changed / session_deleted）：
             // 私聊新消息与会话更新统一由下方轮询驱动（loadPrivateSessions 变更检测 + loadPrivateMessages 增量）。
-=======
-
-            if (publicChannel) {
-                publicChannel.on('broadcast', { event: 'private_msg_notification' }, (p) => {
-                    try {
-                        const data = p.payload;
-                        if (!data || !data.session_id) return;
-                        handlePrivateNotification(data.session_id, data.sender);
-                    } catch (e) { /* ignore */ }
-                });
-                publicChannel.on('broadcast', { event: 'avatar_changed' }, (p) => {
-                    const data = p.payload;
-                    if (!data || !data.username) return;
-                    // v073 安全修复：头像 URL 统一净化（防 CSS 注入）
-                    userAvatarCache[data.username] = sanitizeAvatarUrl(data.avatar_url) || '';
-                    const selName = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(data.username) : data.username.replace(/["\\]/g, '');
-                    document.querySelectorAll('[data-sender="' + selName + '"]').forEach(el => {
-                        applyAvatarToElement(el, data.username);
-                    });
-                    document.querySelectorAll('[data-username="' + selName + '"]').forEach(el => {
-                        applyAvatarToElement(el, data.username);
-                    });
-                    renderPrivateList();
-                    renderOnlineUsers();
-                });
-                publicChannel.on('broadcast', { event: 'session_deleted' }, (p) => {
-                    try {
-                        const data = p.payload;
-                        if (!data || !data.session_id) return;
-                        if (data.target === currentUser && privateSessionId === data.session_id && privateChatActive) {
-                            showSnackbar(`${data.deleted_by} 删除了你们的聊天`);
-                            leavePrivateChat();
-                        }
-                        window.privateSessions = (window.privateSessions || []).filter(s => s.id !== data.session_id);
-                        renderPrivateList();
-                    } catch (e) { /* ignore */ }
-                });
-            }
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
 
             // v073 性能优化：私聊轮询改为指纹对比——每 10s 只计算会话列表的 FNV-1a 指纹，
             // 不再构造 id:updated_at:last_message 字符串数组再 JSON.stringify 全量对比（省内存与 GC）
@@ -981,8 +937,6 @@
             // 已移除 Supabase Realtime 实时通道：改为「加载历史 + 定时轮询增量」
             return new Promise((resolve, reject) => {
                 let resolved = false;
-                presenceSynced = false;
-                presenceReady = false;
                 loadPublicHistory()
                     .then(() => {
                         updatePublicConn(true);
@@ -1021,7 +975,6 @@
                         }
                     }
                 }
-<<<<<<< HEAD
                 var res = await s3.rpc('get_public_messages', {
                     p_after_id: lastId,
                     p_limit: 20
@@ -1036,26 +989,6 @@
                     if (!isUserScrolledUp && container) {
                         scrollToBottom(container);
                         updateScrollButton(container);
-=======
-                var query = sb.from(TABLE_PUBLIC_MSG)
-                    .select('id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system')
-                    .order('created_at', { ascending: false })
-                    .limit(20);
-                if (latestTime) query = query.gt('created_at', latestTime);
-                var result = await query;
-                if (result.error || !result.data || !Array.isArray(result.data)) return;
-                if (result.data.length === 0) return;
-                _sortMsgAsc(result.data).forEach(function(msg) {
-                    // v073 性能优化：用 Map 做 O(1) 去重，替代数组线性 some
-                    if (!publicMessageById.has(msg.id)) {
-                        handlePublicMessage(msg);
-                        updatePublicEntry();
-                        var container = document.getElementById('publicMessages');
-                        if (!isUserScrolledUp && container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                        }
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     }
                 });
             } catch (e) { /* silent fail */ }
@@ -1122,13 +1055,8 @@
                 }
                 const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
                 await loadUserAvatars(senders);
-<<<<<<< HEAD
                 const newMsgs = data.reverse().map(msg => ({
                     id: msg.id, sender: msg.sender, sender_uid: msg.sender_uid || 0, text: msg.text || '',
-=======
-                const newMsgs = _sortMsgAsc(data).map(msg => ({
-                    id: msg.id, sender: msg.sender, text: msg.text || '',
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     image_url: msg.image_url || null, audio_url: msg.audio_url || null,
                     audio_dur: msg.audio_dur || 0, msg_version: msg.msg_version || null,
                     created_at: msg.created_at, reply_to_id: msg.reply_to_id || null,
@@ -1203,30 +1131,12 @@
                     }
                 } catch (e) { /* RPC not found, fallback */ }
                 if (!sessions) {
-<<<<<<< HEAD
                     // v070: 离线回退——用本地加密缓存恢复会话列表
                     const cachedSessions = getCachedSessions();
                     if (cachedSessions && cachedSessions.length) {
                         window.privateSessions = cachedSessions;
                         renderPrivateList();
                         return window.privateSessions;
-=======
-                    const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS)
-                        .select('id, user1, user2, updated_at, deleted_by_user1, deleted_by_user2, last_message')
-                        .or(`user1.eq.${currentUser},user2.eq.${currentUser}`)
-                        .order('updated_at', { ascending: false });
-                    if (error) {
-                        console.error('loadPrivateSessions error:', error);
-                        // v070: 离线回退——用本地加密缓存恢复会话列表
-                        const cachedSessions = getCachedSessions();
-                        if (cachedSessions && cachedSessions.length) {
-                            window.privateSessions = cachedSessions;
-                            window._privateSessionsSig = _hashPrivateSessions(cachedSessions);
-                            renderPrivateList();
-                            return window.privateSessions;
-                        }
-                        return;
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
                     }
                     return;
                 }
@@ -1286,8 +1196,9 @@
             const statusEl = document.getElementById('privateChatStatus');
             if (!statusEl) return;
             const status = await resolveUserStatus(privateOtherUser);
-            const textMap = { online: '在线', banned: '已封禁', deleted: '已注销', offline: '离线' };
-            statusEl.textContent = textMap[status] || '离线';
+            // 在线状态已随 Realtime 移除；仅展示服务端账号状态（封禁/注销）
+            const textMap = { banned: '已封禁', deleted: '已注销' };
+            statusEl.textContent = textMap[status] || '';
             statusEl.className = 'private-status';
         }
 
@@ -1630,7 +1541,7 @@
             }
             newSessionToken = changeData.session_token || null;
             if (newSessionToken) {
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, uid: currentUid, token: newSessionToken, pwhash: newHash }));
+                localStorage.setItem(LS_KEYS.SESSION, JSON.stringify({ username: currentUser, uid: currentUid, token: newSessionToken, pwhash: newHash }));
                 // Re-initialize encrypted settings with new password hash
                 initUserSettings(newHash, currentUser).catch(function(e) { console.warn('initUserSettings failed:', e); });
             }
@@ -1649,24 +1560,21 @@
             // 清理登出后仍会运行的后台定时器
             if (privateStatusInterval) { clearInterval(privateStatusInterval); privateStatusInterval = null; }
             if (_cloudControlInterval) { clearInterval(_cloudControlInterval); _cloudControlInterval = null; }
-            localStorage.removeItem('mjchat_session');
+            localStorage.removeItem(LS_KEYS.SESSION);
             // v053: 登出时重置免打扰状态
             _mutePublic = false;
             _mutePerPrivateSession = {};
-            localStorage.removeItem('mjchat_public_muted');
-            localStorage.removeItem('mjchat_private_muted');
+            localStorage.removeItem(LS_KEYS.PUBLIC_MUTED);
+            localStorage.removeItem(LS_KEYS.PRIVATE_MUTED);
             currentUser = '';
             currentUid = 0;
             publicMessages = [];
             publicMessageById.clear();
             privateMessages = [];
-            onlineUsers = {};
             isEntered = false;
             privateChatActive = false;
             publicUnread = 0;
             privateUnreadCounts = {};
-            presenceSynced = false;
-            presenceReady = false;
             userAvatarCache = {};
             publicHasMore = true;
             privateHasMore = true;
@@ -1680,7 +1588,7 @@
             document.getElementById('loginPassword').value = '';
             hideGlobalLoading();
             // v038: Reset banner dismissal so it can show again after logout
-            try { sessionStorage.removeItem('mjchat_banner_dismissed'); } catch (e) {}
+            try { sessionStorage.removeItem(LS_KEYS.BANNER_DISMISSED); } catch (e) {}
             window._bannerManuallyDismissed = false;
             clearEncryptionKey();
             // v041: Reset force_logout tracking on logout
@@ -1802,7 +1710,7 @@
                     return;
                 }
                 if (overlay) overlay.remove();
-                localStorage.removeItem('mjchat_session');
+                localStorage.removeItem(LS_KEYS.SESSION);
                 // v070: 账号注销时同步清除本地聊天记录缓存
                 // v073: 升级为彻底清除本地数据（AI 设置含 API Key、用户配置、密钥盐、消息缓存）
                 clearAllUserLocalData();
@@ -1818,7 +1726,6 @@
 
         async function resolveUserStatus(username) {
             if (!username) return 'offline';
-            if (getOnlineUsernames().includes(username)) return 'online';
             try {
                 const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_username: username });
                 if (!rpcError && rpcData) {
@@ -1866,7 +1773,7 @@
         function togglePublicMute() {
             _mutePublic = !_mutePublic;
             showSnackbar(_mutePublic ? '已开启群聊消息免打扰' : '已关闭群聊消息免打扰');
-            try { localStorage.setItem('mjchat_public_muted', _mutePublic ? '1' : '0'); } catch(e) {}
+            try { localStorage.setItem(LS_KEYS.PUBLIC_MUTED, _mutePublic ? '1' : '0'); } catch(e) {}
             updatePublicMenu();
             updatePublicBadge();
             updateBackBadge();
@@ -1878,7 +1785,7 @@
             const cur = !!_mutePerPrivateSession[privateSessionId];
             _mutePerPrivateSession[privateSessionId] = !cur;
             showSnackbar(!cur ? '已开启消息免打扰' : '已关闭消息免打扰');
-            try { localStorage.setItem('mjchat_private_muted', JSON.stringify(_mutePerPrivateSession)); } catch(e) {}
+            try { localStorage.setItem(LS_KEYS.PRIVATE_MUTED, JSON.stringify(_mutePerPrivateSession)); } catch(e) {}
             updatePrivateMenu();
             renderPrivateList();
             updateBackBadge();

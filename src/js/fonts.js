@@ -1,4 +1,4 @@
-/* CikaChat 应用字体设置 v1.0
+/* KnockChat 应用字体设置 v1.0
  *
  * 应用级字体选择，与主题系统完全解耦（「不向自定义主题开放」）：
  *   1) 生效方式：在 <html> 内联样式写入 --app-font-family。
@@ -23,7 +23,7 @@
     // ============================================================
     // 常量与预设字体列表
     // ============================================================
-    var STORAGE_KEY = 'cika_font_store_v1';
+    var STORAGE_KEY = LS_KEYS.FONT_STORE;
     var FONT_VAR = '--app-font-family';
     var SCALE_VAR = '--app-font-scale';
     var WEIGHT_NORMAL_VAR = '--app-font-weight-normal';

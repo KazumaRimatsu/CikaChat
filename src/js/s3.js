@@ -1,4 +1,4 @@
-/* CikaChat S3 后端桥接层：所有服务端数据访问经由 Tauri invoke 转发到 Rust 侧（s3rpc_* 命令）。
+/* KnockChat S3 后端桥接层：所有服务端数据访问经由 Tauri invoke 转发到 Rust 侧（s3rpc_* 命令）。
  * 凭证只存在于 src-tauri Rust 侧，前端永远接触不到 AccessKey/SecretKey。
  * 用法：
  *   const { data, error } = await s3.rpc('send_public_message_secure', { p_username, ... });
@@ -10,7 +10,7 @@ window.s3 = (function() {
         if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
             return window.__TAURI__.core.invoke(cmd, args || {});
         }
-        return Promise.reject(new Error('Tauri 后端不可用：请通过桌面应用（CikaChat）运行本程序'));
+        return Promise.reject(new Error('Tauri 后端不可用：请通过桌面应用（KnockChat）运行本程序'));
     }
 
     // 与旧 sb.rpc 返回结构一致：{ data, error }

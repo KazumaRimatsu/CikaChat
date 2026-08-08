@@ -1,7 +1,7 @@
 /* ==========================================================================
    dialog.css —— 对话框与模态弹窗
    --------------------------------------------------------------------------
-   职责：通用对话框骨架 + 各业务弹窗（开源许可/在线列表/黑名单/智能体/
+   职责：通用对话框骨架 + 各业务弹窗（开源许可/黑名单/智能体/
    主题选择/提示音设置）。
    z-index 分层：普通弹窗遮罩 200；全局确认弹窗 #confirmDialog 600（置于
    其他弹窗之上，避免被后打开的对话框覆盖）。
@@ -204,47 +204,6 @@
 
 .opensource-modal .opensource-license {
     margin-bottom: 12px;
-    font-size: 0.75rem;
-    color: var(--md-dialog-text-dim);
-}
-
-/* --- 在线列表弹窗 --- */
-.online-list-modal .online-list {
-    flex: 1;
-    margin-top: 12px;
-    overflow-y: auto;
-}
-
-.online-list-modal .online-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: var(--md-outline-width) var(--md-outline-style) var(--md-dialog-border);
-    cursor: pointer;
-}
-
-.online-list-modal .online-item .av {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-size: cover;
-    background-position: center;
-    font-weight: 700;
-    color: var(--md-avatar-text);
-}
-
-.online-list-modal .online-item .name {
-    flex: 1;
-    font-size: 0.875rem;
-    color: var(--md-dialog-text);
-}
-
-.online-list-modal .online-item .me-tag {
     font-size: 0.75rem;
     color: var(--md-dialog-text-dim);
 }

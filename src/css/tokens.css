@@ -242,12 +242,6 @@
     --md-settings-border: var(--md-outline-variant);
     --md-field-border: var(--md-outline-variant);
 
-    /* 在线人数药丸（顶栏） */
-    --md-online-bg: var(--md-success-container);
-    --md-online-bg-hover: var(--md-success-container-hover);
-    --md-online-text: var(--md-on-success-container);
-    --md-online-dot: var(--md-success);
-
     /* 头像调色板（.av-0 ~ .av-7，主题文件可整体更换配色） */
     /* v073：头像底色色板加深为标准 800 色阶，保证白色头像文字对比度 ≥ 4.5:1 */
     --md-avatar-0: #1565C0;

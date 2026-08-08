@@ -1,4 +1,4 @@
-/* CikaChat 聊天核心功能：公共聊天/私聊的渲染、发送、交互、在线状态、未读提示 */
+/* KnockChat 聊天核心功能：公共聊天/私聊的渲染、发送、交互、账号状态、未读提示 */
 
         let publicMessages = [];
         let publicMessageById = new Map(); // 消息 id 索引，用于 O(1) 去重与回复查找
@@ -13,9 +13,8 @@
         let privateStatusInterval = null;
         let dismissedPrivacyBanners = new Set();
         try {
-            dismissedPrivacyBanners = new Set(JSON.parse(localStorage.getItem('dismissedPrivacyBanners') || '[]'));
+            dismissedPrivacyBanners = new Set(JSON.parse(localStorage.getItem(LS_KEYS.LEGACY_BANNERS) || '[]'));
         } catch (e) { /* 本地数据损坏时保持空集合 */ }
-        let onlineUsers = {};
         let replyTarget = null;
         let privateReplyTarget = null;
         let contextTarget = null;
@@ -117,7 +116,7 @@
         // ============ v072: 屏蔽词检测设置（仅公聊生效；类型与方式可配置） ============
         const BLOCKWORD_TYPES = ['黄色内容', '其他不良内容', '暴力恐怖A', '反动内容', '暴力恐怖B', '政治敏感'];
         const BLOCKWORD_TIPS = ['包含不适宜展示的成人内容', '包含其他不良内容', '包含诱导药物滥用等不良内容', '包含敏感内容', '包含暴力及恐怖内容', '包含敏感内容'];
-        const BLOCKWORD_SETTINGS_KEY = 'mjchat_blockword_settings';
+        const BLOCKWORD_SETTINGS_KEY = LS_KEYS.BLOCKWORD;
         const DEFAULT_BLOCKWORD_SETTINGS = { enabled: true, types: BLOCKWORD_TYPES.slice(), method: 'hint' };
 
         function loadBlockwordSettings() {
@@ -147,6 +146,10 @@
                     method: settings.method === 'hide' ? 'hide' : 'hint'
                 }));
             } catch (e) { }
+            // 屏蔽词设置属可云同步设置，变更后通知云同步模块（防抖推送）
+            if (typeof notifyCloudSettingsChanged === 'function') {
+                notifyCloudSettingsChanged();
+            }
         }
 
         // 设置页入口值显示
@@ -216,7 +219,6 @@
         function updateAllAvatars() {
             loadUserAvatars(Object.keys(userAvatarCache).concat([currentUser])).then(() => {
                 renderPrivateList();
-                renderOnlineUsers();
                 document.querySelectorAll('#publicMessages .msg-row .avatar').forEach(av => {
                     const sender = av.dataset.sender;
                     if (sender && userAvatarCache[sender]) {
@@ -354,7 +356,8 @@
             if (msg.is_system && isGarbledText(msg.text)) return;
             if (msg.is_system && msg.text && (
                 msg.text.includes('加入了CikaChat') || msg.text.includes('离开了CikaChat') ||
-                msg.text.includes('加入了MJChat') || msg.text.includes('离开了MJChat')
+                msg.text.includes('加入了MJChat') || msg.text.includes('离开了MJChat') ||
+                msg.text.includes('加入了KnockChat') || msg.text.includes('离开了KnockChat')
             )) return;
             const nm = {
                 id: msg.id,
@@ -480,17 +483,11 @@
             return `<div class="file-msg" onclick="openFilePreview('${escapeJsString(url)}', '${escapeJsString(name)}')"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">${iconPath}</svg><span>${escapeHtml(name)}${sizeKb ? ` (${escapeHtml(sizeKb)} KB)` : ''}</span></div>`;
         }
 
-<<<<<<< HEAD
-        function renderPublicMessage(msg) {
-            const c = document.getElementById('publicMessages');
-            const isOwn = isMsgFromMe(msg);
-=======
         // v073 性能优化：container 可传 DocumentFragment（批量渲染历史消息），
         // 传入时对行加 no-anim 类，避免上百条历史消息同时播放入场动画
         function renderPublicMessage(msg, container) {
             const c = container || document.getElementById('publicMessages');
-            const isOwn = msg.sender === currentUser;
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
+            const isOwn = isMsgFromMe(msg);
             const isDeleted = msg.sender_deleted || false;
             const isSystem = msg.is_system || false;
 
@@ -786,12 +783,12 @@
                 return;
             }
             const last = nonSystem[nonSystem.length - 1];
-            const sender = last.sender_deleted ? `[已注销] ${last.sender}` : last.sender;
+            const sender = last.sender_deleted ? `[用户已注销] ${last.sender}` : last.sender;
             let content = '';
             if (last.image_url) {
-                content = `[图片] (${last.image_url})`;
+                content = '[图片]';
             } else if (last.audio_url) {
-                content = `[语音] (${last.audio_url})`;
+                content = `[语音]`;
             } else {
                 content = getMessagePreview(last.text);
             }
@@ -986,7 +983,7 @@
         }
 
         function updatePublicConn(on) {
-            // v048: 更新胶囊：在线→显示在线人数，离线→显示 loading 圆圈
+            // 更新胶囊连接状态：在线→正常，离线→显示 loading 圆圈
             try {
                 var capsules = [document.getElementById('homeCapsule'), document.getElementById('publicCapsule')];
                 for (var i = 0; i < capsules.length; i++) {
@@ -999,8 +996,6 @@
                     }
                 }
             } catch (e) { /* ignore */ }
-            // 同步在线人数文本
-            if (on) renderOnlineUsers();
         }
 
         function handlePublicCleared() {
@@ -1547,33 +1542,23 @@
 
         function updatePrivateListStatusDots() {
             var dots = document.querySelectorAll('.home-page .private-list .av-status-dot');
-            var onlineNames = [];
-            try {
-                onlineNames = getOnlineUsernames();
-            } catch (e) {}
             for (var i = 0; i < dots.length; i++) {
                 var dot = dots[i];
                 var username = dot.getAttribute('data-username');
                 if (!username) continue;
                 var avatar = dot.previousElementSibling;
-                if (onlineNames.indexOf(username) >= 0) {
-                    dot.className = 'av-status-dot online';
-                    if (avatar) avatar.style.filter = '';
-                } else {
-                    dot.className = 'av-status-dot';
-                    // Check if user is banned/deleted asynchronously
-                    (function(d, un, av) {
-                        resolveUserStatus(un).then(function(status) {
-                            if (status === 'banned' || status === 'deleted') {
-                                d.className = 'av-status-dot banned';
-                                if (av) av.style.filter = 'grayscale(1)';
-                            } else {
-                                d.className = 'av-status-dot';
-                                if (av) av.style.filter = '';
-                            }
-                        });
-                    })(dot, username, avatar);
-                }
+                // 在线状态已随 Realtime 移除；圆点仅反映服务端账号状态（封禁/注销）
+                (function(d, un, av) {
+                    resolveUserStatus(un).then(function(status) {
+                        if (status === 'banned' || status === 'deleted') {
+                            d.className = 'av-status-dot banned';
+                            if (av) av.style.filter = 'grayscale(1)';
+                        } else {
+                            d.className = 'av-status-dot';
+                            if (av) av.style.filter = '';
+                        }
+                    });
+                })(dot, username, avatar);
             }
         }
 
@@ -1716,16 +1701,10 @@
             showLoadMoreIndicator('privateMessages', 'privateLoadMoreIndicator', show);
         }
 
-<<<<<<< HEAD
-        function renderPrivateMessage(msg) {
-            const c = document.getElementById('privateMessages');
-            const isOwn = isMsgFromMe(msg);
-=======
         // v073 性能优化：同 renderPublicMessage，container 支持 DocumentFragment
         function renderPrivateMessage(msg, container) {
             const c = container || document.getElementById('privateMessages');
-            const isOwn = msg.sender === currentUser;
->>>>>>> 796daf7bb5b9461b6f81fd47a3186cc9a7e16bde
+            const isOwn = isMsgFromMe(msg);
             const date = new Date(msg.created_at);
             const dl = date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
             if (dl !== privateLastDateLabel) {
@@ -2019,41 +1998,6 @@
             togglePrivateSendBtn();
         }
 
-        function renderOnlineUsers() {
-            const uniq = [...new Set(getOnlineUsernames())];
-            const n = uniq.length;
-            // v048: 同时更新两个胶囊的数字
-            var h = document.getElementById('homeCapsule'), p = document.getElementById('publicCapsule');
-            if (h) { var t = h.querySelector('.lc-num'); if (t) t.textContent = n; }
-            if (p) { var t2 = p.querySelector('.lc-num'); if (t2) t2.textContent = n; }
-            document.getElementById('onlineCount').textContent = n;
-            var poc = document.getElementById('publicOnlineCount');
-            if (poc) poc.textContent = n;
-            const container = document.getElementById('onlineListContainer');
-            if (container) {
-                container.innerHTML = uniq.map(name => {
-                    const me = name === currentUser;
-                    const idx = hashStr(name) % 8;
-                    const avUrl = userAvatarCache[name];
-                    const avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
-                    const avText = avUrl ? '' : escapeHtml(name.charAt(0).toUpperCase());
-                    return `<div class="online-item" onclick="closeOnlineList();showUserProfile('${escapeJsString(name)}')">
-                                <div class="av av-${idx}" data-username="${escapeAttr(name)}"${avStyle}>${avText}</div>
-                                <span class="name">${escapeHtml(name)}${me ? ' <span class="me-tag">(我)</span>' : ''}</span>
-                            </div>`;
-                }).join('');
-            }
-        }
-
-        function showOnlineList() {
-            document.getElementById('onlineListModal').classList.remove('hidden');
-            renderOnlineUsers();
-        }
-
-        function closeOnlineList() {
-            document.getElementById('onlineListModal').classList.add('hidden');
-        }
-
         async function showUserProfile(username) {
             if (!username) return;
             const modal = document.getElementById('userProfileModal');
@@ -2063,10 +2007,7 @@
             avatarEl.style.backgroundImage = '';
             avatarEl.textContent = '...';
             document.getElementById('userProfileUsername').textContent = '加载中';
-            document.getElementById('userProfileRole').textContent = '加载中';
             document.getElementById('userProfileStatus').textContent = '加载中';
-            document.getElementById('userProfileOnline').textContent = '加载中';
-            document.getElementById('userProfileOnlineItem').style.display = 'flex';
             document.getElementById('userProfileChatBtn').style.display = 'none';
             document.getElementById('userProfileViewBtn').style.display = 'none';
             // v049: 管理员按钮可能不存在，需空值保护
@@ -2078,22 +2019,15 @@
             if (deleteBtn) deleteBtn.style.display = 'none';
             modal.classList.remove('hidden');
 
-            function getOnlineStatus(name) {
-                return getOnlineUsernames().includes(name);
-            }
-
-            function renderUserProfile(data, isOnline) {
+            function renderUserProfile(data) {
                 const idx = hashStr(data.username) % 8;
                 avatarEl.className = 'profile-avatar av-' + idx;
                 fillUserAvatar(avatarEl, data.username, data.avatar_url);
                 if (data.avatar_url) userAvatarCache[data.username] = data.avatar_url;
                 document.getElementById('userProfileUsername').textContent = data.username;
-                document.getElementById('userProfileRole').textContent = '普通用户';
                 let statusText = '正常';
                 if (data.banned) statusText = '已封禁';
                 document.getElementById('userProfileStatus').textContent = statusText;
-                document.getElementById('userProfileOnline').textContent = isOnline ? '在线' : '离线';
-                document.getElementById('userProfileOnlineItem').style.display = 'flex';
 
                 const chatBtn = document.getElementById('userProfileChatBtn');
                 chatBtn.style.display = data.username === currentUser ? 'none' : 'block';
@@ -2105,10 +2039,7 @@
                 avatarEl.className = 'profile-avatar av-' + idx;
                 fillUserAvatar(avatarEl, name, '');
                 document.getElementById('userProfileUsername').textContent = name;
-                document.getElementById('userProfileRole').textContent = '未知';
                 document.getElementById('userProfileStatus').textContent = '已注销';
-                document.getElementById('userProfileOnline').textContent = '离线';
-                document.getElementById('userProfileOnlineItem').style.display = 'flex';
                 document.getElementById('userProfileChatBtn').style.display = 'none';
                 document.getElementById('userProfileViewBtn').style.display = 'block';
             }
@@ -2122,46 +2053,22 @@
                     }
                 } catch (e) { /* RPC not found, continue */ }
 
-                const isOnline = getOnlineStatus(username);
-
                 if (profileData) {
-                    renderUserProfile(profileData, isOnline);
-                } else if (isOnline) {
-                    const cachedAvatar = userAvatarCache[username] || '';
-                    renderUserProfile({
-                        username: username,
-                        avatar_url: cachedAvatar,
-                        role: 'user',
-                        banned: false
-                    }, true);
+                    renderUserProfile(profileData);
                 } else {
                     renderDeletedUser(username);
                 }
             } catch (e) {
-                const isOnline = getOnlineStatus(username);
-                if (isOnline) {
-                    const cachedAvatar = userAvatarCache[username] || '';
-                    renderUserProfile({
-                        username: username,
-                        avatar_url: cachedAvatar,
-                        role: 'user',
-                        banned: false
-                    }, true);
-                } else {
-                    const idx = hashStr(username) % 8;
-                    avatarEl.className = 'profile-avatar av-' + idx;
-                    fillUserAvatar(avatarEl, username, '');
-                    document.getElementById('userProfileUsername').textContent = username;
-                    document.getElementById('userProfileRole').textContent = '未知';
-                    document.getElementById('userProfileStatus').textContent = '未知';
-                    document.getElementById('userProfileOnline').textContent = '离线';
-                    document.getElementById('userProfileOnlineItem').style.display = 'none';
-                    document.getElementById('userProfileChatBtn').style.display = 'none';
-                    document.getElementById('userProfileViewBtn').style.display = 'block';
-                    document.getElementById('userProfileBanBtn').style.display = 'none';
-                    document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
-                    document.getElementById('userProfileDeleteBtn').style.display = 'none';
-                }
+                const idx = hashStr(username) % 8;
+                avatarEl.className = 'profile-avatar av-' + idx;
+                fillUserAvatar(avatarEl, username, '');
+                document.getElementById('userProfileUsername').textContent = username;
+                document.getElementById('userProfileStatus').textContent = '未知';
+                document.getElementById('userProfileChatBtn').style.display = 'none';
+                document.getElementById('userProfileViewBtn').style.display = 'block';
+                document.getElementById('userProfileBanBtn').style.display = 'none';
+                document.getElementById('userProfileForceLogoutBtn').style.display = 'none';
+                document.getElementById('userProfileDeleteBtn').style.display = 'none';
             }
         }
 
@@ -2184,15 +2091,14 @@
             }
         }
 
-        // The current (logged-in) user is always online. Determine whether they
-        // are banned and reflect that on the given dot/avatar. Resolves to the
-        // final status ('online' or 'banned').
+        // 当前登录用户的圆点仅反映服务端账号状态（封禁/注销）；在线状态已随 Realtime 移除
         async function applyCurrentUserStatus(dotEl, avatarEl) {
-            setAvatarStatusDot(dotEl, avatarEl, 'online');
             try {
                 const { data: rpcData } = await s3.rpc('get_user_profile', { p_uid: currentUid, p_username: currentUser });
                 if (rpcData && rpcData.success !== false && rpcData.banned) {
                     setAvatarStatusDot(dotEl, avatarEl, 'banned');
+                } else {
+                    setAvatarStatusDot(dotEl, avatarEl, '');
                 }
             } catch (e) { /* RPC not found */ }
         }

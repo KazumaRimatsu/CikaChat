@@ -1,4 +1,4 @@
-/* CikaChat 图片字节缓存 imgcache.js
+/* KnockChat 图片字节缓存 imgcache.js
  * 通过 Cache API 持久化图片字节：首次拉取后写入缓存，再次渲染直接以 objectURL 显示，
  * 减少对服务器的重复请求与流量开支；命中/拉取失败（CORS、配额、非图片等）时自动回退原 url。
  * 缓存按时间（7 天）与条数（500 条）自动淘汰；仅 HTTPS / localhost 安全上下文可用。
@@ -7,7 +7,7 @@
  * 依赖：无（独立模块，供 chat.js / profile.js / fview.js 使用）。
  */
 
-        const IMGCACHE_NAME = 'cika-imgcache-v1';
+        const IMGCACHE_NAME = LS_KEYS.IMGCACHE_DB;
         const IMGCACHE_MAX_AGE = 7 * 24 * 3600 * 1000; // 7 天
         const IMGCACHE_MAX_ENTRIES = 500;              // 条目上限，超出按最旧淘汰
         const IMGCACHE_MAX_BLOB = 8 * 1024 * 1024;     // 单图上限 8MB，过大不入缓存

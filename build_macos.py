@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CikaChat Tauri macOS 构建脚本
+KnockChat Tauri macOS 构建脚本
 
 用法:
     python3 build_macos.py -o <输出目录>
@@ -34,7 +34,7 @@ def main():
         print(f"警告: 当前系统为 {platform.system()}，此脚本仅适用于 macOS。")
 
     # 解析参数
-    parser = argparse.ArgumentParser(description="CikaChat Tauri macOS 构建脚本")
+    parser = argparse.ArgumentParser(description="KnockChat Tauri macOS 构建脚本")
     parser.add_argument(
         "-o", "--output-dir",
         default=str(script_dir / "dist"),
@@ -47,10 +47,10 @@ def main():
     config_path = script_dir / "src-tauri" / "tauri.conf.json"
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
-    product_name = config.get("productName", "cikachat-tauri")
+    product_name = config.get("productName", "KnockChat")
 
     print("=" * 30)
-    print("  CikaChat Tauri Build Script")
+    print("  KnockChat Tauri Build Script")
     print("=" * 30)
     print(f"产品名称: {product_name}")
     print(f"输出目录: {output_dir}")
