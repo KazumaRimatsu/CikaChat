@@ -480,10 +480,6 @@
         function leavePrivateChatAnimated() {
             privateChatActive = false;
             if (privateStatusInterval) { clearInterval(privateStatusInterval); privateStatusInterval = null; }
-            if (privateChannel) {
-                sb.removeChannel(privateChannel);
-                privateChannel = null;
-            }
             privateSessionId = null;
             privateOtherUser = '';
             privateMessages = [];
@@ -604,9 +600,9 @@
             // private chat status text.
             resolveUserStatus(privateOtherUser).then(status => setAvatarStatusDot(dot, avatar, status));
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('check_blocked', {
-                    p_blocker: currentUser,
-                    p_target: privateOtherUser
+                const { data: rpcData, error: rpcError } = await s3.rpc('check_blocked', {
+                    p_blocker_uid: currentUid,
+                    p_target_uid: privateOtherUid || 0
                 });
                 if (!rpcError) {
                     privateBlockedStatus = rpcData === true;
@@ -644,16 +640,13 @@
             role.textContent = '普通用户';
             (async () => {
                 try {
-                    const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                    const { data: rpcData } = await s3.rpc('get_user_profile', { p_uid: currentUid, p_username: currentUser });
                     if (rpcData && rpcData.success !== false) {
                         status.textContent = rpcData.banned ? '已封禁' : '正常';
                         return;
                     }
-                } catch (e) { /* RPC not found */ }
-                try {
-                    const { data } = await sb.from(TABLE_USERS).select('banned').eq('username', currentUser).maybeSingle();
-                    status.textContent = (data && data.banned) ? '已封禁' : '正常';
-                } catch (e) { status.textContent = '正常'; }
+                } catch (e) { /* ignore */ }
+                status.textContent = '正常';
             })();
             const onlineUsernames = getOnlineUsernames();
             const isOnline = onlineUsernames.includes(currentUser);
@@ -1175,16 +1168,7 @@
                 };
             }
 
-            // v040: Initialize Supabase client with error handling
-            try {
-                if (typeof window.supabase !== 'undefined' && window.supabase && window.supabase.createClient) {
-                    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                } else {
-                    console.error('Supabase library not loaded');
-                }
-            } catch (e) {
-                console.error('Supabase init error:', e);
-            }
+            // v040: S3 桥接层（src/js/s3.js）已由 index.html 注入，凭证仅在 Tauri Rust 侧
             clientId = generateId();
 
             // v049: Initialize cloud control system
@@ -1251,14 +1235,7 @@
                 showLogin();
                 return;
             }
-            // v040: Check if Supabase client is available before verifying
-            if (!sb) {
-                if (timeoutId) clearTimeout(timeoutId);
-                hideGlobalLoading();
-                showLogin();
-                showEl('loginError', '连接服务失败，请刷新页面重试');
-                return;
-            }
+            // v040: 会话恢复——直接调用后端校验（S3 桥接始终可用）
             try {
                 const session = JSON.parse(saved);
                 if (!session.username || !session.token) {
@@ -1269,15 +1246,15 @@
                     return;
                 }
                 const verifyWithSecure = async () => {
-                    const { data, error } = await sb.rpc('verify_session_secure', {
-                        p_username: session.username, p_token: session.token
+                    const { data, error } = await s3.rpc('verify_session_secure', {
+                        p_uid: session.uid || 0, p_username: session.username, p_token: session.token
                     });
                     if (!error && data && data.success !== false) return data;
                     return null;
                 };
                 const verifyWithLegacy = async () => {
-                    const { data, error } = await sb.rpc('verify_session', {
-                        p_username: session.username, p_token: session.token
+                    const { data, error } = await s3.rpc('verify_session', {
+                        p_uid: session.uid || 0, p_username: session.username, p_token: session.token
                     });
                     if (!error && data && data.success !== false) return data;
                     throw error || new Error('Session verify failed');
@@ -1305,6 +1282,7 @@
                         return;
                     }
                     currentUser = session.username;
+                    currentUid = userData.uid || session.uid || 0;
                     currentAvatarUrl = userData.avatar_url || '';
                     userAvatarCache[currentUser] = currentAvatarUrl;
                     recordLastLogin(currentUser);

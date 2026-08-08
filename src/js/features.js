@@ -5,19 +5,43 @@
         const VIDEO_EXTS = ['mp4', 'webm', 'ogg', 'mov', 'm4v', 'avi', 'mkv', 'flv', 'wmv', '3gp', 'mpeg', 'mpg', 'ogv', 'm3u8'];
         const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'wma', 'amr', 'mid', 'midi'];
 
-        // 通用上传：返回公网 URL，失败时提示并返回 null（bucket 未创建给出引导）
+        // Blob → base64（S3 upload_media RPC 走 base64 传输）
+        function blobToBase64(blob) {
+            return new Promise(function(resolve, reject) {
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const result = reader.result || '';
+                    const idx = result.indexOf(',');
+                    resolve(idx >= 0 ? result.slice(idx + 1) : result);
+                };
+                reader.onerror = function(e) { reject(e); };
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // 通用上传：返回公网 URL，失败时提示并返回 null
         async function uploadToBucket(filePath, blob, contentType, bucket) {
-            const bk = bucket || STORAGE_BUCKET;
-            const { error } = await sb.storage.from(bk).upload(filePath, blob, { contentType: contentType,
-                cacheControl: '3600' });
-            if (error) {
-                if (error.message.includes('bucket') || error.message.includes('not found')) showSnackbar(
-                    '上传失败: 请先在 Storage 创建 ' + bk + ' Bucket');
-                else showSnackbar('上传失败: ' + error.message);
+            const _ = bucket; // 单桶架构：所有文件统一存 media/ 前缀，忽略旧桶名
+            try {
+                const b64 = await blobToBase64(blob);
+                const res = await s3.rpc('upload_media', {
+                    p_key: filePath,
+                    p_base64: b64,
+                    p_content_type: contentType || 'application/octet-stream'
+                });
+                if (res.error) {
+                    showSnackbar('上传失败: ' + res.error.message);
+                    return null;
+                }
+                if (res.data && res.data.success === false) {
+                    showSnackbar(res.data.message || '上传失败');
+                    return null;
+                }
+                return (res.data && res.data.url) || null;
+            } catch (e) {
+                showSnackbar('上传失败: ' + (e.message || ''));
                 return null;
             }
-            const { data: urlData } = sb.storage.from(bk).getPublicUrl(filePath);
-            return urlData.publicUrl;
         }
 
         // 语音录制工厂：公聊/私聊共用同一套录音、计时、上传流程
@@ -84,7 +108,7 @@
                 const filePath = config.makePath(ext);
                 showSnackbar('正在上传语音...');
                 try {
-                    const url = await uploadToBucket(filePath, blob, mimeType, config.bucket);
+                    const url = await uploadToBucket(filePath, blob, mimeType);
                     if (!url) return;
                     const duration = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0;
                     await config.onUploaded(duration, url);
@@ -97,8 +121,7 @@
         const publicRecorder = createVoiceRecorder({
             ids: { btn: 'recordBtn', timer: 'recordTimer', hint: 'recordHint', stopBtn: 'recordStopBtn' },
             tooShortMsg: '录音太短',
-            bucket: FILES_BUCKET,
-            makePath: (ext) => `Public/${Date.now()}-${generateId()}.${ext}`,
+            makePath: (ext) => `public/${Date.now()}-${generateId()}.${ext}`,
             onUploaded: async (duration, url) => {
                 const fallbackText = buildVoiceFallback(duration);
                 let audioResult = await sendPublicMessageSecure({
@@ -121,8 +144,7 @@
         const privateRecorder = createVoiceRecorder({
             ids: { btn: 'privateRecordBtn', timer: 'privateRecordTimer', hint: 'privateRecordHint', stopBtn: 'privateRecordStopBtn' },
             tooShortMsg: '录音时间太短',
-            bucket: FILES_BUCKET,
-            makePath: (ext) => `Private/${currentUser}/${Date.now()}-${generateId()}.${ext}`,
+            makePath: (ext) => `private/${privateSessionId || 'unknown'}/${Date.now()}-${generateId()}.${ext}`,
             onUploaded: async (duration, url) => {
                 const content = _wrapMjV064('voice', { dur: duration, url: url }, '当前版本不支持查看，请更新MJChat版本');
                 try {
@@ -578,9 +600,9 @@
             if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
-            const filePath = `Public/${Date.now()}-${generateId()}.${ext}`;
+            const filePath = `public/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream', FILES_BUCKET);
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
                 if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
                 const fileText = buildFileText(file.name, fileSize, url);
@@ -637,7 +659,6 @@
             hideLinkDialog();
 
             if (linkMode === 'private') {
-                if (!privateChannel) return;
                 try {
                     const newMsg = await safeInsertPrivateMsg(privateSessionId, currentUser, linkText);
                     appendPrivateMsgLocally(newMsg, false);
@@ -820,9 +841,9 @@
             if (file.size > MAX_FILE_SIZE) { showSnackbar(`文件不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`); return; }
             showSnackbar('正在上传文件...');
             const ext = file.name.split('.').pop() || 'file';
-            const filePath = `Private/${currentUser}/${Date.now()}-${generateId()}.${ext}`;
+            const filePath = `private/${privateSessionId}/${Date.now()}-${generateId()}.${ext}`;
             try {
-                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream', FILES_BUCKET);
+                const url = await uploadToBucket(filePath, file, file.type || 'application/octet-stream');
                 if (!url) return;
                 const fileSize = (file.size / 1024).toFixed(1);
                 const content = _wrapMjV064('file', { name: file.name, size: fileSize, url: url }, '当前版本不支持查看，请更新MJChat版本');
@@ -842,17 +863,12 @@
             try {
                 let users = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('search_users', { p_query: query.trim(), p_limit: 20 });
+                    const { data: rpcData, error: rpcError } = await s3.rpc('search_users', { p_query: query.trim(), p_limit: 20 });
                     if (!rpcError && rpcData) { users = rpcData; }
-                } catch (e) { /* RPC not found, continue */ }
+                } catch (e) { /* ignore */ }
                 if (!users) {
-                    const { data, error } = await sb.from(TABLE_USERS)
-                        .select('username, avatar_url')
-                        .ilike('username', `%${query.trim()}%`)
-                        .neq('username', currentUser)
-                        .limit(20);
-                    if (error) { container.innerHTML = '<div class="empty">权限不足</div>'; return; }
-                    users = data;
+                    container.innerHTML = '<div class="empty">搜索失败</div>';
+                    return;
                 }
                 if (!users || users.length === 0) {
                     container.innerHTML = '<div class="empty">未找到用户</div>';
@@ -881,7 +897,7 @@
         }
 
         // ============================================================
-        // 群文件：浏览 chat-images 桶中的公共文件（排除 private/ 私聊内容）
+        // 群文件：枚举 media/ 前缀下的公共文件（排除 private 私聊内容由 key 前缀识别）
         // ============================================================
         function showGroupFiles() {
             pushPageHistory('groupFiles');
@@ -894,40 +910,21 @@
             if (!container) return;
             container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px;"><span class="md-circular-loader"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5"/></svg></span></div>';
             try {
-                // 枚举 chat-images（图片/语音/历史文件）与 chat-files（文件/语音）两个桶，并行请求
-                const buckets = [STORAGE_BUCKET, FILES_BUCKET];
-                const prefixes = ['', 'chat/', 'files/', 'audio/', 'avatars/', 'Public/', 'Public/avatars/'];
-                const listResults = await Promise.all(buckets.map(bk =>
-                    Promise.all(prefixes.map(prefix =>
-                        sb.storage.from(bk).list(prefix, {
-                            limit: 100,
-                            offset: 0,
-                            sortBy: { column: 'created_at', order: 'desc' }
-                        }).then(res => ({ bk, prefix, res }))
-                            .catch(() => ({ bk, prefix, res: null }))
-                    ))
-                ));
-                const allFiles = [];
-                for (const bucketResult of listResults) {
-                    for (const { bk, prefix, res } of bucketResult) {
-                        if (!res) continue;
-                        const { data: files, error } = res;
-                        if (!error && files) {
-                            for (let fi = 0; fi < files.length; fi++) {
-                                const f = files[fi];
-                                if (f.name === '.emptyFolderPlaceholder') continue;
-                                // 文件夹无 metadata，跳过
-                                if (!f.metadata) continue;
-                                f._bucket = bk;
-                                f._prefix = prefix;
-                                allFiles.push(f);
-                            }
-                        }
-                    }
+                const { data: files, error } = await s3.rpc('list_media', { p_prefix: '' });
+                if (error) {
+                    container.innerHTML = '<div class="gf-empty">加载失败: ' + (error.message || '未知错误') + '</div>';
+                    return;
                 }
-                allFiles.sort(function(a, b) {
-                    return new Date(b.created_at) - new Date(a.created_at);
-                });
+                const allFiles = (Array.isArray(files) ? files : [])
+                    .filter(function(f) {
+                        if (!f || !f.key) return false;
+                        // 排除私聊媒体与用户头像，仅展示公共聊天/群文件
+                        if (f.key.indexOf('media/private/') === 0) return false;
+                        return true;
+                    })
+                    .sort(function(a, b) {
+                        return new Date(b.created_at) - new Date(a.created_at);
+                    });
                 if (allFiles.length === 0) {
                     container.innerHTML = '<div class="gf-empty">暂无群文件</div>';
                     return;
@@ -935,21 +932,15 @@
                 let html = '';
                 for (let idx = 0; idx < allFiles.length; idx++) {
                     const file = allFiles[idx];
-                    const sizeStr = file.metadata && file.metadata.size
-                        ? (file.metadata.size > 1048576
-                            ? (file.metadata.size / 1048576).toFixed(1) + ' MB'
-                            : (file.metadata.size / 1024).toFixed(1) + ' KB')
-                        : '';
+                    const sizeStr = file.size ? (file.size > 1048576 ? (file.size / 1048576).toFixed(1) + ' MB' : (file.size / 1024).toFixed(1) + ' KB') : '';
                     const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString('zh-CN') : '';
-                    const pf = file._prefix || '';
-                    const bk = file._bucket || STORAGE_BUCKET;
+                    const fileUrl = file.url || '';
                     // 图片/视频：点击在预览器直接预览；其余文件：点击进入文件预览器（Office/代码/不支持）
                     const ext = (file.name.split('.').pop() || '').toLowerCase();
                     const isImage = IMAGE_EXTS.includes(ext);
                     const isVideo = VIDEO_EXTS.includes(ext);
                     if (isImage || isVideo) {
-                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
-                        const fileUrl = urlData ? urlData.publicUrl : '';
+                        const fileUrl = file.url || '';
                         if (isImage) {
                             html += '<div class="gf-file-item" onclick="previewImage(\'' + escapeJsString(fileUrl) + '\')">';
                             html += '<div class="gf-file-icon"><img src="' + escapeAttr(fileUrl) + '" loading="lazy" onerror="this.style.display=\'none\'"></div>';
@@ -959,8 +950,7 @@
                         }
                     } else {
                         const iconHtml = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' + getFileIconSvg(file.name) + '</svg>';
-                        const { data: urlData } = sb.storage.from(bk).getPublicUrl(pf + file.name);
-                        const fileUrl = urlData ? urlData.publicUrl : '';
+                        const fileUrl = file.url || '';
                         html += '<div class="gf-file-item" onclick="openFilePreview(\'' + escapeJsString(fileUrl) + '\', \'' + escapeJsString(file.name) + '\')">';
                         html += '<div class="gf-file-icon">' + iconHtml + '</div>';
                     }
@@ -1024,18 +1014,13 @@
             try {
                 let agentName = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_agents');
                     if (!rpcError && rpcData) {
                         const agents = Array.isArray(rpcData) ? rpcData : [];
                         const agent = agents.find(a => a.id === agentId);
                         if (agent) agentName = agent.name;
                     }
-                } catch (e) { /* RPC fallback */ }
-                if (!agentName) {
-                    const { data, error } = await sb.from(TABLE_AGENTS)
-                        .select('name').eq('id', agentId).single();
-                    if (!error && data) agentName = data.name;
-                }
+                } catch (e) { /* ignore */ }
                 return agentName || '智能体';
             } catch (e) { return '智能体'; }
         }
@@ -1061,13 +1046,11 @@
         function setDefaultAvatar() {
             const colors = ['#4A9EFF', '#BA68C8', '#4DB6AC', '#4FC3F7', '#FF8A65', '#A1887F', '#90A4AE', '#F06292'];
             const color = colors[Math.floor(Math.random() * colors.length)];
-            sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: null })
+            s3.rpc('update_avatar', { p_uid: currentUid, p_avatar_url: null })
                 .then(() => {
                     currentAvatarUrl = '';
                     userAvatarCache[currentUser] = '';
-                    if (publicChannel) {
-                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: '' } });
-                    }
+                    // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
@@ -1095,33 +1078,26 @@
                 if (file.size > COMPRESS_THRESHOLD) {
                     blob = await compressImage(file, 256, 0.8);
                 }
-                const filePath = `Public/avatars/${hashStr(currentUser)}-${Date.now()}.jpg`;
+                const filePath = `avatars/${hashStr(currentUser)}-${Date.now()}.jpg`;
                 try {
-                    const { error } = await sb.storage.from(STORAGE_BUCKET).upload(filePath, blob, { contentType: 'image/jpeg',
-                        cacheControl: '3600' });
-                    if (error) {
-                        showSnackbar('上传失败: ' + error.message);
-                        return;
-                    }
-                    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-                    const { error: upError } = await sb.rpc('update_avatar', {
-                        p_username: currentUser,
-                        p_avatar_url: urlData.publicUrl
+                    const url = await uploadToBucket(filePath, blob, 'image/jpeg');
+                    if (!url) return;
+                    const { error: upError } = await s3.rpc('update_avatar', {
+                        p_uid: currentUid,
+                        p_avatar_url: url
                     });
                     if (upError) {
                         showSnackbar('更新失败: ' + upError.message);
                         return;
                     }
-                    currentAvatarUrl = urlData.publicUrl;
-                    userAvatarCache[currentUser] = urlData.publicUrl;
-                    if (publicChannel) {
-                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: urlData.publicUrl } });
-                    }
+                    currentAvatarUrl = url;
+                    userAvatarCache[currentUser] = url;
+                    // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
                     const avatarEl = document.getElementById('profileDialogAvatar');
-                    avatarEl.style.backgroundImage = `url(${urlData.publicUrl})`;
+                    avatarEl.style.backgroundImage = `url(${url})`;
                     avatarEl.textContent = '';
                     showSnackbar('头像已更新');
                 } catch (e) { showSnackbar('上传失败'); }

@@ -1,20 +1,20 @@
-/* CikaChat 常量定义：密钥解码、Supabase 配置、表名/桶名、版本、限制、通知音等全局常量 */
+/* CikaChat 常量定义：存储结构说明、表名/路径、版本、限制、通知音等全局常量 */
 
-        const _d = function(s) { var k = 'mjchat2026'; var r = ''; try { var d = atob(s); for (var i = 0; i < d.length; i++) { r += String.fromCharCode(d.charCodeAt(i) ^ k.charCodeAt(i % k.length)); } } catch(e) { r = s; } return r; };
-        const SUPABASE_URL = _d('BR4XGBJOHR9VTwQeGh0CF0JGWVgcHwIJCwBXVhxFGBoCCgAHVx5RWQ==');
-        const SUPABASE_ANON_KEY = _d('Hgg8GBQWXllBXgwIDw0+JVtoWWkyGyBZCEJfd1p/DC8CGSICY29wUV8nBiosLQ==');
-        const TABLE_USERS = 'chat_users';
-        const TABLE_PUBLIC_MSG = 'chat_messages';
-        const TABLE_PRIVATE_SESSIONS = 'private_sessions';
-        const TABLE_PRIVATE_MSGS = 'private_messages';
-        const TABLE_AGENTS = 'chat_agents';
-        const TABLE_LOGIN_HISTORY = 'login_history';
-        const STORAGE_BUCKET = 'chat-images';
-        const FILES_BUCKET = 'chat-files';
-        const CHANNEL_PUBLIC = 'chat-room-md';
+        // 本应用已弃用 Supabase，改为雨云存储桶（AWS S3 兼容 API）。
+        // 凭证只保存在 src-tauri Rust 侧（s3-config.json 或 CIKACHAT_S3_* 环境变量），
+        // 前端统一通过 src/js/s3.js 桥接层调用 Tauri invoke（s3rpc_* 命令）。
+        // 单存储桶目录结构（对象 Key 前缀）：
+        //   users/                用户资料
+        //   sessions/             登录会话
+        //   public/messages/      公聊消息
+        //   private/sessions/     私聊会话
+        //   private/messages/     私聊消息
+        //   media/                图片/语音/文件/头像（媒体统一存该前缀下）
+        //   agents/               智能体配置（预留）
+        //   config/               云控等全局配置（预留）
         const HISTORY_LIMIT = 200;
         const APP_VERSION = 69;
-        const VERSION = '28.6.701';
+        const VERSION = '1.0.0';
         const CC_BANNER_TITLE = '系统维护';
         const CC_BANNER_MSG = '系统正在维护，暂时无法登录。';
         const SALT = 'mjchat_2026_salt_v1';

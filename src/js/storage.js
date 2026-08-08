@@ -39,13 +39,13 @@
             const baseline = pubLastRead || getLastLoginTime() || null;
             if (baseline) {
                 publicMessages.forEach(m => {
-                    if (!m.is_system && m.sender !== currentUser && new Date(m.created_at) > new Date(baseline)) {
+                    if (!m.is_system && !isMsgFromMe(m) && new Date(m.created_at) > new Date(baseline)) {
                         publicUnread++;
                     }
                 });
             } else {
                 publicMessages.forEach(m => {
-                    if (!m.is_system && m.sender !== currentUser) publicUnread++;
+                    if (!m.is_system && !isMsgFromMe(m)) publicUnread++;
                 });
             }
             privateUnreadCounts = {};
@@ -592,7 +592,7 @@
             const data = {
                 app: 'com.cika.chatapp',
                 type: '#settings#',
-                version: "28.6.701",
+                version: "1.0.0",
                 exportedAt: new Date().toISOString(),
                 user: currentUser || '',
                 settings: {

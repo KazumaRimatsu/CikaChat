@@ -113,18 +113,11 @@
                 // 优先 RPC 获取完整资料（含邮箱/生日/简介/标签/背景）
                 let profileData = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: _udTargetUser });
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_username: _udTargetUser });
                     if (!rpcError && rpcData && rpcData.success !== false) {
                         profileData = rpcData;
                     }
-                } catch (e) { /* RPC 不可用时回退用户表 */ }
-                if (!profileData) {
-                    try {
-                        const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
-                            .eq('username', _udTargetUser).maybeSingle();
-                        if (!error && data) profileData = data;
-                    } catch (e) { /* ignore */ }
-                }
+                } catch (e) { /* ignore */ }
 
                 _udUserData = profileData;
                 if (!profileData) {
@@ -312,7 +305,7 @@
             // 从 RPC 回填已有资料
             (async function() {
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_uid: currentUid, p_username: currentUser });
                     if (!rpcError && rpcData && rpcData.success !== false) {
                         epEmail.value = rpcData.email || '';
                         epBirthday.value = normalizeDateToISO(rpcData.birthday) || '';
@@ -434,12 +427,11 @@
 
                 // 头像有改动才上传（已在裁剪器压缩为 512x512）
                 if (_epAvatarFile) {
-                    const avPath = 'Public/avatars/' + hashStr(currentUser) + '-' + Date.now() + '.jpg';
-                    const { error: avErr } = await sb.storage.from(STORAGE_BUCKET).upload(avPath, _epAvatarFile, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
-                    if (avErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('头像上传失败: ' + avErr.message); return; }
-                    const { data: avUrl } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(avPath);
-                    newAvatarUrl = avUrl.publicUrl;
-                    const { error: upErr } = await sb.rpc('update_avatar', { p_username: currentUser, p_avatar_url: newAvatarUrl });
+                    const avPath = 'avatars/' + hashStr(currentUser) + '-' + Date.now() + '.jpg';
+                    const uploadedAvatarUrl = await uploadToBucket(avPath, _epAvatarFile, 'image/jpeg');
+                    if (!uploadedAvatarUrl) { if (overlay) overlay.remove(); btn.disabled = false; return; }
+                    newAvatarUrl = uploadedAvatarUrl;
+                    const { error: upErr } = await s3.rpc('update_avatar', { p_uid: currentUid, p_avatar_url: newAvatarUrl });
                     if (upErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('更新头像失败: ' + upErr.message); return; }
                     currentAvatarUrl = newAvatarUrl;
                     userAvatarCache[currentUser] = newAvatarUrl;
@@ -447,24 +439,21 @@
                     updateAllAvatars();
                     updateHomeMenu();
                     updatePublicMenu();
-                    if (publicChannel) {
-                        publicChannel.send({ type: 'broadcast', event: 'avatar_changed', payload: { username: currentUser, avatar_url: newAvatarUrl } });
-                    }
+                    // 已移除实时广播：其他客户端头像由下次渲染/轮询刷新
                 }
 
                 // 背景有改动才上传（已在裁剪器压缩为 1920x1080）
                 if (_epBgFile) {
-                    const bgPath = 'Public/background/' + currentUser + '_' + Date.now() + '.jpg';
-                    const { error: bgErr } = await sb.storage.from(STORAGE_BUCKET).upload(bgPath, _epBgFile, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
-                    if (bgErr) { if (overlay) overlay.remove(); btn.disabled = false; showSnackbar('背景上传失败: ' + bgErr.message); return; }
-                    const { data: bgUrl } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(bgPath);
-                    newBgUrl = bgUrl.publicUrl;
+                    const bgPath = 'background/' + currentUser + '_' + Date.now() + '.jpg';
+                    const uploadedBgUrl = await uploadToBucket(bgPath, _epBgFile, 'image/jpeg');
+                    if (!uploadedBgUrl) { if (overlay) overlay.remove(); btn.disabled = false; return; }
+                    newBgUrl = uploadedBgUrl;
                     try { localStorage.setItem('mjchat_ud_bg_' + currentUser, newBgUrl); } catch (ex) { }
                 }
 
                 // 保存资料（含背景）
-                const { data: saveData, error: saveErr } = await sb.rpc('upsert_user_profile', {
-                    p_username: currentUser,
+                const { data: saveData, error: saveErr } = await s3.rpc('upsert_user_profile', {
+                    p_uid: currentUid,
                     p_email: email,
                     p_birthday: birthdayISO,
                     p_bio: bio,

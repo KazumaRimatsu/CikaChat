@@ -1,7 +1,5 @@
 /* CikaChat 聊天核心功能：公共聊天/私聊的渲染、发送、交互、在线状态、未读提示 */
 
-        let publicChannel = null;
-        let privateChannel = null;
         let publicMessages = [];
         let publicMessageById = new Map(); // 消息 id 索引，用于 O(1) 去重与回复查找
         let publicLastDateLabel = '';
@@ -9,6 +7,8 @@
         let privateLastDateLabel = '';
         let privateSessionId = null;
         let privateOtherUser = '';
+        // v080: 私聊对方 uid（类 QQ 号，从 1 递增）——身份判断/黑名单一律以此为准
+        let privateOtherUid = 0;
         let privateChatActive = false;
         let privateStatusInterval = null;
         let dismissedPrivacyBanners = new Set();
@@ -215,13 +215,7 @@
         let recentPrivateNotifications = {};
 
         function notifyPrivateMsg(sessionId, sender) {
-            if (publicChannel) {
-                publicChannel.send({
-                    type: 'broadcast',
-                    event: 'private_msg_notification',
-                    payload: { session_id: sessionId, sender: sender, timestamp: Date.now() }
-                });
-            }
+            // 已移除实时广播：新私聊消息由轮询驱动（handlePrivateNotification 会播放提示音/红点）
         }
 
         // 兜底通知：实时广播丢失/延迟时（网络不佳），通过广播或轮询补拉的新消息也要播放提示音
@@ -337,6 +331,7 @@
             const nm = {
                 id: msg.id,
                 sender: msg.sender,
+                sender_uid: msg.sender_uid || 0,
                 text: msg.text || '',
                 image_url: msg.image_url || null,
                 audio_url: msg.audio_url || null,
@@ -364,7 +359,7 @@
                 if (!nm.is_system) {
                     markPublicRead(nm.created_at);
                 }
-            } else if (!isHistory && nm.sender !== currentUser && !nm.is_system) {
+            } else if (!isHistory && !isMsgFromMe(nm) && !nm.is_system) {
                 // 消息免打扰：开启时不显示红点、不播放提示音；@提及绕过免打扰
                 var isMentioned = _checkMention(nm.text || '');
                 if (!_mutePublic || isMentioned) {
@@ -408,7 +403,7 @@
 
         function renderPublicMessage(msg) {
             const c = document.getElementById('publicMessages');
-            const isOwn = msg.sender === currentUser;
+            const isOwn = isMsgFromMe(msg);
             const isDeleted = msg.sender_deleted || false;
             const isSystem = msg.is_system || false;
 
@@ -576,6 +571,7 @@
             row.className = `msg-row ${isOwn ? 'own' : ''}`;
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
+            row.dataset.msgUid = msg.sender_uid || '';
             row.dataset.msgText = msg.text || '';
             row.dataset.msgType = msgType;
             row.dataset.linkUrl = linkUrl || '';
@@ -777,6 +773,11 @@
                 document.getElementById('publicSendBtn').disabled = false;
                 return;
             }
+            // 已移除实时通道：直接用服务端返回的消息对象本地渲染，避免等轮询延迟
+            if (result.message) {
+                handlePublicMessage(result.message);
+                updatePublicEntry();
+            }
             input.value = '';
             autoResize(input);
             cancelPublicReply();
@@ -799,17 +800,11 @@
             try {
                 let agents = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_agents');
                     if (!rpcError && rpcData) {
                         agents = Array.isArray(rpcData) ? rpcData : [];
                     }
                 } catch (e) { /* RPC fallback */ }
-                if (!agents) {
-                    const { data, error } = await sb.from(TABLE_AGENTS)
-                        .select('id, name, provider, model, created_by, created_at');
-                    if (error) return;
-                    agents = data || [];
-                }
                 for (const name of mentionedNames) {
                     const agent = agents.find(a => a.name === name);
                     if (agent) {
@@ -832,7 +827,7 @@
 
                 let response = null;
                 try {
-                    const { data: llmData, error: llmError } = await sb.rpc('call_agent_llm_rate_limited', {
+                    const { data: llmData, error: llmError } = await s3.rpc('call_agent_llm_rate_limited', {
                         p_agent_id: agent.id,
                         p_user_message: cleanMsg,
                         p_caller: currentUser,
@@ -854,14 +849,14 @@
                 let replyToId = null;
                 let replyContent = null;
                 const lastMsg = publicMessages[publicMessages.length - 1];
-                if (lastMsg && lastMsg.sender === currentUser) {
+                if (lastMsg && isMsgFromMe(lastMsg)) {
                     replyToId = lastMsg.id;
                     replyContent = `回复 @${currentUser}：${cleanMsg}`;
                 }
 
                 let sent = false;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('send_agent_message', {
+                    const { data: rpcData, error: rpcError } = await s3.rpc('send_agent_message', {
                         p_agent_name: agent.name,
                         p_content: response,
                         p_reply_to_id: replyToId,
@@ -876,7 +871,7 @@
                 if (!sent) {
                     await ensureAgentUserAccount(agent.name);
                     try {
-                        const { data: rpcData2, error: rpcError2 } = await sb.rpc('send_agent_message', {
+                        const { data: rpcData2, error: rpcError2 } = await s3.rpc('send_agent_message', {
                             p_agent_name: agent.name,
                             p_content: response,
                             p_reply_to_id: replyToId,
@@ -1029,16 +1024,8 @@
             document.addEventListener('mousemove', (e) => { if (pressTimer && e.button === 0) movePress(e); });
             document.addEventListener('mouseup', (e) => { if (e.button === 0) endPress(); });
 
-            if (isPublic && publicChannel) {
-                publicChannel.on('broadcast', { event: 'poke' }, (p) => {
-                    const from = p.payload.from;
-                    const target = p.payload.target;
-                    if (target === currentUser) {
-                        broadcastSystemMsg(`${from} 拍了拍你`);
-                    } else if (from === currentUser) {
-                        broadcastSystemMsg(`${from} 拍了拍 ${target}`);
-                    }
-                });
+            if (isPublic) {
+                // 已移除 Realtime poke 广播：拍一拍只对本地/对方轮询感知
             }
         }
 
@@ -1085,10 +1072,7 @@
                 return;
             }
             lastPokeTime = now;
-            if (publicChannel) {
-                publicChannel.send({ type: 'broadcast', event: 'poke', payload: { from: currentUser,
-                        target: sender } });
-            }
+            // 已移除 Realtime poke 广播
             broadcastSystemMsg(`你拍了拍 ${sender}`);
         }
 
@@ -1166,6 +1150,7 @@
 
             const msgId = row.dataset.msgId;
             const sender = row.dataset.msgSender;
+            const senderUid = row.dataset.msgUid ? parseInt(row.dataset.msgUid, 10) : 0;
             const text = row.dataset.msgText || '';
             const msgType = row.dataset.msgType || 'text';
             const linkUrl = row.dataset.linkUrl || '';
@@ -1176,7 +1161,8 @@
             contextTarget = { row, msgId, sender, text, type: msgType, linkUrl, imageUrl, replyToId, replyContent,
                 chatType: type };
 
-            const isOwn = sender === currentUser;
+            // v080: 消息归属按 uid 判断，旧消息（无 uid）回退到用户名
+            const isOwn = senderUid ? senderUid === currentUid : sender === currentUser;
             const canDelete = isOwn;
 
             const icons = {
@@ -1299,29 +1285,29 @@
             const msgId = target.msgId;
             const chatType = target.chatType || 'public';
             if (!msgId) { showSnackbar('无效消息'); return; }
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const uuidRegex = /^[0-9a-f]{16,64}$/i; // S3 后端消息 id：十六进制时间戳+随机数
             if (!uuidRegex.test(msgId)) { showSnackbar('无效的消息ID'); return; }
             try {
                 if (chatType === 'public') {
-                    const { data: delData, error: delError } = await sb.rpc('delete_public_message', {
+                    const { data: delData, error: delError } = await s3.rpc('delete_public_message', {
                         p_msg_id: msgId,
-                        p_username: currentUser,
+                        p_uid: currentUid,
                         p_session_token: getSessionToken()
                     });
                     if (delError || (delData && delData.success === false)) {
                         showSnackbar('删除失败: ' + (delData?.message || delError?.message || ''));
                         return;
                     }
-                    publicChannel.send({ type: 'broadcast', event: 'delete_message', payload: { id: msgId } });
                     handlePublicDeleted(msgId);
                 } else {
-                    // Private messages have RLS deny_all, so use RPC to delete
+                    // Private messages: delete via S3 RPC (session id 用于定位消息对象)
                     var deleted = false;
                     var rpcFailMsg = null;
                     try {
-                        var rpcResult = await sb.rpc('delete_private_message', {
+                        var rpcResult = await s3.rpc('delete_private_message', {
+                            p_session_id: privateSessionId,
                             p_msg_id: msgId,
-                            p_username: currentUser,
+                            p_uid: currentUid,
                             p_session_token: getSessionToken()
                         });
                         if (!rpcResult.error && rpcResult.data) {
@@ -1347,9 +1333,7 @@
                         }
                         return;
                     }
-                    if (privateChannel) {
-                        privateChannel.send({ type: 'broadcast', event: 'delete_message', payload: { id: msgId } });
-                    }
+                    // 已移除实时广播：对方列表由轮询感知
                     privateMessages = privateMessages.filter(m => m.id !== msgId);
                     var rows = document.querySelectorAll('#privateMessages .msg-row');
                     for (var i = 0; i < rows.length; i++) { if (rows[i].dataset.msgId === msgId) rows[i].remove(); }
@@ -1403,7 +1387,10 @@
                 return;
             }
             container.innerHTML = sessions.map(function(s) {
-                var other = s.user1 === currentUser ? s.user2 : s.user1;
+                // v080: 对方以 uid 判断（旧会话无 uid 时回退用户名）
+                var u1 = s.user1_uid || 0, u2 = s.user2_uid || 0;
+                var other = u1 ? (u1 === currentUid ? s.user2 : s.user1) : (s.user1 === currentUser ? s.user2 : s.user1);
+                var otherUid = u1 ? (u1 === currentUid ? u2 : u1) : 0;
                 var idx = hashStr(other) % 8;
                 var lastMsg = getMessagePreview(s.last_message) || '暂无消息';
                 var time = s.updated_at ? new Date(s.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit',
@@ -1413,7 +1400,7 @@
                 var avUrl = userAvatarCache[other];
                 var avStyle = avUrl ? ' style="background-image:url(\'' + escapeAttr(sanitizeAvatarUrl(avUrl)) + '\');background-size:cover;background-position:center;"' : '';
                 var avText = avUrl ? '' : escapeHtml(other.charAt(0).toUpperCase());
-                return '<div class="list-item" data-session="' + escapeAttr(s.id) + '" onclick="openPrivateChat(\'' + escapeJsString(s.id) + '\',\'' + escapeJsString(other) + '\')">' +
+                return '<div class="list-item" data-session="' + escapeAttr(s.id) + '" onclick="openPrivateChat(\'' + escapeJsString(s.id) + '\',\'' + escapeJsString(other) + '\',' + (otherUid || 0) + ')">' +
                             '<div class="av-wrap">' +
                                 '<div class="av av-' + idx + '" data-username="' + escapeAttr(other) + '"' + avStyle + '>' + avText + '</div>' +
                                 '<div class="av-status-dot" data-username="' + escapeAttr(other) + '"></div>' +
@@ -1464,9 +1451,20 @@
             }
         }
 
-        async function openPrivateChat(sessionId, otherUser) {
+        async function openPrivateChat(sessionId, otherUser, otherUid) {
             privateSessionId = sessionId;
             privateOtherUser = otherUser;
+            // v080: 对方 uid——优先入参，其次从会话列表推导，最后按用户名解析
+            privateOtherUid = otherUid || 0;
+            if (!privateOtherUid) {
+                const sess = (window.privateSessions || []).find(x => x.id === sessionId);
+                if (sess && (sess.user1_uid || sess.user2_uid)) {
+                    privateOtherUid = sess.user1_uid === currentUid ? (sess.user2_uid || 0) : (sess.user1_uid || 0);
+                }
+                if (!privateOtherUid && otherUser) {
+                    privateOtherUid = await resolveUserUid(otherUser);
+                }
+            }
             privateChatActive = true;
             privateHasMore = true;
             privateLoadingMore = false;
@@ -1528,27 +1526,18 @@
             }
         }
 
-        // v069: 标记私聊消息已读（RPC 落库 + 广播给发送方）
+        // v069: 标记私聊消息已读（RPC 落库）
         async function markPrivateMessagesRead(sessionId) {
-            if (!sb || !currentUser || !sessionId) return;
+            if (!currentUser || !sessionId) return;
             try {
-                await sb.rpc('mark_private_messages_read', {
+                await s3.rpc('mark_private_messages_read', {
                     p_session_id: sessionId,
                     p_reader: currentUser,
                     p_session_token: getSessionToken()
                 });
             } catch (e) {
-                console.warn('[markPrivateMessagesRead] RPC failed, still broadcasting:', e);
+                console.warn('[markPrivateMessagesRead] RPC failed:', e);
             }
-            setTimeout(function() {
-                if (privateChannel) {
-                    privateChannel.send({
-                        type: 'broadcast',
-                        event: 'messages_read',
-                        payload: { reader: currentUser, session_id: sessionId }
-                    });
-                }
-            }, 300);
         }
 
         // v069: 对方已读回执 —— 将本端发出的私聊消息状态更新为「已读」
@@ -1556,7 +1545,9 @@
             if (!reader || reader !== privateOtherUser) return;
             const rows = document.querySelectorAll('#privateMessages .msg-row');
             rows.forEach(function(row) {
-                if (row.dataset.msgSender === currentUser) {
+                const suid = row.dataset.msgUid ? parseInt(row.dataset.msgUid, 10) : 0;
+                const isOwnRow = suid ? suid === currentUid : row.dataset.msgSender === currentUser;
+                if (isOwnRow) {
                     const statusEl = row.querySelector('.read-status');
                     if (statusEl) {
                         statusEl.textContent = '已读';
@@ -1601,7 +1592,7 @@
 
         function renderPrivateMessage(msg) {
             const c = document.getElementById('privateMessages');
-            const isOwn = msg.sender === currentUser;
+            const isOwn = isMsgFromMe(msg);
             const date = new Date(msg.created_at);
             const dl = date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
             if (dl !== privateLastDateLabel) {
@@ -1705,6 +1696,7 @@
             row.className = `msg-row ${isOwn ? 'own' : ''}`;
             row.dataset.msgId = msg.id;
             row.dataset.msgSender = msg.sender;
+            row.dataset.msgUid = msg.sender_uid || '';
             row.dataset.msgText = actualContent || '';
             if (replyToId) {
                 row.dataset.replyToId = replyToId;
@@ -1764,11 +1756,9 @@
             }
         }
 
-        // 私聊消息本地广播/追加/渲染/通知的统一流程（发送与附件、语音、链接共用）
+        // 私聊消息本地追加/渲染/通知的统一流程（发送与附件、语音、链接共用）
         function appendPrivateMsgLocally(newMsg, withBannerCheck) {
-            if (privateChannel) {
-                privateChannel.send({ type: 'broadcast', event: 'new_message', payload: newMsg });
-            }
+            // 已移除 Realtime 广播：对方会话由轮询拉取
             privateMessages.push(newMsg);
             appendPrivateMsgCache(privateSessionId, newMsg);
             if (document.getElementById('privatePage').classList.contains('active')) {
@@ -1807,9 +1797,9 @@
             }
             const fullContent = replyPrefix + text;
 
-            const hasReply = privateMessages.some(m => m.sender !== currentUser);
+            const hasReply = privateMessages.some(m => !isMsgFromMe(m));
             if (!hasReply) {
-                const myMsgCount = privateMessages.filter(m => m.sender === currentUser).length;
+                const myMsgCount = privateMessages.filter(m => isMsgFromMe(m)).length;
                 if (myMsgCount >= 3) {
                     showSnackbar('对方暂未回复，请稍后再发送');
                     document.getElementById('privateSendBtn').disabled = false;
@@ -1826,9 +1816,9 @@
             let sendError = null;
             let blockedMsg = null;
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
+                const { data: rpcData, error: rpcError } = await s3.rpc('send_private_message', {
                     p_session_id: privateSessionId,
-                    p_sender: currentUser,
+                    p_sender_uid: currentUid,
                     p_content: fullContent,
                     p_session_token: getSessionToken()
                 });
@@ -1988,26 +1978,11 @@
             try {
                 let profileData = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_username: username });
                     if (!rpcError && rpcData && rpcData.success !== false) {
                         profileData = rpcData;
                     }
                 } catch (e) { /* RPC not found, continue */ }
-
-                if (!profileData) {
-                    const { data, error } = await sb.from(TABLE_USERS).select('username, role, banned, avatar_url')
-                        .eq('username', username).maybeSingle();
-                    if (!error && data) {
-                        profileData = data;
-                    }
-                    if (error && error.message && (error.message.includes('role') || error.message.includes('banned'))) {
-                        const { data: data2 } = await sb.from(TABLE_USERS).select('username, avatar_url')
-                            .eq('username', username).maybeSingle();
-                        if (data2) {
-                            profileData = { username: data2.username, avatar_url: data2.avatar_url, role: 'user', banned: false };
-                        }
-                    }
-                }
 
                 const isOnline = getOnlineStatus(username);
 
@@ -2077,14 +2052,9 @@
         async function applyCurrentUserStatus(dotEl, avatarEl) {
             setAvatarStatusDot(dotEl, avatarEl, 'online');
             try {
-                const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: currentUser });
+                const { data: rpcData } = await s3.rpc('get_user_profile', { p_uid: currentUid, p_username: currentUser });
                 if (rpcData && rpcData.success !== false && rpcData.banned) {
                     setAvatarStatusDot(dotEl, avatarEl, 'banned');
-                    return;
                 }
             } catch (e) { /* RPC not found */ }
-            try {
-                const { data } = await sb.from(TABLE_USERS).select('banned').eq('username', currentUser).maybeSingle();
-                if (data && data.banned) setAvatarStatusDot(dotEl, avatarEl, 'banned');
-            } catch (e) { /* ignore */ }
         }

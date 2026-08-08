@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cikachat-tauri",
-  "version": "28.6.701",
-  "identifier": "com.cika.chatapp",
+  "productName": "knockchat-tauri",
+  "version": "1.0.0",
+  "identifier": "com.knockchat.chatapp",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "CikaChat 28.6.701",
+        "title": "KnockChat",
         "width": 800,
         "height": 600
       }

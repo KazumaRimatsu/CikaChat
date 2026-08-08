@@ -1,7 +1,9 @@
-/* CikaChat API 请求：Supabase RPC、实时通道、认证登录、云控、数据加载 */
+/* CikaChat API 请求：S3 RPC、轮询驱动、认证登录、云控、数据加载 */
 
-        let sb = null;
         let currentUser = '';
+        // v080: uid 是区分用户的唯一身份标记（类 QQ 号，从 1 递增）；username 仅作展示。
+        // 所有身份判断（消息归属/私聊会话双方/黑名单）一律以 uid 为准，旧消息无 sender_uid 时回退到用户名。
+        let currentUid = 0;
         // v039: Global flag for login blocked by cloud control
         var _loginBlockedByCC = false;
         // v046: 云控 login_blocked 状态跟踪
@@ -10,7 +12,6 @@
         let isEntered = false;
         let presenceSynced = false;
         let presenceReady = false;
-        let globalPrivateChannel = null;
         let _publicPollTimer = null;
         let _publicBackupPollTimer = null;
         let _publicRetryCount = 0;
@@ -62,59 +63,6 @@
             return _csrfToken;
         }
 
-        // v048: RPC 调用包装器——统一错误处理、重试、备用链路
-        // 用法: callRPC('func_name', {p_x: 1}, fallback_direct_query_fn)
-        // 返回: { data, error }  与 sb.rpc 原生结构一致
-        async function callRPC(rpcName, params, fallback) {
-            if (!sb) {
-                console.warn('[RPC] sb 未初始化, rpc=' + rpcName);
-                if (typeof fallback === 'function') {
-                    try { const fb = await fallback(); if (fb) return { data: fb, error: null }; } catch (fe) {}
-                }
-                return { data: null, error: { message: '网络未连接' } };
-            }
-            var lastErr = null;
-            // v048: 最多重试 2 次（应对网络抖动）
-            for (var attempt = 0; attempt <= 2; attempt++) {
-                try {
-                    var res = await sb.rpc(rpcName, params || {});
-                    if (!res.error) return res;
-                    lastErr = res.error;
-                    // 如果是 "function does not exist" 之类 42883 错误，立即走 fallback 不再重试
-                    var code = res.error.code || '';
-                    var msg = (res.error.message || '').toLowerCase();
-                    if (code === '42883' || msg.indexOf('does not exist') >= 0 || msg.indexOf('未找到') >= 0) {
-                        console.warn('[RPC] ' + rpcName + ' 后端不存在, code=' + code + ', fallback 尝试中');
-                        break;
-                    }
-                    if (attempt < 2) await new Promise(function(r){ setTimeout(r, 400 * (attempt + 1)); });
-                } catch (e) {
-                    lastErr = e || lastErr;
-                    console.warn('[RPC] ' + rpcName + ' 调用异常 (attempt ' + attempt + '):', e);
-                    if (attempt < 2) await new Promise(function(r){ setTimeout(r, 400 * (attempt + 1)); });
-                }
-            }
-            // v048: 所有重试失败，尝试 fallback 表查询
-            if (typeof fallback === 'function') {
-                try {
-                    var fbRes = await fallback();
-                    if (fbRes) return { data: fbRes, error: null };
-                } catch (fe) {
-                    console.warn('[RPC] ' + rpcName + ' fallback 失败:', fe);
-                }
-            }
-            // v048: 友好的错误提示
-            var friendlyMsg = (lastErr && lastErr.message) || '未知错误';
-            if (friendlyMsg.indexOf('does not exist') >= 0 || friendlyMsg.indexOf('42883') >= 0) {
-                friendlyMsg = '后端函数 ' + rpcName + ' 未部署';
-            } else if (friendlyMsg.indexOf('JWT') >= 0 || friendlyMsg.indexOf('permission') >= 0) {
-                friendlyMsg = '权限不足或登录已过期';
-            } else if (friendlyMsg.indexOf('network') >= 0 || friendlyMsg.indexOf('fetch') >= 0) {
-                friendlyMsg = '网络连接失败，请检查网络';
-            }
-            return { data: null, error: { message: friendlyMsg, original: lastErr } };
-        }
-
         // ============================================
         // Security Helper Functions (v030)
         // All sensitive operations must use these
@@ -127,6 +75,22 @@
             } catch (e) { return ''; }
         }
 
+        // v080: 消息是否由「我」发出——优先按 sender_uid 判断，旧消息（无 sender_uid）回退到用户名
+        function isMsgFromMe(msg) {
+            if (!msg) return false;
+            if (typeof msg.sender_uid === 'number' && msg.sender_uid > 0) return msg.sender_uid === currentUid;
+            return msg.sender !== undefined && msg.sender === currentUser;
+        }
+
+        // v080: 按用户名解析 uid（get_user_profile 兼容按用户名查询）
+        async function resolveUserUid(username) {
+            if (!username) return 0;
+            try {
+                const { data: rpcData } = await s3.rpc('get_user_profile', { p_username: username });
+                return (rpcData && rpcData.uid) ? rpcData.uid : 0;
+            } catch (e) { return 0; }
+        }
+
 
 
         async function sendPublicMessageSecure(payload) {
@@ -136,8 +100,8 @@
             const token = getSessionToken();
             if (!token) { return { success: false, message: '请重新登录' }; }
             try {
-                const { data, error } = await sb.rpc('send_public_message_secure', {
-                    p_username: currentUser,
+                const { data, error } = await s3.rpc('send_public_message_secure', {
+                    p_uid: currentUid,
                     p_session_token: token,
                     p_text: payload.text || '',
                     p_image_url: payload.image_url || null,
@@ -156,8 +120,8 @@
             const token = getSessionToken();
             if (!token) return { success: false };
             try {
-                const { data, error } = await sb.rpc('send_public_message_secure', {
-                    p_username: currentUser,
+                const { data, error } = await s3.rpc('send_public_message_secure', {
+                    p_uid: currentUid,
                     p_session_token: token,
                     p_text: text,
                     p_is_system: true
@@ -171,9 +135,9 @@
             try {
                 let data = null;
                 try {
-                    const { data: rpcData, error } = await sb.rpc('get_private_messages', {
+                    const { data: rpcData, error } = await s3.rpc('get_private_messages', {
                         p_session_id: sessionId,
-                        p_username: currentUser,
+                        p_uid: currentUid,
                         p_limit: 200
                     });
                     if (!error && rpcData) data = rpcData;
@@ -182,11 +146,11 @@
                 let count = 0;
                 if (lastReadTime) {
                     data.forEach(m => {
-                        if (m.sender !== currentUser && new Date(m.created_at) > new Date(lastReadTime)) count++;
+                        if (!isMsgFromMe(m) && new Date(m.created_at) > new Date(lastReadTime)) count++;
                     });
                 } else {
                     data.forEach(m => {
-                        if (m.sender !== currentUser) count++;
+                        if (!isMsgFromMe(m)) count++;
                     });
                 }
                 if (count > 0) {
@@ -204,10 +168,9 @@
 
         async function recordLogin(username, ip) {
             try {
-                await sb.from(TABLE_LOGIN_HISTORY).insert({
-                    username: username,
-                    login_time: new Date().toISOString(),
-                    ip_address: ip || 'unknown'
+                await s3.rpc('record_login', {
+                    p_uid: currentUid,
+                    p_ip: ip || 'unknown'
                 });
             } catch (e) { /* ignore */ }
         }
@@ -270,6 +233,7 @@
                 // 与上次登录账号不一致时不允许一键登录
                 if (lastLogin && savedSession.username !== lastLogin) return showLoginForm();
                 currentUser = savedSession.username;
+                currentUid = savedSession.uid || 0;
                 if (savedSession.pwhash) {
                     // 一键登录：服务端校验会话后进入（复用启动时的会话恢复逻辑）
                     showGlobalLoading('欢迎回来…', '正在登录 ' + currentUser);
@@ -352,22 +316,12 @@
         // 异步加载上次登录账号的云端头像；成功则替换为图片，失败则保留首字母渐变
         async function loadQuickLoginAvatar(username, avatarEl, loader) {
             var avatarUrl = '';
-            if (sb) {
-                try {
-                    var rpcRes = await sb.rpc('get_user_profile', { p_username: username });
-                    if (rpcRes && rpcRes.data && rpcRes.data.success !== false && rpcRes.data.avatar_url) {
-                        avatarUrl = rpcRes.data.avatar_url;
-                    }
-                } catch (e) { /* fallback to direct query */ }
-                if (!avatarUrl) {
-                    try {
-                        var qRes = await sb.from(TABLE_USERS).select('avatar_url').eq('username', username).limit(1);
-                        if (qRes && qRes.data && qRes.data.length && qRes.data[0].avatar_url) {
-                            avatarUrl = qRes.data[0].avatar_url;
-                        }
-                    } catch (e2) { /* ignore */ }
+            try {
+                var rpcRes = await s3.rpc('get_user_profile', { p_username: username });
+                if (rpcRes && rpcRes.data && rpcRes.data.success !== false && rpcRes.data.avatar_url) {
+                    avatarUrl = rpcRes.data.avatar_url;
                 }
-            }
+            } catch (e) { /* ignore */ }
             if (!avatarEl || !avatarEl.isConnected) return;
             if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
             var cleanUrl = sanitizeAvatarUrl(avatarUrl);
@@ -400,30 +354,26 @@
             if (password !== password2) return showEl('regError', '两次密码不一致');
 
             try {
-                // v040: Try check_username_exists RPC first
+                // 先检查用户名是否已存在（RPC）
                 let usernameExists = false;
                 try {
-                    const { data: rpcData } = await sb.rpc('check_username_exists', { p_username: username });
+                    const { data: rpcData } = await s3.rpc('check_username_exists', { p_username: username });
                     if (rpcData && rpcData.exists) usernameExists = true;
                 } catch (e) { /* RPC not found, fallback */ }
                 if (!usernameExists) {
                     try {
-                        const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: username });
+                        const { data: rpcData } = await s3.rpc('get_user_profile', { p_username: username });
                         if (rpcData && rpcData.success !== false) usernameExists = true;
-                    } catch (e) { /* RPC not found, fallback */ }
-                }
-                if (!usernameExists) {
-                    const { data: existing } = await sb.from(TABLE_USERS).select('username').eq('username', username)
-                        .maybeSingle();
-                    if (existing) usernameExists = true;
+                    } catch (e) { /* RPC not found */ }
                 }
                 if (usernameExists) return showEl('regError', '该用户名已被使用');
 
                 const passwordHash = await hashPassword(password);
                 let regError = null;
                 let regSessionToken = null;
+                let regUid = 0;
                 try {
-                    const { data: regData, error: rpcError } = await sb.rpc('register_user_secure', {
+                    const { data: regData, error: rpcError } = await s3.rpc('register_user_secure', {
                         p_username: username,
                         p_password_hash: passwordHash
                     });
@@ -431,11 +381,12 @@
                         regError = rpcError;
                     } else if (regData && regData.session_token) {
                         regSessionToken = regData.session_token;
+                        regUid = regData.uid || 0;
                     }
                 } catch (e) { regError = e; }
 
                 if (regError) {
-                    const { error } = await sb.rpc('register_user', {
+                    const { error } = await s3.rpc('register_user', {
                         p_username: username,
                         p_password_hash: passwordHash
                     });
@@ -447,6 +398,7 @@
                 }
 
                 currentUser = username;
+                currentUid = regUid || 0;
                 // v049: 云控 login_blocked 时直接拦截注册，不进入主页面
                 try {
                     if (await shouldBlockSessionForLoginLocked()) {
@@ -460,7 +412,7 @@
                 } catch (ccErr) { /* ignore */ }
                 recordLastLogin(username);
                 const sessionToken = regSessionToken || generateLocalNonce();
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken, pwhash: passwordHash }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key (new user, starts fresh)
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 showEl('regSuccess', '注册成功！正在进入...');
@@ -492,8 +444,8 @@
                 return;
             }
 
-            // v040: Check if Supabase client is available before attempting login
-            if (!sb) {
+            // v040: Check if backend is available before attempting login
+            if (!window.s3 || typeof window.s3.rpc !== 'function') {
                 showEl('loginError', '连接服务失败，请刷新页面重试');
                 return;
             }
@@ -515,7 +467,7 @@
 
                 // v040: First attempt with secure rate-limited RPC
                 try {
-                    const { data: secureData, error: secureError } = await sb.rpc('verify_login_secure_rate_limited', {
+                    const { data: secureData, error: secureError } = await s3.rpc('verify_login_secure_rate_limited', {
                         p_username: username,
                         p_password_hash: passwordHash
                     });
@@ -542,7 +494,7 @@
                 // v040: Fallback to regular secure login
                 if (!userData && loginError) {
                     try {
-                        const { data: secureData, error: secureError } = await sb.rpc('verify_login_secure', {
+                        const { data: secureData, error: secureError } = await s3.rpc('verify_login_secure', {
                             p_username: username,
                             p_password_hash: passwordHash
                         });
@@ -559,7 +511,7 @@
                 // v040: If first attempts failed, try legacy RPC
                 if (!userData && loginError) {
                     try {
-                        const { data: legacyData, error: legacyError } = await sb.rpc('verify_login', {
+                        const { data: legacyData, error: legacyError } = await s3.rpc('verify_login', {
                             p_username: username,
                             p_password_hash: passwordHash
                         });
@@ -593,10 +545,11 @@
                     return showEl('loginError', '您的账户已被封禁，无法登录');
                 }
                 currentUser = username;
+                currentUid = userData.uid || 0;
                 currentAvatarUrl = userData.avatar_url || '';
                 userAvatarCache[currentUser] = currentAvatarUrl;
                 const sessionToken = userData.session_token || await hashPassword(passwordHash);
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, token: sessionToken, pwhash: passwordHash }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: username, uid: currentUid, token: sessionToken, pwhash: passwordHash }));
                 // Initialize encrypted user settings with password hash as key
                 initUserSettings(passwordHash, username).catch(function(e) { console.warn('initUserSettings failed:', e); });
                 document.getElementById('loginPassword').value = '';
@@ -671,12 +624,6 @@
             if (window.__mjchatSafetyTimeout) {
                 clearTimeout(window.__mjchatSafetyTimeout);
                 window.__mjchatSafetyTimeout = null;
-            }
-            // v040: Check if Supabase client is available
-            if (!sb) {
-                showLogin();
-                showEl('loginError', '连接服务失败，请刷新页面重试');
-                return;
             }
             _enterAppAuthorized = false;
             showGlobalLoading('连接中', '正在加载数据');
@@ -809,16 +756,10 @@
 
         // v046: 检查 cloud_control.login_blocked
         async function shouldBlockSessionForLoginLocked() {
-            if (!sb) return false;
             try {
-                var result = await sb.rpc('get_cloud_control');
+                var result = await s3.rpc('get_cloud_control');
                 if (result && result.data && result.data.success !== false) {
                     return result.data.login_blocked === true;
-                }
-                // Fallback: direct table query
-                var qr = await sb.from('cloud_control').select('login_blocked').limit(1);
-                if (qr && qr.data && qr.data.length > 0) {
-                    return qr.data[0].login_blocked === true;
                 }
             } catch (e) {
                 console.warn('[SessionLock] check error:', e);
@@ -827,13 +768,9 @@
         }
 
         async function checkCloudControl() {
-            if (!sb) {
-                console.warn('[CC] Supabase client not available');
-                return false;
-            }
             try {
                 var result = await Promise.race([
-                    sb.rpc('get_cloud_control'),
+                    s3.rpc('get_cloud_control'),
                     new Promise(function(resolve) {
                         setTimeout(function() { resolve({ data: null, error: 'timeout' }); }, 10000);
                     })
@@ -841,27 +778,8 @@
                 var data = result.data;
                 var error = result.error;
                 if (error || !data || !data.success) {
-                    console.warn('[CC] RPC failed, trying fallback:', { error: error, data: data });
-                    // v042: Fallback to direct table query
-                    try {
-                        const { data: ccData, error: ccError } = await sb.from('cloud_control')
-                            .select('*')
-                            .limit(1);
-                        if (!ccError && ccData && ccData.length > 0) {
-                            var cc = ccData[0];
-                            data = {
-                                success: true,
-                                banner_enabled: cc.banner_enabled || false,
-                                banner_title: cc.banner_title || '',
-                                banner_message: cc.banner_message || '',
-                                banner_show_close: cc.banner_show_close !== false,
-                                login_blocked: cc.login_blocked || false,
-                                force_logout_all: cc.force_logout_all || false
-                            };
-                        } else {
-                            return false;
-                        }
-                    } catch (e2) { return false; }
+                    console.warn('[CC] RPC failed:', { error: error, data: data });
+                    return false;
                 }
 
                 // v041: Only force logout when force_logout_all transitions from false->true
@@ -947,76 +865,30 @@
         async function loadUserAvatars(usernames) {
             const unique = [...new Set(usernames.filter(n => n && !userAvatarCache.hasOwnProperty(n)))];
             if (unique.length === 0) return;
-            try {
-                const { data, error } = await sb.from(TABLE_USERS)
-                    .select('username, avatar_url')
-                    .in('username', unique);
-                if (!error && data) {
-                    data.forEach(u => { userAvatarCache[u.username] = u.avatar_url || ''; });
-                    unique.forEach(n => { if (!userAvatarCache.hasOwnProperty(n)) userAvatarCache[n] = ''; });
-                } else if (error) {
-                    for (const name of unique) {
-                        try {
-                            const { data: rpcData } = await sb.rpc('get_user_profile', { p_username: name });
-                            if (rpcData && rpcData.success !== false) {
-                                userAvatarCache[name] = rpcData.avatar_url || '';
-                            } else {
-                                userAvatarCache[name] = '';
-                            }
-                        } catch (e) {
-                            userAvatarCache[name] = '';
-                        }
+            // 并发拉取用户资料（头像 URL），避免串行阻塞
+            const BATCH = 8;
+            for (let i = 0; i < unique.length; i += BATCH) {
+                const chunk = unique.slice(i, i + BATCH);
+                const results = await Promise.all(chunk.map(async (name) => {
+                    try {
+                        const { data: rpcData } = await s3.rpc('get_user_profile', { p_username: name });
+                        return { name, avatar: (rpcData && rpcData.success !== false) ? (rpcData.avatar_url || '') : '' };
+                    } catch (e) {
+                        return { name, avatar: '' };
                     }
-                }
-            } catch (e) { /* ignore */ }
+                }));
+                results.forEach(r => { userAvatarCache[r.name] = r.avatar || ''; });
+            }
         }
 
         function setupGlobalPrivateListener() {
-            if (globalPrivateChannel) {
-                try { sb.removeChannel(globalPrivateChannel); } catch(e) {}
-                globalPrivateChannel = null;
-            }
             if (privatePollTimer) { clearInterval(privatePollTimer); privatePollTimer = null; }
 
-
-            if (publicChannel) {
-                publicChannel.on('broadcast', { event: 'private_msg_notification' }, (p) => {
-                    try {
-                        const data = p.payload;
-                        if (!data || !data.session_id) return;
-                        handlePrivateNotification(data.session_id, data.sender);
-                    } catch (e) { /* ignore */ }
-                });
-                publicChannel.on('broadcast', { event: 'avatar_changed' }, (p) => {
-                    const data = p.payload;
-                    if (!data || !data.username) return;
-                    userAvatarCache[data.username] = data.avatar_url || '';
-                    const selName = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(data.username) : data.username.replace(/["\\]/g, '');
-                    document.querySelectorAll('[data-sender="' + selName + '"]').forEach(el => {
-                        applyAvatarToElement(el, data.username);
-                    });
-                    document.querySelectorAll('[data-username="' + selName + '"]').forEach(el => {
-                        applyAvatarToElement(el, data.username);
-                    });
-                    renderPrivateList();
-                    renderOnlineUsers();
-                });
-                publicChannel.on('broadcast', { event: 'session_deleted' }, (p) => {
-                    try {
-                        const data = p.payload;
-                        if (!data || !data.session_id) return;
-                        if (data.target === currentUser && privateSessionId === data.session_id && privateChatActive) {
-                            showSnackbar(`${data.deleted_by} 删除了你们的聊天`);
-                            leavePrivateChat();
-                        }
-                        window.privateSessions = (window.privateSessions || []).filter(s => s.id !== data.session_id);
-                        renderPrivateList();
-                    } catch (e) { /* ignore */ }
-                });
-            }
+            // 已移除 Supabase Realtime 广播（private_msg_notification / avatar_changed / session_deleted）：
+            // 私聊新消息与会话更新统一由下方轮询驱动（loadPrivateSessions 变更检测 + loadPrivateMessages 增量）。
 
             privatePollTimer = setInterval(async () => {
-                if (!sb || !currentUser) return;
+                if (!currentUser) return;
                 try {
                     const prev = window.privateSessions ?
                         window.privateSessions.map(s => s.id + ':' + (s.updated_at || '') + ':' + (s.last_message || '')) : [];
@@ -1045,136 +917,38 @@
                 if (now - recentSystemMsgs[k] > 10000) delete recentSystemMsgs[k];
             });
             try {
-                const tenSecondsAgo = new Date(now - 10000).toISOString();
-                const { data } = await sb.from(TABLE_PUBLIC_MSG)
-                    .select('id')
-                    .eq('sender', 'system')
-                    .eq('text', text)
-                    .gte('created_at', tenSecondsAgo)
-                    .limit(1);
-                if (data && data.length > 0) return;
-            } catch (e) { /* query failed, continue */ }
-            sendSystemMessageSecure(text).then(r => {
-                if (r && r.success !== false) updatePublicEntry();
-            }).catch(e => {});
+                sendSystemMessageSecure(text).then(r => {
+                    if (r && r.success !== false) updatePublicEntry();
+                }).catch(e => {});
+            } catch (e) { /* ignore */ }
         }
 
         async function connectPublic() {
+            // 已移除 Supabase Realtime 实时通道：改为「加载历史 + 定时轮询增量」
             return new Promise((resolve, reject) => {
                 let resolved = false;
                 presenceSynced = false;
                 presenceReady = false;
                 loadPublicHistory()
                     .then(() => {
-                        publicChannel = sb.channel(CHANNEL_PUBLIC, { config: { presence: { key: clientId } } });
-                        publicChannel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLE_PUBLIC_MSG },
-                            p => {
-                                const msg = p.new;
-                                handlePublicMessage(msg);
-                                updatePublicEntry();
-                                const container = document.getElementById('publicMessages');
-                                if (!isUserScrolledUp && container) {
-                                    scrollToBottom(container);
-                                    updateScrollButton(container);
-                                }
-                            });
-                        publicChannel.on('broadcast', { event: 'clear_messages' }, () => {
-                            handlePublicCleared();
-                            updatePublicEntry();
-                        });
-                        publicChannel.on('broadcast', { event: 'delete_message' }, p => {
-                            if (!p || !p.payload) return; // v041: Add null check
-                            handlePublicDeleted(p.payload.id);
-                            updatePublicEntry();
-                        });
-                        publicChannel.on('broadcast', { event: 'user_banned' }, (p) => {
-                            if (!p || !p.payload) return; // v041: Add null check
-                            if (p.payload.username === currentUser) {
-                                // 广播可被伪造：先向服务端核实封禁状态，核实失败(unknown)时回退为信任，避免功能失效
-                                verifyServerAccountState(currentUser).then(state => {
-                                    if (state === 'banned' || state === 'unknown') {
-                                        showSnackbar('您已被封禁，即将下线');
-                                        setTimeout(() => logout(), 2000);
-                                    }
-                                });
-                            } else if (p.payload.initiator === currentUser) {
-                                broadcastSystemMsg(`用户 ${p.payload.username} 已被封禁`);
-                            }
-                        });
-                        publicChannel.on('broadcast', { event: 'user_deleted' }, (p) => {
-                            if (!p || !p.payload) return; // v041: Add null check
-                            const name = p.payload.username;
-                            if (p.payload.forceLogout && name === currentUser) {
-                                verifyServerAccountState(name).then(state => {
-                                    if (state === 'deleted' || state === 'unknown') {
-                                        showSnackbar('您的账号已注销，即将刷新');
-                                        setTimeout(() => location.reload(), 1000);
-                                    }
-                                });
-                            } else if (p.payload.initiator === currentUser) {
-                                broadcastSystemMsg(`用户 ${name} 已注销`);
-                            }
-                            refreshPublicMessages();
-                            updatePublicEntry();
-                        });
-                        publicChannel.on('broadcast', { event: 'force_logout' }, (p) => {
-                            if (!p || !p.payload) return; // v041: Add null check
-                            if (p.payload.username === currentUser) {
-                                showSnackbar('您已被管理员强制下线');
-                                setTimeout(() => logout(), 1000);
-                            }
-                        });
-                        publicChannel
-                            .on('presence', { event: 'sync' }, () => {
-                                onlineUsers = publicChannel.presenceState();
-                                renderOnlineUsers();
-                                loadUserAvatars(getOnlineUsernames()).then(function() { renderOnlineUsers(); });
-                                if (privateChatActive) updatePrivateChatStatus();
-                                updatePrivateListStatusDots();
-                                if (!presenceSynced) {
-                                    presenceSynced = true;
-                                    setTimeout(() => { presenceReady = true; }, 3000);
-                                }
-                            })
-                            .subscribe(async (status) => {
-                                if (status === 'SUBSCRIBED') {
-                                    updatePublicConn(true);
-                                    await publicChannel.track({ name: currentUser, online_at: new Date()
-                                            .toISOString() });
-                                    if (!resolved) {
-                                        resolved = true;
-                                        resolve();
-                                    }
-                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                                    updatePublicConn(false);
-                                    if (!resolved) {
-                                        resolved = true;
-                                        reject(new Error('公共频道订阅失败'));
-                                    }
-                                }
-                            });
-                        setTimeout(() => {
-                            if (!resolved) {
-                                resolved = true;
-                                reject(new Error('连接超时，请检查网络'));
-                            }
-                        }, 15000);
+                        updatePublicConn(true);
+                        if (!resolved) { resolved = true; resolve(); }
                     })
                     .catch(err => {
-                        if (!resolved) {
-                            resolved = true;
-                            reject(err);
-                        }
+                        updatePublicConn(false);
+                        if (!resolved) { resolved = true; reject(err); }
                     });
+                setTimeout(() => {
+                    if (!resolved) { resolved = true; reject(new Error('连接超时，请检查网络')); }
+                }, 15000);
             });
         }
 
-        // v044: 公聊轻量轮询备份——Realtime 连接正常时也定期轮询，防止 postgres_changes 事件漏发
-        var _lastPublicPollTime = null;
+        // v044: 公聊轻量轮询——S3 无实时通道，轮询增量拉取
         function startPublicPollingBackup() {
             if (_publicBackupPollTimer) clearInterval(_publicBackupPollTimer);
             _publicBackupPollTimer = setInterval(async () => {
-                if (!sb || !currentUser || !isEntered) return;
+                if (!currentUser || !isEntered) return;
                 try {
                     await _pollPublicMessages();
                 } catch (e) { /* ignore */ }
@@ -1182,82 +956,41 @@
         }
 
         async function _pollPublicMessages() {
-            if (!sb || !isEntered) return;
+            if (!isEntered) return;
             try {
-                var latestTime = _lastPublicPollTime;
+                var lastId = '';
                 if (publicMessages && publicMessages.length > 0) {
                     for (var i = publicMessages.length - 1; i >= 0; i--) {
-                        if (publicMessages[i].created_at) {
-                            latestTime = publicMessages[i].created_at;
+                        if (publicMessages[i].id) {
+                            lastId = publicMessages[i].id;
                             break;
                         }
                     }
                 }
-                var query = sb.from(TABLE_PUBLIC_MSG)
-                    .select('id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system')
-                    .order('created_at', { ascending: false })
-                    .limit(20);
-                if (latestTime) query = query.gt('created_at', latestTime);
-                var result = await query;
-                if (result.error || !result.data || !Array.isArray(result.data)) return;
-                if (result.data.length === 0) return;
-                result.data.reverse().forEach(function(msg) {
-                    if (!publicMessages.some(function(m) { return m.id === msg.id; })) {
-                        handlePublicMessage(msg);
-                        updatePublicEntry();
-                        var container = document.getElementById('publicMessages');
-                        if (!isUserScrolledUp && container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                        }
+                var res = await s3.rpc('get_public_messages', {
+                    p_after_id: lastId,
+                    p_limit: 20
+                });
+                if (res.error || !res.data || !Array.isArray(res.data)) return;
+                if (res.data.length === 0) return;
+                res.data.reverse().forEach(function(msg) {
+                    if (publicMessageById.has(msg.id)) return;
+                    handlePublicMessage(msg);
+                    updatePublicEntry();
+                    var container = document.getElementById('publicMessages');
+                    if (!isUserScrolledUp && container) {
+                        scrollToBottom(container);
+                        updateScrollButton(container);
                     }
                 });
-                if (publicChannel && publicChannel.presenceState) {
-                    try {
-                        onlineUsers = publicChannel.presenceState();
-                        renderOnlineUsers();
-                    } catch (e) { /* ignore */ }
-                }
             } catch (e) { /* silent fail */ }
         }
 
         async function loadPublicHistory() {
             try {
-                let result = await sb.from(TABLE_PUBLIC_MSG).select(
-                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system'
-                        )
-                    .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                if (result.error && result.error.message && result.error.message.includes('reply_to_id')) {
-                    result = await sb.from(TABLE_PUBLIC_MSG).select(
-                            'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, sender_deleted, is_system'
-                            )
-                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                }
-                if (result.error && result.error.message && result.error.message.includes('sender_deleted')) {
-                    result = await sb.from(TABLE_PUBLIC_MSG).select(
-                            'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, is_system')
-                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                }
-                if (result.error && result.error.message && result.error.message.includes('msg_version')) {
-                    result = await sb.from(TABLE_PUBLIC_MSG).select(
-                            'id, sender, text, image_url, audio_url, audio_dur, created_at, sender_deleted, is_system')
-                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                }
-                if (result.error && result.error.message && result.error.message.includes('audio_url')) {
-                    result = await sb.from(TABLE_PUBLIC_MSG).select(
-                            'id, sender, text, image_url, msg_version, created_at, sender_deleted, is_system')
-                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                }
-                if (result.error && result.error.message && result.error.message.includes('image_url')) {
-                    result = await sb.from(TABLE_PUBLIC_MSG).select(
-                            'id, sender, text, created_at, sender_deleted, is_system')
-                        .order('created_at', { ascending: false }).limit(HISTORY_LIMIT);
-                }
-                const { data, error } = result;
-                const el = document.querySelector('#publicMessages .system-msg');
-                if (el) el.remove();
-                if (error) {
-                    console.error('loadPublicHistory error:', error);
+                const res = await s3.rpc('get_public_messages', { p_limit: HISTORY_LIMIT });
+                if (res.error || !Array.isArray(res.data)) {
+                    console.error('loadPublicHistory error:', res.error);
                     if (publicMessages.length === 0) {
                         addPublicSystemMsg('加载历史消息失败');
                     } else {
@@ -1267,6 +1000,9 @@
                     }
                     return;
                 }
+                const data = res.data;
+                const el = document.querySelector('#publicMessages .system-msg');
+                if (el) el.remove();
                 if (!data || data.length === 0) {
                     publicHasMore = false;
                     return;
@@ -1299,35 +1035,20 @@
             publicLoadingMore = true;
             showPublicLoadMore(true);
             try {
-                const oldest = publicMessages[0].created_at;
-                let result = await sb.from(TABLE_PUBLIC_MSG).select(
-                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, reply_to_id, reply_content, sender_deleted, is_system'
-                    )
-                    .lt('created_at', oldest)
-                    .order('created_at', { ascending: false }).limit(PAGE_SIZE);
-                if (result.error && result.error.message) {
-                    for (const retryCols of [
-                        'id, sender, text, image_url, audio_url, audio_dur, msg_version, created_at, sender_deleted, is_system',
-                        'id, sender, text, image_url, audio_url, audio_dur, created_at, sender_deleted, is_system',
-                        'id, sender, text, created_at, sender_deleted, is_system',
-                        'id, sender, text, created_at, is_system'
-                    ]) {
-                        if (!result.error.message.includes('reply_to_id')) break;
-                        result = await sb.from(TABLE_PUBLIC_MSG).select(retryCols)
-                            .lt('created_at', oldest)
-                            .order('created_at', { ascending: false }).limit(PAGE_SIZE);
-                        if (!result.error) break;
-                    }
-                }
-                const { data, error } = result;
-                if (error || !data || data.length === 0) {
+                const oldestId = publicMessages[0].id;
+                const res = await s3.rpc('get_public_messages', {
+                    p_before_id: oldestId,
+                    p_limit: PAGE_SIZE
+                });
+                const data = res.error ? null : (res.data || []);
+                if (!data || data.length === 0) {
                     publicHasMore = false;
                     return;
                 }
                 const senders = [...new Set(data.map(m => m.sender).filter(s => s && s !== 'system'))];
                 await loadUserAvatars(senders);
                 const newMsgs = data.reverse().map(msg => ({
-                    id: msg.id, sender: msg.sender, text: msg.text || '',
+                    id: msg.id, sender: msg.sender, sender_uid: msg.sender_uid || 0, text: msg.text || '',
                     image_url: msg.image_url || null, audio_url: msg.audio_url || null,
                     audio_dur: msg.audio_dur || 0, msg_version: msg.msg_version || null,
                     created_at: msg.created_at, reply_to_id: msg.reply_to_id || null,
@@ -1356,12 +1077,8 @@
         }
 
         async function ensureAgentUserAccount(agentName) {
-            // Agent account creation is handled by send_agent_message RPC
-            // This function just ensures the avatar cache is populated
+            // 智能体账号由服务端创建；本地仅确保头像缓存已初始化
             try {
-                const { data } = await sb.from(TABLE_USERS)
-                    .select('username, avatar_url').eq('username', agentName).maybeSingle();
-                if (!data) return; // RPC will create the account
                 if (!userAvatarCache.hasOwnProperty(agentName)) {
                     userAvatarCache[agentName] = '';
                 }
@@ -1373,9 +1090,9 @@
 
         async function safeInsertPrivateMsg(sessionId, sender, content) {
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('send_private_message', {
+                const { data: rpcData, error: rpcError } = await s3.rpc('send_private_message', {
                     p_session_id: sessionId,
-                    p_sender: sender,
+                    p_sender_uid: currentUid,
                     p_content: content,
                     p_session_token: getSessionToken()
                 });
@@ -1395,38 +1112,41 @@
             try {
                 let sessions = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_private_sessions', { p_username: currentUser });
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_private_sessions', { p_uid: currentUid });
                     if (!rpcError && rpcData) {
                         sessions = Array.isArray(rpcData) ? rpcData : [];
                     }
                 } catch (e) { /* RPC not found, fallback */ }
                 if (!sessions) {
-                    const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS)
-                        .select('id, user1, user2, updated_at, deleted_by_user1, deleted_by_user2, last_message')
-                        .or(`user1.eq.${currentUser},user2.eq.${currentUser}`)
-                        .order('updated_at', { ascending: false });
-                    if (error) {
-                        console.error('loadPrivateSessions error:', error);
-                        // v070: 离线回退——用本地加密缓存恢复会话列表
-                        const cachedSessions = getCachedSessions();
-                        if (cachedSessions && cachedSessions.length) {
-                            window.privateSessions = cachedSessions;
-                            renderPrivateList();
-                            return window.privateSessions;
-                        }
-                        return;
+                    // v070: 离线回退——用本地加密缓存恢复会话列表
+                    const cachedSessions = getCachedSessions();
+                    if (cachedSessions && cachedSessions.length) {
+                        window.privateSessions = cachedSessions;
+                        renderPrivateList();
+                        return window.privateSessions;
                     }
-                    sessions = data || [];
+                    return;
                 }
+                // v080: 会话归属按 uid 判断（旧会话无 user1_uid/user2_uid 时回退用户名）
                 const filtered = sessions.filter(s => {
-                    if (s.user1 === currentUser && s.deleted_by_user1) return false;
-                    if (s.user2 === currentUser && s.deleted_by_user2) return false;
-                    return true;
+                    const u1 = s.user1_uid || 0, u2 = s.user2_uid || 0;
+                    if (u1) {
+                        if (u1 === currentUid) return !s.deleted_by_user1;
+                        if (u2 === currentUid) return !s.deleted_by_user2;
+                        return false;
+                    }
+                    if (s.user1 === currentUser) return !s.deleted_by_user1;
+                    if (s.user2 === currentUser) return !s.deleted_by_user2;
+                    return false;
                 });
                 window.privateSessions = filtered;
                 // v070: 缓存会话列表，供离线时恢复私聊入口
                 setCachedSessions(filtered);
-                const otherUsers = filtered.map(s => s.user1 === currentUser ? s.user2 : s.user1);
+                const otherUsers = filtered.map(s => {
+                    const u1 = s.user1_uid || 0, u2 = s.user2_uid || 0;
+                    if (u1) return u1 === currentUid ? s.user2 : s.user1;
+                    return s.user1 === currentUser ? s.user2 : s.user1;
+                });
                 await loadUserAvatars(otherUsers);
                 renderPrivateList();
                 return filtered;
@@ -1436,40 +1156,24 @@
             }
         }
 
-        async function createPrivateSession(otherUser) {
+        async function createPrivateSession(otherUser, otherUid) {
             if (otherUser === currentUser) { showSnackbar('不能和自己私聊'); return null; }
             try {
-                try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('create_private_session', {
-                        p_user1: currentUser,
-                        p_user2: otherUser
-                    });
-                    if (!rpcError && rpcData && rpcData.success !== false && rpcData.session_id) {
-                        return rpcData.session_id;
-                    }
-                } catch (e) { /* RPC not found, fallback */ }
-
-                const { data: existing } = await sb.from(TABLE_PRIVATE_SESSIONS)
-                    .select('id, user1, user2, deleted_by_user1, deleted_by_user2')
-                    .or(`and(user1.eq.${currentUser},user2.eq.${otherUser}),and(user1.eq.${otherUser},user2.eq.${currentUser})`)
-                    .maybeSingle();
-                if (existing) {
-                    const updates = {};
-                    if (existing.user1 === currentUser && existing.deleted_by_user1) updates.deleted_by_user1 = false;
-                    if (existing.user2 === currentUser && existing.deleted_by_user2) updates.deleted_by_user2 = false;
-                    if (Object.keys(updates).length > 0) {
-                        await sb.from(TABLE_PRIVATE_SESSIONS).update(updates).eq('id', existing.id);
-                    }
-                    return existing.id;
+                // v080: 会话双方以 uid 标识；调用方未提供对方 uid 时按用户名解析
+                if (!otherUid) {
+                    otherUid = await resolveUserUid(otherUser);
                 }
-                const { data, error } = await sb.from(TABLE_PRIVATE_SESSIONS).insert({
-                    user1: currentUser,
-                    user2: otherUser,
-                    deleted_by_user1: false,
-                    deleted_by_user2: false
-                }).select('id').single();
-                if (error) { showSnackbar('创建私聊失败: ' + error.message); return null; }
-                return data.id;
+                if (!otherUid) { showSnackbar('用户不存在'); return null; }
+                const { data: rpcData, error: rpcError } = await s3.rpc('create_private_session', {
+                    p_user1_uid: currentUid,
+                    p_user2_uid: otherUid
+                });
+                if (!rpcError && rpcData && rpcData.success !== false && rpcData.session_id) {
+                    return rpcData.session_id;
+                }
+                const failMsg = (rpcData && rpcData.message) || (rpcError && rpcError.message) || '创建私聊失败';
+                showSnackbar(failMsg);
+                return null;
             } catch (e) { showSnackbar('创建私聊失败'); return null; }
         }
 
@@ -1487,9 +1191,9 @@
             try {
                 let messages = null;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_private_messages', {
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_private_messages', {
                         p_session_id: sessionId,
-                        p_username: currentUser,
+                        p_uid: currentUid,
                         p_session_token: getSessionToken(),
                         p_limit: PAGE_SIZE
                     });
@@ -1549,7 +1253,7 @@
                 }
                 // 网络不佳时实时广播可能丢失，轮询补拉发现的新消息需要正常播放提示音（免打扰时不播放）
                 if (notifyNew && prevIds && !usedCache) {
-                    const fresh = privateMessages.filter(m => !prevIds.has(m.id) && m.sender !== currentUser);
+                    const fresh = privateMessages.filter(m => !prevIds.has(m.id) && !isMsgFromMe(m));
                     if (fresh.length > 0 && !_mutePerPrivateSession[privateSessionId] && getPrivateNotifyEnabled() &&
                         !document.getElementById('privatePage').classList.contains('active')) {
                         playNotifySound();
@@ -1574,9 +1278,9 @@
                     // 通过把 limit 放大到「已加载条数 + 一页」，再按 id/时间过滤出尚未加载的更早一页。
                     const loadedIds = new Set(privateMessages.map(m => m.id));
                     const needLimit = Math.min(privateMessages.length + PAGE_SIZE, 1000);
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_private_messages', {
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_private_messages', {
                         p_session_id: sessionId,
-                        p_username: currentUser,
+                        p_uid: currentUid,
                         p_session_token: getSessionToken(),
                         p_limit: needLimit
                     });
@@ -1617,73 +1321,9 @@
         }
 
         function subscribePrivateChannel(sessionId) {
-            if (privateChannel) {
-                sb.removeChannel(privateChannel);
-                privateChannel = null;
-            }
-            const channelName = `private-${sessionId}`;
-            privateChannel = sb.channel(channelName);
-
-            privateChannel.on('broadcast', { event: 'new_message' }, (payload) => {
-                const msg = payload.payload;
-                if (!privateMessages.some(m => m.id === msg.id)) {
-                    privateMessages.push(msg);
-                    appendPrivateMsgCache(sessionId, msg);
-                    if (document.getElementById('privatePage').classList.contains('active')) {
-                        renderPrivateMessage(msg);
-                        checkPrivacyBanner();
-                        const container = document.getElementById('privateMessages');
-                        if (!isUserScrolledUp && container) {
-                            scrollToBottom(container);
-                            updateScrollButton(container);
-                        }
-                    } else {
-                        // v053: 私聊免打扰时不增加未读计数
-                        if (!_mutePerPrivateSession[sessionId]) {
-                            incrementUnread(sessionId);
-                        }
-                    }
-                    // Play notification sound for private chat (when not in view or not own msg)
-                    if (msg.sender !== currentUser && getPrivateNotifyEnabled()) {
-                        // v053: 私聊按会话免打扰
-                        if (!_mutePerPrivateSession[sessionId]) {
-                            if (!document.getElementById('privatePage').classList.contains('active')) {
-                                playNotifySound();
-                            }
-                        }
-                    }
-                    if (msg.created_at) {
-                        sb.from(TABLE_PRIVATE_SESSIONS).update({
-                            updated_at: msg.created_at,
-                            last_message: msg.content
-                        }).eq('id', sessionId);
-                    }
-                    // v069: 正在查看私聊时收到对方消息，立即标记已读并回执
-                    if (document.getElementById('privatePage').classList.contains('active') && msg.sender !== currentUser) {
-                        markPrivateMessagesRead(sessionId);
-                    }
-                    loadPrivateSessions();
-                }
-            });
-
-            privateChannel.on('broadcast', { event: 'delete_message' }, (payload) => {
-                if (!payload || !payload.payload) return; // v041: Add null check
-                const msgId = payload.payload.id;
-                privateMessages = privateMessages.filter(m => m.id !== msgId);
-                const rows = document.querySelectorAll('#privateMessages .msg-row');
-                rows.forEach(row => { if (row.dataset.msgId === msgId) row.remove(); });
-            });
-
-            // v069: 对方已读回执 —— 更新本端发出的消息状态
-            privateChannel.on('broadcast', { event: 'messages_read' }, (payload) => {
-                const data = payload.payload;
-                if (data && data.reader) {
-                    updatePrivateReadStatus(data.reader);
-                }
-            });
-
-
-            privateChannel.subscribe((status) => {});
+            // 已移除 Supabase Realtime：私聊新消息统一由 loadPrivateMessages 轮询驱动，
+            // 本函数保留为空实现以兼容旧调用方（openPrivateChat 等）。
+            void sessionId;
         }
 
         async function deletePrivateChat() {
@@ -1694,9 +1334,9 @@
             try {
                 let deleted = false;
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('delete_private_session', {
+                    const { data: rpcData, error: rpcError } = await s3.rpc('delete_private_session', {
                         p_session_id: sessionIdToDelete,
-                        p_username: currentUser,
+                        p_uid: currentUid,
                         p_session_token: getSessionToken()
                     });
                     if (!rpcError && rpcData && rpcData.success) {
@@ -1712,13 +1352,7 @@
                     showSnackbar('删除失败: ' + (e.message || ''));
                     return;
                 }
-                if (publicChannel) {
-                    publicChannel.send({
-                        type: 'broadcast',
-                        event: 'session_deleted',
-                        payload: { session_id: sessionIdToDelete, deleted_by: currentUser, target: otherUserToDelete }
-                    });
-                }
+                // 已移除实时广播：对方会话列表由轮询自动感知（会话被删除后不再出现）
                 window.privateSessions = (window.privateSessions || []).filter(s => s.id !== sessionIdToDelete);
                 showSnackbar('已删除聊天');
                 leavePrivateChat();
@@ -1730,37 +1364,12 @@
             container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">加载中...</p>';
             try {
                 let agents = null;
-                let rpcErrMsg = null;
-                // Try RPC first
                 try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('get_agents');
+                    const { data: rpcData, error: rpcError } = await s3.rpc('get_agents');
                     if (!rpcError && rpcData !== null && rpcData !== undefined) {
-                        let parsed = rpcData;
-                        if (typeof parsed === 'string') {
-                            try { parsed = JSON.parse(parsed); } catch (e) { parsed = []; }
-                        }
-                        agents = Array.isArray(parsed) ? parsed : [];
-                    } else if (rpcError) {
-                        rpcErrMsg = rpcError.message || '';
+                        agents = Array.isArray(rpcData) ? rpcData : [];
                     }
-                } catch (e) { rpcErrMsg = e.message || ''; }
-                // Fallback to direct table query if RPC failed
-                if (!agents) {
-                    const { data, error } = await sb.from(TABLE_AGENTS)
-                        .select('id, name, provider, model, created_by, created_at')
-                        .order('created_at', { ascending: true });
-                    if (error) {
-                        var hint = '加载失败';
-                        if (rpcErrMsg) {
-                            hint = 'RPC错误: ' + rpcErrMsg + ' | 表查询错误: ' + (error.message || '未知');
-                        } else {
-                            hint = '加载失败: ' + (error.message || '未知错误');
-                        }
-                        container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);font-size:0.8rem;">' + escapeHtml(hint) + '</p>';
-                        return;
-                    }
-                    agents = data || [];
-                }
+                } catch (e) { /* ignore */ }
                 if (!agents) agents = [];
                 // v049: 只显示 enabled 的智能体
                 agents = agents.filter(function(a){ return a.enabled !== false; });
@@ -1810,21 +1419,13 @@
         async function deleteAgent(agentId) {
             if (!confirm('确定要删除此智能体吗？\n智能体的用户账号也将被删除。')) return;
             try {
-                let deleted = false;
-                try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('delete_agent_rpc', {
-                        p_agent_id: agentId,
-                        p_username: currentUser
-                    });
-                    if (!rpcError && rpcData && rpcData.success) { deleted = true; }
-                    else if (rpcData && rpcData.success === false) {
-                        showSnackbar(rpcData.message || '删除失败'); return;
-                    }
-                } catch (e) { /* RPC fallback */ }
-                if (!deleted) {
-                    // Direct delete fallback (may fail if RLS blocks it)
-                    const { error } = await sb.from(TABLE_AGENTS).delete().eq('id', agentId);
-                    if (error) { showSnackbar('删除失败: ' + error.message); return; }
+                const { data: rpcData, error: rpcError } = await s3.rpc('delete_agent_rpc', {
+                    p_agent_id: agentId,
+                    p_username: currentUser
+                });
+                if (rpcError) { showSnackbar('删除失败: ' + rpcError.message); return; }
+                if (rpcData && rpcData.success === false) {
+                    showSnackbar(rpcData.message || '删除失败'); return;
                 }
                 showSnackbar('智能体已删除');
                 loadAgentList();
@@ -1841,33 +1442,16 @@
             try {
                 // v043: 对 API Key 做加盐哈希，防止明文在日志或网络抓包中泄露
                 const apiKeyHash = await hashApiKey(apiKey);
-                let saved = false;
-                try {
-                    const { data: rpcData, error: rpcError } = await sb.rpc('save_agent', {
-                        p_name: name,
-                        p_provider: provider,
-                        p_api_key: apiKeyHash,
-                        p_model: model,
-                        p_created_by: currentUser
-                    });
-                    if (!rpcError && rpcData && rpcData.success) { saved = true; }
-                    else if (rpcData && rpcData.success === false) {
-                        showSnackbar(rpcData.message || '保存失败'); return;
-                    }
-                } catch (e) { /* RPC fallback */ }
-                if (!saved) {
-                    await ensureAgentUserAccount(name);
-                    const { error } = await sb.from(TABLE_AGENTS).insert({
-                        name: name,
-                        provider: provider,
-                        api_key: apiKeyHash,
-                        model: model,
-                        created_by: currentUser
-                    });
-                    if (error) {
-                        showSnackbar('保存失败: ' + error.message);
-                        return;
-                    }
+                const { data: rpcData, error: rpcError } = await s3.rpc('save_agent', {
+                    p_name: name,
+                    p_provider: provider,
+                    p_api_key: apiKeyHash,
+                    p_model: model,
+                    p_created_by: currentUser
+                });
+                if (rpcError) { showSnackbar('保存失败: ' + rpcError.message); return; }
+                if (rpcData && rpcData.success === false) {
+                    showSnackbar(rpcData.message || '保存失败'); return;
                 }
                 showSnackbar('智能体已添加');
                 document.getElementById('agentApiKey').value = '';
@@ -1908,33 +1492,23 @@
             }
             const oldHash = await hashPassword(oldPwd);
             const newHash = await hashPassword(newPwd);
-            let changeError = null;
             let newSessionToken = null;
-            try {
-                const { data: changeData, error: secureError } = await sb.rpc('change_password_secure', {
-                    p_username: currentUser,
-                    p_old_hash: oldHash,
-                    p_new_hash: newHash
-                });
-                if (!secureError && changeData) {
-                    newSessionToken = changeData.session_token;
-                } else if (secureError) {
-                    changeError = secureError;
-                }
-            } catch (e) { changeError = e; }
-            if (changeError) {
-                const { error } = await sb.rpc('change_password', {
-                    p_username: currentUser,
-                    p_old_hash: oldHash,
-                    p_new_hash: newHash
-                });
-                if (error) {
-                    showSnackbar('更改密码失败: ' + error.message);
-                    return;
-                }
+            const { data: changeData, error: secureError } = await s3.rpc('change_password_secure', {
+                p_uid: currentUid,
+                p_old_password_hash: oldHash,
+                p_new_password_hash: newHash
+            });
+            if (secureError) {
+                showSnackbar('更改密码失败: ' + secureError.message);
+                return;
             }
+            if (changeData && changeData.success === false) {
+                showSnackbar(changeData.message || '更改密码失败');
+                return;
+            }
+            newSessionToken = changeData.session_token || null;
             if (newSessionToken) {
-                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, token: newSessionToken, pwhash: newHash }));
+                localStorage.setItem('mjchat_session', JSON.stringify({ username: currentUser, uid: currentUid, token: newSessionToken, pwhash: newHash }));
                 // Re-initialize encrypted settings with new password hash
                 initUserSettings(newHash, currentUser).catch(function(e) { console.warn('initUserSettings failed:', e); });
             }
@@ -1953,12 +1527,6 @@
             // 清理登出后仍会运行的后台定时器
             if (privateStatusInterval) { clearInterval(privateStatusInterval); privateStatusInterval = null; }
             if (_cloudControlInterval) { clearInterval(_cloudControlInterval); _cloudControlInterval = null; }
-            if (globalPrivateChannel) { sb.removeChannel(globalPrivateChannel); globalPrivateChannel = null; }
-            if (publicChannel) { publicChannel.untrack();
-                sb.removeChannel(publicChannel);
-                publicChannel = null; }
-            if (privateChannel) { sb.removeChannel(privateChannel);
-                privateChannel = null; }
             localStorage.removeItem('mjchat_session');
             // v053: 登出时重置免打扰状态
             _mutePublic = false;
@@ -1966,6 +1534,7 @@
             localStorage.removeItem('mjchat_public_muted');
             localStorage.removeItem('mjchat_private_muted');
             currentUser = '';
+            currentUid = 0;
             publicMessages = [];
             publicMessageById.clear();
             privateMessages = [];
@@ -2096,8 +1665,8 @@
                 return '注销失败: ' + msg;
             };
             try {
-                const { data, error } = await sb.rpc('delete_my_account', {
-                    p_username: currentUser,
+                const { data, error } = await s3.rpc('delete_my_account', {
+                    p_uid: currentUid,
                     p_password_hash: passwordHash
                 });
                 if (error) {
@@ -2109,10 +1678,6 @@
                     if (overlay) overlay.remove();
                     showSnackbar(data.message || '密码错误，请重试');
                     return;
-                }
-                if (publicChannel) {
-                    publicChannel.send({ type: 'broadcast', event: 'user_deleted', payload: { username: currentUser,
-                            forceLogout: true, initiator: currentUser } });
                 }
                 if (overlay) overlay.remove();
                 localStorage.removeItem('mjchat_session');
@@ -2133,16 +1698,11 @@
             if (!username) return 'offline';
             if (getOnlineUsernames().includes(username)) return 'online';
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_username: username });
                 if (!rpcError && rpcData) {
                     if (rpcData.success === false) return 'deleted';
                     return rpcData.banned ? 'banned' : 'offline';
                 }
-            } catch (e) { /* RPC unavailable -> fall back to direct query */ }
-            try {
-                const { data, error } = await sb.from(TABLE_USERS).select('banned').eq('username', username).maybeSingle();
-                if (!error && data) return data.banned ? 'banned' : 'offline';
-                if (!error && !data) return 'deleted';
             } catch (e) { /* ignore */ }
             return 'offline';
         }
@@ -2151,15 +1711,11 @@
         async function verifyServerAccountState(username) {
             if (!username) return 'unknown';
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('get_user_profile', { p_username: username });
+                const { data: rpcData, error: rpcError } = await s3.rpc('get_user_profile', { p_username: username });
                 if (!rpcError && rpcData) {
                     if (rpcData.success === false) return 'deleted';
                     return rpcData.banned ? 'banned' : 'active';
                 }
-            } catch (e) { /* RPC unavailable -> fall back to direct query */ }
-            try {
-                const { data, error } = await sb.from(TABLE_USERS).select('banned').eq('username', username).maybeSingle();
-                if (!error) return data ? (data.banned ? 'banned' : 'active') : 'deleted';
             } catch (e) { /* ignore */ }
             return 'unknown';
         }
@@ -2170,9 +1726,9 @@
             if (!privateOtherUser) return;
             const newBlockState = !privateBlockedStatus;
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('toggle_block_user', {
-                    p_blocker: currentUser,
-                    p_blocked: privateOtherUser,
+                const { data: rpcData, error: rpcError } = await s3.rpc('toggle_block_user', {
+                    p_blocker_uid: currentUid,
+                    p_blocked_uid: privateOtherUid || 0,
                     p_block: newBlockState
                 });
                 if (rpcError) { showSnackbar('操作失败: ' + rpcError.message); return; }
@@ -2217,8 +1773,8 @@
             const container = document.getElementById('blocklistContainer');
             container.innerHTML = '<p style="text-align:center;color:var(--md-on-surface-variant);">加载中...</p>';
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('get_blocked_users', {
-                    p_username: currentUser
+                const { data: rpcData, error: rpcError } = await s3.rpc('get_blocked_users', {
+                    p_uid: currentUid
                 });
                 if (rpcError) { container.innerHTML = '<p>加载失败</p>'; return; }
                 const blocked = rpcData || [];
@@ -2228,22 +1784,24 @@
                 }
                 container.innerHTML = blocked.map(u =>
                     `<div class="block-item">
-                        <span class="name">${escapeHtml(u.blocked)}</span>
-                        <button class="unblock-btn" onclick="unblockUser('${escapeJsString(u.blocked)}')">移除</button>
+                        <span class="name">${escapeHtml(u.username || u.blocked)}</span>
+                        <button class="unblock-btn" onclick="unblockUser('${escapeJsString(String(u.blocked))}')">移除</button>
                     </div>`
                 ).join('');
             } catch (e) { container.innerHTML = '<p>加载失败</p>'; }
         }
 
-        async function unblockUser(username) {
+        async function unblockUser(blockedUidStr) {
+            const blockedUid = parseInt(blockedUidStr, 10) || 0;
+            if (!blockedUid) { showSnackbar('无效用户'); return; }
             try {
-                const { data: rpcData, error: rpcError } = await sb.rpc('toggle_block_user', {
-                    p_blocker: currentUser,
-                    p_blocked: username,
+                const { data: rpcData, error: rpcError } = await s3.rpc('toggle_block_user', {
+                    p_blocker_uid: currentUid,
+                    p_blocked_uid: blockedUid,
                     p_block: false
                 });
                 if (rpcError) { showSnackbar('操作失败: ' + rpcError.message); return; }
-                showSnackbar(`已移出 ${username}`);
+                showSnackbar('已移出黑名单');
                 loadBlocklist();
             } catch (e) { showSnackbar('操作失败'); }
         }
